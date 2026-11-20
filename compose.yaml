@@ -1,0 +1,8 @@
+services:
+  dev:
+    build: .
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+    command: ["sh", "-ec", "cmake -S . -B /tmp/web-server-build && cmake --build /tmp/web-server-build"]
