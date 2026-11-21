@@ -6,13 +6,13 @@
 
 | 문서 | 범위 |
 |---|---|
-| [STEP1_TCP_SERVER.md](./STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
-| [STEP2_HTTP_PARSER.md](./STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
-| [STEP3_HTTP_RESPONSE.md](./STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
-| [STEP4_STATIC_FILE.md](./STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
-| [DECISIONS.md](./DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [STEP1_TCP_SERVER.md](./eungi/STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
+| [STEP2_HTTP_PARSER.md](./eungi/STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
+| [STEP3_HTTP_RESPONSE.md](./eungi/STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
+| [STEP4_STATIC_FILE.md](./eungi/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
+| [DECISIONS.md](./eungi/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 
-이 문서들은 오늘 작업 범위를 정리하기 위한 초안입니다. 구현 완료나 테스트 통과를 의미하지 않습니다.
+각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
 ## 구현 마일스톤 및 진행 상태
 

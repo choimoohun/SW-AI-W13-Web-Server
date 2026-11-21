@@ -10,7 +10,7 @@
 | D1 | 정적 파일 범위는 단일 스레드 블로킹으로 구현 | 오늘 범위 완주 우선. 동시성 모델 확정 후 분기만 교체 | STEP1, main/connection |
 | D2 | 정적 경로에 POST 요청은 405 | 정적 서빙은 GET 의미론 | STEP4, connection |
 | D3 | Transfer-Encoding: chunked 미지원, 501 | 본문은 Content-Length로만 판단 | STEP2, http_parser |
-| D4 | Keep-Alive 미지원, Connection: close로 요청마다 닫기 | 범위 단순화 | STEP3, connection/http_response |
+| D4 | 연결 재사용(keep-alive) 미구현, 매 응답 Connection: close로 종료 | 범위 단순화(HTTP/1.1 허용 방식) | STEP3, connection/http_response |
 | D5 | 피처 매크로 _XOPEN_SOURCE=700 | realpath가 glibc XOPEN 확장 필요, Linux/macOS 이식성 | Makefile/CMakeLists |
 | D6 | 경로 탈출은 컴포넌트 단위 .. 거부 + realpath 경계 검사 | 문자열 검사만으론 심볼릭링크·인코딩 우회를 못 막음 | STEP4, static_handler |
 
@@ -35,11 +35,12 @@
 - 이유: chunked 파싱은 범위를 크게 늘린다. 이번 범위에서는 Content-Length 기반만 지원한다.
 - 영향: http_parser.c.
 
-### D4. Keep-Alive 미지원
+### D4. 연결 재사용(keep-alive) 미구현
 - 상태: 확정.
-- 결정: 응답에 Connection: close를 명시하고 요청 1건 처리 후 연결을 닫는다.
-- 이유: 연결 재사용 상태 관리를 뒤로 미루고 정적 서빙에 집중한다. HTTP/1.1 기본이 keep-alive이므로 close를 명시하지 않으면 클라이언트가 재사용을 시도하다 오류를 볼 수 있다.
+- 결정: 한 연결에서 여러 요청을 처리하는 재사용은 구현하지 않는다. 대신 매 응답에 Connection: close를 명시하고 요청 1건 처리 후 연결을 닫는다.
+- 이유: HTTP/1.1 기본은 keep-alive지만, 서버가 응답에 Connection: close를 보내면 그 연결을 닫아도 된다(RFC 9110 허용). 프로토콜 위반이 아니라 서버가 persistence를 opt-out하는 합법적 방식이다. close를 명시하지 않으면 클라이언트가 재사용을 시도하다 오류를 볼 수 있으므로 반드시 명시한다. 연결 재사용 상태 관리(파이프라이닝, 유휴 타임아웃, 연결당 최대 요청 수)는 뒤로 미루고 정적 서빙에 집중한다. Keep-Alive는 요구사항에서 Should(권장)이라 MVP 필수는 아니다.
 - 영향: connection.c, http_response.c.
+- 비고: 요청마다 TCP 연결을 새로 맺는 오버헤드가 있다. 재사용은 향후 Should 항목으로 구현 가능.
 
 ### D5. 피처 매크로 _XOPEN_SOURCE=700
 - 상태: 확정.
