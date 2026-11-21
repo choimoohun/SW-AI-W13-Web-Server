@@ -41,3 +41,12 @@ build.ninja
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Makefile build outputs
+/webserver
+/tests/bin/
+
+# Local tooling artifacts
+/.hermes-rate-limits.sqlite3
+/.cache/
+/.static_test_*/
