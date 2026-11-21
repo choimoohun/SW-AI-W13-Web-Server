@@ -42,6 +42,7 @@ int main(void)
     /* 3) listen 소켓 열기 (FR-01). */
     int listen_fd = tcpserver_listen(port, 128);
     if (listen_fd < 0) { perror("tcpserver_listen"); return 1; }
+    fprintf(stderr, "listening on port %s (doc_root=%s)\n", port, doc_root);
 
     /* 4) accept 루프 — 종료 플래그가 설 때까지. */
     while (!g_stop) {
