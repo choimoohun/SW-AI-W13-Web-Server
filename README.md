@@ -20,15 +20,15 @@
 
 | 기술 영역 | 핵심 학습 내용 |
 |---|---|
-| **Network** | TCP/IP 스택 이해, Port 할당, Socket 라이프사이클 관리 |
-| **Linux/POSIX** | File Descriptor(FD) 개념, 커널 인터페이스(System Call) 활용 |
-| **HTTP** | 프로토콜 명세(RFC), Request/Response 구조, 상태 코드 정의 |
-| **C Programming** | 엄격한 포인터 운용, 버퍼 관리, 동적 메모리 할당 및 해제 |
-| **File I/O** | `open()`, `read()`, `close()`를 이용한 저수준 파일 제어 |
-| **Network I/O** | `socket()`, `accept()`, `recv()`, `send()` 기반의 데이터 흐름 설계 |
-| **Security** | Path Traversal(경로 탈출) 방어, 메모리 안정성(Buffer Overflow 방지) |
-| **Testing** | Unit/Integration Test 설계, ASAN/Valgrind를 이용한 결함 탐지 |
-| **Architecture** | 관심사 분리(Parser/Handler), FD 소유권 관리, 모듈화 설계 |
+| Network | TCP/IP 작동 원리, 포트 할당, 소켓 연결 관리 |
+| Linux/POSIX | 파일 디스크립터(FD) 개념, 시스템 콜 활용 |
+| HTTP | HTTP 프로토콜 규격, 요청과 응답 구조, 상태 코드 |
+| C Programming | 포인터 활용, 데이터 버퍼 관리, 메모리 할당과 해제 |
+| File I/O | 파일을 열고 읽고 닫는 저수준 제어 |
+| Network I/O | 소켓을 통한 데이터 송수신 흐름 설계 |
+| Security | 지정된 폴더 밖의 파일 접근 차단, 잘못된 메모리 접근 방지 |
+| Testing | 단위 및 통합 테스트 설계, 메모리 오류 검사 |
+| Architecture | 기능별 모듈 분리, 자원 소유권 관리, 코드 구조 설계 |
 
 ## 구현 마일스톤 및 진행 상태
 
