@@ -24,6 +24,13 @@
 - 할 일은 Issue로 올립니다. 논의 중 생긴 할 일도 Issue로 옮깁니다.
   예: [11월 21일 (토)](https://github.com/choimoohun/SW-AI-W13-Web-Server/issues/13) — Discussion #11에서 옮겨 옴
 - 코드/문서 변경은 PR로 올리고, 구현한 사람이 무엇을 왜 바꿨는지 설명합니다.
+- PR 본문은 `.github/pull_request_template.md`를 씁니다. 한 줄 요약 → 변경 → 이유 → 확인 명령 → 실제 결과 → 남은 것 순서로 짧게 적습니다.
+- CodeRabbit은 보조 리뷰어입니다. 자동 코멘트를 참고하되, 제안을 그대로 반영하지 말고 로컬 명령으로 확인합니다.
+  - `@coderabbitai review`: 새 커밋 리뷰 요청
+  - `@coderabbitai full review`: 파일 전체 다시 리뷰
+  - `@coderabbitai pause` / `resume`: 자동 리뷰 중지/재개
+  - `@coderabbitai resolve`: CodeRabbit 코멘트 해결 표시
+  - 그 외 질문은 `@coderabbitai` 뒤에 자연어로 적음. 명령은 코멘트 하나에 하나씩.
 - 리뷰 댓글은 파일·동작·재현 입력을 지정합니다. 작성자는 근거와 수정 결과를 답합니다.
 
 Issue에는 최소한 이걸 적습니다.
