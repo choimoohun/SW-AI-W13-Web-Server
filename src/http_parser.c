@@ -124,11 +124,13 @@ parse_status_t http_parser_parse(const char *buf, size_t len, http_request_t *re
         if (body_avail < (size_t)req->content_length) return PARSE_NEED_MORE;
         req->body = body_start;
         req->body_len = (size_t)req->content_length;
+        req->consumed = (size_t)(body_start - buf) + req->body_len;
         return PARSE_COMPLETE;
     }
     /* Content-Length 없음: POST 면 411, GET 등은 본문 없이 완성 */
     if (is_post) return fail(req, 411);
     req->body = body_start;
     req->body_len = 0;
+    req->consumed = (size_t)(body_start - buf);
     return PARSE_COMPLETE;
 }

@@ -1,32 +1,52 @@
 /*
- * main.c — 프로그램 진입점. 모듈 조립만 맡는다. (오늘 범위: 정적 파일까지)
- * 원리: 시그널 핸들러는 '플래그만' 세우고, 실제 정리는 루프가 빠져나온 뒤 main에서 수행.
+ * main.c — 프로그램 진입점. 모듈 조립만 맡는다.
  *
- * 마일스톤3~4: accept 루프에서 connection_handle(client_fd, doc_root) 호출.
- * 확인: make → ./webserver → curl http://127.0.0.1:8080/ (index.html).
+ * 시그널 핸들러는 '플래그만' 세우고, 워커들이 g_stop을 보고 루프를 빠져나온 뒤
+ * main이 join → listen fd 닫기 → 정상 종료 순으로 정리한다.
  */
-
 #include "tcpserver.h"
-#include "connection.h"
-#include <signal.h>   /* signal, sigaction, SIGPIPE, SIGINT, SIGTERM, sig_atomic_t */
-#include <stdio.h>    /* perror */
-#include <string.h>   /* memset */
-#include <unistd.h>   /* close */
+#include "flight_store.h"
+#include "worker.h"
+#include "config.h"
+#include "proxy.h"
+
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#define MAX_WORKERS 16
 
 static volatile sig_atomic_t g_stop = 0;
 
 static void on_signal(int sig)
 {
     (void)sig;
-    g_stop = 1;   /* 플래그만 세움 → accept 루프가 이걸 보고 빠져나옴 */
+    g_stop = 1;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    /* 1) 시그널 정책 (NFR-02). SIGPIPE 무시(전송 중 클라이언트 끊김에도 생존). */
+    server_config_t cfg;
+    const char *port;
+    const char *env;
+    int listen_fd;
+
+    (void)config_load(argc, argv, &cfg);
+    port = cfg.port;
+
+    /* 환경변수는 conf/CLI 다음의 마지막 오버라이드(테스트 포트 격리용). */
+    env = getenv("WEB_PORT");
+    if (env != NULL && env[0] != '\0') port = env;
+    env = getenv("WEB_WORKERS");
+    if (env != NULL) {
+        long n = strtol(env, NULL, 10);
+        if (n >= 1 && n <= MAX_WORKERS) cfg.workers = (int)n;
+    }
+
     signal(SIGPIPE, SIG_IGN);
 
-    /*    SIGINT/SIGTERM: g_stop 만 세움. SA_RESTART 끔 → accept 가 EINTR 로 중단 → 루프 탈출. */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = on_signal;
@@ -35,26 +55,26 @@ int main(void)
     sigaction(SIGINT,  &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    /* 2) 설정: 오늘은 고정. TODO(나중): conf/CLI(-p/-r)에서 port·doc_root (C-05). */
-    const char *port = "8080";
-    const char *doc_root = "./www";
-
-    /* 3) listen 소켓 열기 (FR-01). */
-    int listen_fd = tcpserver_listen(port, 128);
-    if (listen_fd < 0) { perror("tcpserver_listen"); return 1; }
-    fprintf(stderr, "listening on port %s (doc_root=%s)\n", port, doc_root);
-
-    /* 4) accept 루프 — 종료 플래그가 설 때까지. */
-    while (!g_stop) {
-        int client_fd = tcpserver_accept(listen_fd);
-        if (client_fd < 0) {
-            if (g_stop) break;
-            continue;
-        }
-        connection_handle(client_fd, doc_root);   /* 읽기/파싱/정적파일/응답/닫기 */
+    flight_store_init();
+    if (proxy_start() < 0) {
+        fprintf(stderr, "proxy_start failed\n");
+        return 1;
     }
 
-    /* 5) 정리: listen fd 닫고 정상 종료 (exit 0). */
+    listen_fd = tcpserver_listen(port, 128);
+    if (listen_fd < 0) { perror("tcpserver_listen"); proxy_stop(); return 1; }
+    fprintf(stderr, "listening on port %s (doc_root=%s, workers=%d)\n",
+            port, cfg.doc_root, cfg.workers);
+
+    if (worker_pool_start(listen_fd, &cfg, &g_stop) < 0) {
+        fprintf(stderr, "worker_pool_start failed\n");
+        close(listen_fd);
+        proxy_stop();
+        return 1;
+    }
+    worker_pool_join();
+    proxy_stop();
+
     close(listen_fd);
     return 0;
 }

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUNGLE AIR | 항공권 예약</title>
+<style>
+  :root { --bg:#0b1220; --panel:#141d2e; --line:#263449; --accent:#3b82f6; --muted:#8fa3bf; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#e8eef8; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; gap:28px; padding:18px 32px; border-bottom:1px solid var(--line); background:#0d1626; }
+  .brand { font-size:20px; font-weight:800; letter-spacing:2px; color:#fff; }
+  .brand span { color:var(--accent); }
+  nav button { background:none; border:0; color:var(--muted); font-size:14px; padding:6px 0; cursor:pointer; border-bottom:2px solid transparent; }
+  nav button.active { color:#fff; border-bottom-color:var(--accent); }
+  main { max-width:1120px; margin:0 auto; padding:28px 24px 60px; }
+  h2 { font-size:18px; margin:0 0 16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:20px; }
+  .fields { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); }
+  input, select { background:#0e1727; border:1px solid var(--line); color:#e8eef8; border-radius:8px; padding:10px 12px; font-size:14px; min-width:140px; }
+  .primary { background:var(--accent); border:0; color:#fff; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:700; cursor:pointer; }
+  .primary:hover { filter:brightness(1.1); }
+  .ghost { background:none; border:1px solid var(--line); color:#e8eef8; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:13px; }
+  .grid { display:grid; grid-template-columns:1fr 360px; gap:20px; }
+  .flight { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:16px 0; border-bottom:1px solid var(--line); }
+  .flight:last-child { border-bottom:0; }
+  .code { font-size:18px; font-weight:700; }
+  .route { font-size:15px; margin-top:4px; }
+  .time { color:var(--muted); font-size:13px; margin-top:4px; }
+  .right { text-align:right; }
+  .seats { font-size:13px; color:#7ee787; }
+  .seats.low { color:#f0883e; }
+  .status { display:inline-block; margin-top:6px; font-size:11px; padding:3px 8px; border-radius:4px; background:#1f3a5f; color:#9fc5ff; }
+  .status.delayed { background:#4a2c10; color:#ffb86b; }
+  .empty { color:var(--muted); padding:20px 0; text-align:center; }
+  .res { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .res:last-child { border-bottom:0; }
+  .muted { color:var(--muted); font-size:13px; }
+  .cancelled { text-decoration:line-through; color:var(--muted); }
+  .timeline-item { border-left:2px solid var(--line); padding:0 0 12px 12px; font-size:13px; }
+  .timeline-item b { display:block; color:#9fc5ff; }
+  .timeline-item span { color:var(--muted); }
+  #toast { position:fixed; right:24px; bottom:24px; background:#1c2b42; border:1px solid var(--accent); padding:12px 18px; border-radius:8px; font-size:14px; display:none; }
+  #toast.err { border-color:#f85149; }
+  @media (max-width:860px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">JUNGLE<span>AIR</span></div>
+  <nav>
+    <button id="tabSearch" class="active">항공편 검색</button>
+    <button id="tabMine">내 예약</button>
+  </nav>
+</header>
+
+<main>
+  <section id="viewSearch">
+    <div class="panel">
+      <h2>항공편 찾기</h2>
+      <div class="fields">
+        <label>출발지
+          <select id="from"><option value="">전체</option><option value="ICN">인천 (ICN)</option><option value="NRT">나리타 (NRT)</option><option value="JFK">뉴욕 (JFK)</option></select>
+        </label>
+        <label>도착지
+          <select id="to"><option value="">전체</option><option value="ICN">인천 (ICN)</option><option value="NRT">나리타 (NRT)</option><option value="JFK">뉴욕 (JFK)</option></select>
+        </label>
+        <button id="searchBtn" class="primary">검색</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>검색 결과</h2>
+        <div id="flights"></div>
+      </div>
+      <aside class="panel">
+        <h2 id="detailTitle">항공편 상세</h2>
+        <div id="detailBody" class="muted">항공편을 선택하면 상세 정보와 예약 폼이 표시됩니다.</div>
+        <div id="timeline"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="viewMine" style="display:none">
+    <div class="panel">
+      <h2>내 예약</h2>
+      <div id="reservations"></div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="/flights.js"></script>
+</body>
+</html>

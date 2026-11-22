@@ -14,6 +14,30 @@
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
+## 현재 구현 상태 (2026-11-22)
+
+정적 파일 서빙을 넘어 아래 기능까지 구현·검증했습니다.
+
+| 기능 | 진입점 | 검증 명령 |
+|---|---|---|
+| 워커 풀 + poll 이벤트 루프 + keep-alive(최대 100회) | `src/worker.c`, `src/iomux.c`, `src/connection.c` | `make integration`, `make load-test` |
+| 항공편 예약 + 파일 영속 저장 | `src/flight_store.c`, `src/flight_api.c` | `make test-flight`, `make integration-flight`, `make integration-persist` |
+| 출발/도착 자동 추적 + 지연 | `src/flight_clock.c`, `www/ops.html` | `make test-tracking`, `make integration-tracking` |
+| Date/Server 헤더, `/health`, `/echo`, 접근 로그, `-p/-r/-c` | `src/http_response.c`, `src/config.c` | `make integration-req` |
+| 리버스 프록시(게이트웨이 라우팅 + Round-Robin 로드밸런싱) | `src/proxy.c`, `conf/tcpserver.conf` | `make integration-req` |
+| 로컬 미니 CDN(TTL 캐시, `X-Cache: HIT/MISS`) | `src/cdn.c` | `make integration-req` |
+
+실제 실행:
+
+```sh
+make
+./webserver                      # http://127.0.0.1:8080/
+# 또는: ./webserver -p 8083 -r ./www -c conf/tcpserver.conf
+```
+
+브라우저 화면: `http://127.0.0.1:8080/flights.html`(예약), `http://127.0.0.1:8080/ops.html`(운항 관제).
+동시성 before/after는 앱 UI가 아니라 `make integration-flight`, `make tsan`으로 확인합니다.
+
 ## 기술 영역 및 학습 목표
 
 이 프로젝트를 통해 아래의 핵심 기술 영역들을 깊이 있게 다루고 검증합니다.
@@ -95,7 +119,7 @@ nc -zv 127.0.0.1 8080   # 포트 열림 → "succeeded!" 확인
 echo $?                 # 종료 코드 0 확인 (graceful shutdown)
 ```
 
-### 마일스톤 4 이후 정적 파일 서빙 검증 명령 (아직 실행하지 않음)
+### 마일스톤 4 이후 정적 파일 서빙 검증 명령  
 
 ```sh
 curl -i http://127.0.0.1:8080/                          # 200 + index.html
@@ -103,6 +127,35 @@ curl -i http://127.0.0.1:8080/nope                      # 404
 curl -i --path-as-is http://127.0.0.1:8080/../etc/passwd  # 403 (경로 탈출 차단)
 curl -s http://127.0.0.1:8080/test.png | cmp - www/test.png && echo "binary OK"
 ```
+
+### 항공권 예약 앱 (STEP5/6)
+
+```sh
+make && ./webserver            # 기본 워커 4개, after 모드
+# 브라우저: http://127.0.0.1:8080/flights.html
+#   검색 → 항공편 선택 → 승객 정보 입력 → 예약 → 내 예약 → 취소
+# 예약은 data/flights.txt에 저장되어 재시작 후에도 유지된다.
+# 테스트는 FLIGHT_DATA_FILE=/dev/null로 격리한다.
+
+make test-flight               # 좌석 경쟁 단위 검증 (before/after)
+make integration-flight        # HTTP 100동시 + keep-alive + slow client
+make integration-persist       # 재시작 후 예약 유지 검증
+make tsan                      # 데이터 레이스 비교 빌드
+```
+
+동시성 before/after는 앱 화면에 노출하지 않는다. 터미널 검증과 TSan으로만 확인한다.
+
+### 출발/도착 추적 (운영 콘솔)
+
+```sh
+FLIGHT_TIME_MODE=sim FLIGHT_SIM_SPEED=3000 ./webserver
+# 운영 화면: http://127.0.0.1:8080/ops.html
+#   예정/실제 출발·도착, 카운트다운, 지연 입력, 운항 이력
+make test-tracking          # 시계·전이 단위 검증
+make integration-tracking   # 8081 포트에서 자동 출발/도착 통합 검증
+```
+
+기본은 실제 시간 모드이고, `FLIGHT_SIM_SPEED`는 가상 모드에서만 의미가 있다.
 
 ## 파일 분리 기준
 

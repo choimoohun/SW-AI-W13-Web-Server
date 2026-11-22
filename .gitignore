@@ -15,6 +15,9 @@ Testing/
 .ninja_log
 build.ninja
 
+# Runtime state (flight reservations)
+/data/
+
 # Compiler and linker outputs
 *.o
 *.obj
@@ -44,6 +47,7 @@ Desktop.ini
 
 # Makefile build outputs
 /webserver
+src/*.d
 /tests/bin/
 
 # Local tooling artifacts
