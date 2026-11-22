@@ -152,32 +152,11 @@
           '<option value="card">신용카드</option>' +
           '<option value="bank">무통장 입금</option>' +
         '</select></label>' +
-        '<button id="payInlineBtn" class="primary">결제하기</button>' +
-        '<a class="ghost" href="/pay.html?rid=' + encodeURIComponent(rid) + '">별도 결제 페이지</a>' +
+        '<a id="payInlineBtn" class="primary" href="/pay.html?rid=' +
+          encodeURIComponent(rid) + '">결제하기</a>' +
       '</div>' +
-      '<div id="payInlineResult" class="muted" style="margin-top:12px">결제 대기 중</div>';
+      '<div id="payInlineResult" class="muted" style="margin-top:12px">결제 페이지로 이동합니다.</div>';
     $('timeline').innerHTML = '';
-    $('payInlineBtn').onclick = function () {
-      $('payInlineBtn').disabled = true;
-      $('payInlineResult').textContent = '결제 요청 중…';
-      post('/api/payments/charge', {
-        reservation_id: rid,
-        amount: 89000,
-        method: $('payMethod').value,
-        idempotency_key: 'pay-' + rid
-      }).then(function (pay) {
-        if (pay.error) {
-          $('payInlineResult').textContent = '결제 실패: ' + (pay.message || pay.error);
-          $('payInlineBtn').disabled = false;
-          return;
-        }
-        $('payInlineResult').textContent = '결제 완료: ' + pay.id + ' · ' + pay.status;
-        loadReservations();
-      }).catch(function () {
-        $('payInlineResult').textContent = '결제 서비스에 연결할 수 없습니다.';
-        $('payInlineBtn').disabled = false;
-      });
-    };
   }
 
   function renderTimeline(data) {

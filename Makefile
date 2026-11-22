@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases reset-flights load-test leak asan tsan clean
+.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases reset-flights load-test load-test-heavy leak asan tsan clean
 
 all: $(BIN)
 
@@ -75,9 +75,13 @@ reset-flights:
 edge-cases: $(BIN)
 	@sh tests/integration/edge_cases.sh
 
-# 부하 테스트: 200요청 동시 20, RPS/지연/에러 수 기록.
+# 부하 테스트: 기본 200요청 동시 20, RPS/지연/에러 수 기록.
 load-test: $(BIN)
 	@sh tests/integration/load_test.sh
+
+# 동시 100, 1000요청: FR-06 "100 동시 접속" 수용 기준 확인.
+load-test-heavy: $(BIN)
+	@LOAD_C=100 LOAD_N=1000 sh tests/integration/load_test.sh
 
 # 영속 저장 검증: 재시작 후에도 예약/좌석/이력 유지.
 integration-persist: $(BIN)

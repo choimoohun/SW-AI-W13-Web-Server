@@ -221,7 +221,7 @@ make integration-backends       # mini-redis·mini-dbms를 게이트웨이 뒤�
 ```sh
 make integration-backends     # 8500 결제 프로세스까지 함께 기동
 make integration-payments     # 충전·중복 방지 키·조회·환불·잘못된 금액·독립 재시작
-# http://127.0.0.1:8085/flights.html → 예약하기 → 오른쪽 결제 패널 → 결제 완료 후 내 예약에 표시
+# http://127.0.0.1:8085/flights.html → 예약하기 → 오른쪽 결제 패널의 "결제하기" → /pay.html → 결제 완료 후 내 예약에 표시
 # 내 예약: 출발 7~5일 전 100%, 5~2일 전 80%, 2~1일 전 50%, 1일 이내 신청 마감
 ```
 
@@ -297,7 +297,8 @@ make integration-req           # 헤더/health/echo/프록시/캐시
 make integration-backends      # mini-redis·mini-dbms·결제 별도 프로세스 연결
 make integration-payments     # 결제 충전·중복 방지 키·환불·독립 재시작
 make tsan                      # 데이터 레이스 비교
-make load-test                 # 부하
+make load-test                 # 부하 (동시 20, 200요청)
+make load-test-heavy           # 동시 100, 1000요청
 ```
 
 기능별 시연:
