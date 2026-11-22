@@ -1,6 +1,6 @@
 # 작업 인계와 현재 상태
 
-이 문서는 **오늘/현재 단위의 상태**를 적는 곳입니다. 영구 규칙은 `docs/workflow/TEAM_PROCESS.md`, 설계는 `docs/`, 실행 증거는 `verify/`에 둡니다.
+이 문서는 오늘/현재 단위의 상태를 적는 곳입니다. 영구 규칙은 `docs/process/TEAM_PROCESS.md`, 설계는 `docs/`, 실행 증거는 `verify/`에 둡니다.
 
 ## 현재 단위
 
@@ -35,7 +35,7 @@ STEP10 결제 서비스 연결과 문서 구조 정리를 끝냈습니다. PR #1
 - 문제 → 설계 → 검증 순서로 남깁니다.
 - 실행하지 않은 테스트는 `NOT RUN`, 범위 밖은 `OUT OF SCOPE`으로 적습니다.
 - 실패와 수정, 재검증을 지우지 않습니다.
-- 팀 합의가 필요한 항목은 `docs/workflow/TEAM_PROCESS.md`에 미정으로 둡니다.
+- 팀 합의가 필요한 항목은 `docs/process/TEAM_PROCESS.md`에 미정으로 둡니다.
 
 ## 로컬·Git 상태
 

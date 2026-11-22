@@ -3,7 +3,7 @@
 요구사항 문서에 남아 있던 `[결정 필요]` 항목을 실제 구현대로 확정하고,
 헤더·로그·CLI·경계 케이스를 정리한 단계입니다.
 
-## 1. 확정한 결정
+## 확정한 결정
 
 | 항목 | 결정 |
 |---|---|
@@ -13,14 +13,14 @@
 | FR-06 동시성 | 워커 풀 + `iomux`. `fork` 멀티프로세스는 사용하지 않음 |
 | 라우팅 기준 | Path prefix. `route = prefix|backend...|rewrite`로 경로 수정 |
 
-## 2. 관측과 표준 헤더
+## 관측과 표준 헤더
 
 - `Date`, `Server: jungle-c/1.0` 헤더를 모든 응답에 포함합니다.
 - 접근 로그 형식: `[시간] [wN] [client_ip] "METHOD URI" STATUS BYTES ms`.
 - `GET /health`, `POST /echo`를 내장 엔드포인트로 제공합니다.
 - 정적 응답에 `Cache-Control`, 약한 `ETag`를 추가했습니다.
 
-## 3. 경계 케이스
+## 경계 케이스
 
 `tests/integration/edge_cases.sh`가 실제로 확인합니다.
 
@@ -37,7 +37,7 @@
 서버가 직접 닫는 연결을 관찰해야 하며, 느린 요청/응답 시나리오는 아직 별도
 검증 스크립트가 없습니다.
 
-## 4. 검증
+## 검증
 
 ```sh
 make integration-req   # 헤더/health/echo/프록시 RR/XFF/502/로그/캐시 헤더

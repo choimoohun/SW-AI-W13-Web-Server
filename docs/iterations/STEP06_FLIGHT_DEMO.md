@@ -3,9 +3,9 @@
 ## 범위 / 의도
 
 - 입력에서 두 가지가 섞여 있었다: (1) 항공편 예약 서버(동시성 해결 전/후 데모), (2) 출발/도착 시간 추적 서버.
-- **둘을 하나의 앱으로 합친다.** 예약은 경쟁이 가장 치열한 지점을 만들고, 출발/도착 추적은 같은 `flight` 레코드에 상태/타임라인 필드를 얹는 것뿐이므로 별도 서버로 나눌 이유가 없다.
+- 둘을 하나의 앱으로 합친다. 예약은 경쟁이 가장 치열한 지점을 만들고, 출발/도착 추적은 같은 `flight` 레코드에 상태/타임라인 필드를 얹는 것뿐이므로 별도 서버로 나눌 이유가 없다.
 - 기존 웹서버를 그대로 확장한다: `www/` 정적 보드 + `/api/...` 엔드포인트. 외부 API/DB/JSON 라이브러리 없음(시드 데이터는 코드에 박아둠).
-- **전제: STEP5(멀티 워커 스레드) 이후에만 의미가 있다.** STEP1~4의 단일 accept 루프에서는 요청이 직렬 처리되므로 좌석 경쟁이 재현되지 않는다. "before" 모드의 레이스는 워커 스레드가 2개 이상일 때 비로소 보인다.
+- 전제: STEP5(멀티 워커 스레드) 이후에만 의미가 있다. STEP1~4의 단일 accept 루프에서는 요청이 직렬 처리되므로 좌석 경쟁이 재현되지 않는다. "before" 모드의 레이스는 워커 스레드가 2개 이상일 때 비로소 보인다.
 
 ## 비범위
 
@@ -19,7 +19,7 @@
 | 파일 | 책임 | 비고 |
 |---|---|---|
 | `include/flight_store.h` | `flight_t`, `reservation_t`, `flight_event_t`, `flight_store_t` 선언 + API | 자료구조/뮤텍스 포함 |
-| `src/flight_store.c` | 시드 초기화, 좌석 예약, 조회, 상태 변경, 이벤트 기록 | **경쟁 지점 여기** |
+| `src/flight_store.c` | 시드 초기화, 좌석 예약, 조회, 상태 변경, 이벤트 기록 | 경쟁 지점 여기 |
 | `include/flight_api.h` / `src/flight_api.c` | 라우팅, 요청 파싱, JSON 직렬화, 상태코드 | `http_response` 재사용 |
 | `src/http_response.c` | `http_response_json()` 헬퍼 추가 | 기존 함수는 건드리지 말고 추가 |
 | `src/connection.c` | `/api/` 접두사면 `flight_api_handle()`로 분기 | TODO 한 줄만 삽입 |
@@ -75,7 +75,7 @@ typedef struct {
 |---|---|---|---|---|
 | GET | `/api/flights` | - | 200 목록 | - |
 | GET | `/api/flights/{id}` | - | 200 상세 | 404 |
-| POST | `/api/flights/{id}/reserve` | `{"name":"홍길동"}` | 201 예약 정보 | 404 / 400 / **409 SOLD_OUT** |
+| POST | `/api/flights/{id}/reserve` | `{"name":"홍길동"}` | 201 예약 정보 | 404 / 400 / 409 SOLD_OUT |
 | GET | `/api/flights/{id}/timeline` | - | 200 이벤트 배열 | 404 |
 | POST | `/api/admin/flights/{id}/status` | `{"status":"DELAYED","note":"...", "at":<epoch>}` | 200 | 400/404 |
 | GET | `/api/admin/mode` | - | 200 `{"lock":true}` | - |
@@ -92,13 +92,13 @@ typedef struct {
 ### after (기본, `lock_enabled = 1`)
 
 1. `pthread_mutex_lock(&flight.mu)` → 좌석 확인(`seat_left > 0`) → 예약 레코드 추가 → `seat_left--` → 이벤트 기록 → `pthread_mutex_unlock(&flight.mu)`.
-2. **락 안에서 응답 문자열을 만들지 않는다.** 필요한 값만 지역 변수/버퍼로 복사하고 `pthread_mutex_unlock()`한 뒤 JSON 직렬화·소켓 전송을 한다(락 보유 시간 최소화).
+2. 락 안에서 응답 문자열을 만들지 않는다. 필요한 값만 지역 변수/버퍼로 복사하고 `pthread_mutex_unlock()`한 뒤 JSON 직렬화·소켓 전송을 한다(락 보유 시간 최소화).
 3. 파일 저장도 락 안에서 하지 않는다. `snapshot_and_save()`가 스냅샷을 만든 뒤 락을 풀고 `rename()`으로 원자적 교체한다.
 4. 읽기 API(`flight_store_list()`, `flight_store_timeline()`)도 같은 항공편 락을 사용해 찢어진 값을 읽지 않게 한다.
 
 ### before (`lock_enabled = 0`, 의도적 버그)
 
-- 예약 경로에서만 항공편 락을 건너뛴다. `seat_left > 0` 확인 → `seat_left--` 사이에 `nanosleep(20000µs)`을 넣어 레이스 창을 **인위적으로 넓힌다**(데모 전용. 없으면 너무 빨라서 안 보임).
+- 예약 경로에서만 항공편 락을 건너뛴다. `seat_left > 0` 확인 → `seat_left--` 사이에 `nanosleep(20000µs)`을 넣어 레이스 창을 인위적으로 넓힌다(데모 전용. 없으면 너무 빨라서 안 보임).
 - 이건 실제 데이터 레이스(UB)다. 절대 기본값으로 두지 말고, `POST /api/admin/mode`로 `{"lock":false}`를 보내 켜고 데모 끝나면 즉시 `{"lock":true}`로 되돌린다.
 
 ### 스케일 업 메모 (지금은 하지 않는다)
@@ -158,7 +158,7 @@ seq 1 100 | xargs -P 100 -I{} curl -s -o /dev/null -w '%{http_code}\n' \
 ```
 
 - 기대값: before → `201` 다수 + `409` 일부(초과 예약 재현). after → `201 1건`, `409 99건`.
-- 순서: 반드시 **before 먼저 → after**. after에서 성공 후엔 KE999가 매진 상태이므로, repeat하려면 서버 재시작(시드 초기화) 필요.
+- 순서: 반드시 before 먼저 → after. after에서 성공 후엔 KE999가 매진 상태이므로, repeat하려면 서버 재시작(시드 초기화) 필요.
 - macOS에서 TSan 미지원 시 "사용 불가"로 기록하고, 초과 예약 횟수로 레이스 존재를 증명한다.
 
 ---
@@ -183,7 +183,7 @@ seq 1 100 | xargs -P 100 -I{} curl -s -o /dev/null -w '%{http_code}\n' \
 | t3 | 엣지 케이스 보강 + 문서화 (Todo 9~11) | 5회 |
 | t4 | 테스트·시연 검증, DECISIONS 기록 | 2회 |
 
-> 너무 긴 한 줄은 자동 분배가 문장 중간을 자른다. `python3 ~/.hermes/tools/rate_limit_manager.py setup` 에 **한 문장짜리 목표**를 다시 넣으면 깔끔하게 나뉜다. 슬롯이 끝날 때마다 `/new`로 대화를 새로 여는 게 리밋 방지에 가장 효과적이다.
+> 너무 긴 한 줄은 자동 분배가 문장 중간을 자른다. `python3 ~/.hermes/tools/rate_limit_manager.py setup` 에 한 문장짜리 목표를 다시 넣으면 깔끔하게 나뉜다. 슬롯이 끝날 때마다 `/new`로 대화를 새로 여는 게 리밋 방지에 가장 효과적이다.
 
 ## 앱 성격 변경 메모
 

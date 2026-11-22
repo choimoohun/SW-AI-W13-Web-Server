@@ -42,14 +42,14 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 ### 메모리 검사 (`make asan`, macOS)
 - ASAN+UBSan 빌드 후 기능 시나리오 실행 → 메모리 오류/UB 리포트 없음(halt_on_error=1, 중단 없음).
 - graceful shutdown: SIGTERM → exit 0.
-- **플랫폼 제약:** macOS ASAN은 메모리 오류·UBSan만 지원하고 누수 검사(LeakSanitizer)는 Linux 전용.
+- 플랫폼 제약: macOS ASAN은 메모리 오류·UBSan만 지원하고 누수 검사(LeakSanitizer)는 Linux 전용.
 
 ### 누수 검사 (Linux Valgrind, Docker) — 확정
 - Docker(debian bookworm, valgrind 3.19) 컨테이너에서 빌드 → `valgrind --leak-check=full --show-leak-kinds=all` 실행.
 - 정적 파일 시나리오(GET /, 404, 403, PNG, POST 405) 실행 후 SIGTERM 종료.
-- HEAP SUMMARY: in use at exit **0 bytes in 0 blocks**. total heap usage: 1 allocs, 1 frees, 64 bytes.
-- "All heap blocks were freed -- no leaks are possible". ERROR SUMMARY: **0 errors**. valgrind exit 0.
-- → **누수 0 bytes, 메모리 오류 0건 확정 (NFR-01 충족).**
+- HEAP SUMMARY: in use at exit 0 bytes in 0 blocks. total heap usage: 1 allocs, 1 frees, 64 bytes.
+- "All heap blocks were freed -- no leaks are possible". ERROR SUMMARY: 0 errors. valgrind exit 0.
+- → 누수 0 bytes, 메모리 오류 0건 확정 (NFR-01 충족).
 
 ## 테스트 실행 방법
 
@@ -305,23 +305,23 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 ### 메모리 오류 검사 — AddressSanitizer + UBSan (macOS)
 - `make asan` exit 0. 실제 플래그 확인: `-fsanitize=address,undefined -g`.
 - ASAN 바이너리로 `make integration` exit 0 (`integration: all passed`), `make integration-flight` exit 0 (`flight integration: all passed`).
-- 출력에서 `ERROR: AddressSanitizer` / `runtime error:` / `SUMMARY: AddressSanitizer` 검색 → **0건**.
+- 출력에서 `ERROR: AddressSanitizer` / `runtime error:` / `SUMMARY: AddressSanitizer` 검색 → 0건.
 - macOS 제약 유지: LeakSanitizer 미지원. 누수 0 확정은 아래 Linux valgrind 결과로 대체.
 
 ### 데이터 레이스 검사 — ThreadSanitizer
 - `make tsan` exit 0. 실제 플래그 확인: `-fsanitize=thread -g`.
 - TSAN 바이너리로 `make integration-flight` exit 0.
-- `WARNING: ThreadSanitizer: data race` **1건**, 위치 `flight_store.c:420`(write) vs `flight_store.c:385`(read), `flight_store_reserve`. 발생 구간은 스크립트의 `--- before (락 없음) ---` 마커와 `--- after (뮤텍스) ---` 마커 **사이**뿐이며, after 구간은 0건. 즉 의도된 무락 before 경로만 검출되고 수정된 after 경로는 클린. `FATAL: ThreadSanitizer` 등 기타 오류 0건.
+- `WARNING: ThreadSanitizer: data race` 1건, 위치 `flight_store.c:420`(write) vs `flight_store.c:385`(read), `flight_store_reserve`. 발생 구간은 스크립트의 `--- before (락 없음) ---` 마커와 `--- after (뮤텍스) ---` 마커 사이뿐이며, after 구간은 0건. 즉 의도된 무락 before 경로만 검출되고 수정된 after 경로는 클린. `FATAL: ThreadSanitizer` 등 기타 오류 0건.
 
 ### 누수 검사 — Linux valgrind (Docker `make leak`)
 - `make leak` exit 0 (컨테이너 내부 `tests/leak_check.sh` 실행).
 - 시나리오 HTTP 코드(실제 출력): `index 200`, `index again 200`, `png 200`, `traversal 403`, `POST 405`, `health 200`, `echo 200`, `flights 200`, `reserve 201`, `timeline 200`, `ops clock 200`, `proxy 502 502`.
 - `HEAP SUMMARY`: `in use at exit: 0 bytes in 0 blocks`, `total heap usage: 31 allocs, 31 frees, 13,253,508 bytes allocated`.
 - `All heap blocks were freed -- no leaks are possible`, `ERROR SUMMARY: 0 errors from 0 contexts`, `valgrind exit: 0`.
-- → **누수 0 bytes, 메모리 오류 0건 재확인 (NFR-01 충족).**
+- → 누수 0 bytes, 메모리 오류 0건 재확인 (NFR-01 충족).
 
 ### 실패 및 재현
-- **실패 없음.** 위 모든 명령의 exit code가 0이고, 각 스크립트도 `all passed`로 종료됨.
+- 실패 없음. 위 모든 명령의 exit code가 0이고, 각 스크립트도 `all passed`로 종료됨.
 - 전체 재현 명령:
 ```sh
 cd /Users/velocitygoal/Desktop/jungle/SW-AI-W13-Web-Server
@@ -390,7 +390,7 @@ Transfer/sec:     23.10MB
 `c->requests >= keepalive_max`를 검사해서 `keep_alive=0`으로 바꾸고 있었으므로,
 헤더는 `Connection: keep-alive`인데 서버는 소켓을 닫아 클라이언트가 read error를 냈습니다.
 
-`src/connection.c`에서 응답을 만들기 **전에** `c->requests + 1 >= keepalive_max`를
+`src/connection.c`에서 응답을 만들기 전에 `c->requests + 1 >= keepalive_max`를
 판단해 헤더와 실제 종료 동작을 일치시켰습니다. 재실행 결과 socket errors 줄 자체가 사라졌습니다.
 
 ### 결론
