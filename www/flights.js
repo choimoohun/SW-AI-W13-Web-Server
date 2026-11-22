@@ -141,9 +141,28 @@
           '<div class="code">' + r.flight_id + ' <span class="muted">' + r.id + '</span></div>' +
           '<div class="muted">' + r.name + (r.contact ? ' · ' + r.contact : '') + '</div>' +
           '<div class="muted">예약 시각 ' + time(r.created_epoch) +
-            (r.cancelled ? ' · 취소됨' : '') + '</div></div>' +
+            (r.cancelled ? ' · 취소됨' : '') + '</div>' +
+          '<span class="muted" data-pay-status="' + r.id + '">' +
+            (r.cancelled ? '' : '결제 확인 중…') + '</span></div>' +
         (r.cancelled ? '' : '<button class="ghost" data-cancel="' + r.id + '">취소</button>');
       box.appendChild(el);
+      if (r.cancelled) return;
+      fetch('/api/payments/by-reservation?rid=' + encodeURIComponent(r.id))
+        .then(function (resp) { return resp.status === 404 ? null : resp.json(); })
+        .then(function (pay) {
+          var slot = box.querySelector('[data-pay-status="' + r.id + '"]');
+          if (!slot) return;
+          if (pay) {
+            slot.textContent = (pay.status === 'REFUNDED' ? '환불됨' : '결제 완료') +
+              ' · ' + pay.amount + '원';
+          } else {
+            slot.innerHTML = '<button class="ghost" data-pay="' + r.id + '">결제하기</button>';
+          }
+        })
+        .catch(function () {
+          var slot = box.querySelector('[data-pay-status="' + r.id + '"]');
+          if (slot) slot.textContent = '결제 서비스 확인 불가';
+        });
     });
   }
 
@@ -156,7 +175,21 @@
   document.addEventListener('click', function (e) {
     var id = e.target.getAttribute('data-flight');
     var cancel = e.target.getAttribute('data-cancel');
+    var pay = e.target.getAttribute('data-pay');
     if (id) { selectFlight(id); return; }
+    if (pay) {
+      post('/api/payments/charge', {
+        reservation_id: pay,
+        amount: 89000,
+        method: 'card',
+        idempotency_key: 'pay-' + pay
+      }).then(function (r) {
+        if (r.error) { toast(r.message || r.error, true); return; }
+        toast('결제 완료: ' + r.id);
+        loadReservations();
+      });
+      return;
+    }
     if (cancel) {
       post('/api/reservations/' + cancel + '/cancel', { client: client })
         .then(function (r) {

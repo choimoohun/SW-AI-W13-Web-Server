@@ -457,3 +457,51 @@ orders RR: program=주문2 / 주문 / 주문2 / 주문
 config/proxy 변경 후 `make test`, `make integration`, `make integration-flight`,
 `make integration-req`, Linux(epoll) 전체 회귀(`tests/linux_check.sh`) 모두 PASS.
 기본 `conf/tcpserver.conf`의 502 시나리오는 그대로 동작합니다.
+
+---
+
+## 2026-11-23 추가 기록 (9) — 결제 서비스 연결
+
+### 문제
+
+`make integration-persist`가 처음에는 실패했습니다. 원인은 코드가 아니라 앞선 실험에서
+남아 있던 `webserver`(8080 포트)였습니다. 테스트가 새 DB 파일을 쓰려는데 예전 프로세스가
+8080을 점유하고 있어 요청이 엉뚱한 서버로 갔습니다. 해당 프로세스 정리 후 재실행 결과
+`flight persistence: all passed`, exit 0입니다.
+
+### 구현
+
+- `tests/backends/serve_payments.py`: 8500 포트, 자기 파일 DB, `CAPTURED`/`REFUNDED`,
+  멱등키, 환불. `PAYMENT_DATA_FILE`로 테스트 DB를 분리.
+- `conf/backends.conf`: `route = /api/payments/|127.0.0.1:8500|/`.
+- `www/flights.js`: 내 예약 목록에서 결제 상태를 조회하고, 미결제 건은 "결제하기" 버튼 제공.
+- `make integration-payments`, Linux 회귀에 결제 시나리오 추가.
+
+디버깅 중 두 가지를 확인했습니다.
+
+1. 프록시는 `Idempotency-Key` 같은 임의 헤더를 전달하지 않습니다. 그래서 멱등키를
+   요청 본문의 `idempotency_key`에도 넣었습니다.
+2. `POST /api/payments/{id}/refund`처럼 본문이 없는 POST는 서버가 411을 반환합니다.
+   요구사항의 `POST` 본문 처리 정책과 일치하므로, 테스트와 화면에서 `{}` 본문을 보냅니다.
+
+### 실제 결과 (`make integration-payments`)
+
+```text
+payments ulimit -n=512
+charge 201 / CAPTURED
+same idempotency key -> same payment id
+lookup by reservation
+refund
+invalid amount -> 400
+payment process down -> 502
+gateway /health -> 200
+restart -> state restored from payment DB
+payment integration: all passed
+```
+
+### 회귀
+
+`make test`, `make integration`, `make integration-persist`, `make integration-req`,
+`make integration-backends`, `make integration-payments` 전부 PASS.
+`tests/linux_check.sh`(epoll 컨테이너)도 결제 시나리오 포함해 `all passed`, exit 0.
+부하 테스트는 약 105,728 RPS, Non-2xx 0.

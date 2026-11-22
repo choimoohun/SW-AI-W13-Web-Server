@@ -40,8 +40,15 @@ DB1=$!
     exec python3 -m dbms_demo.app --mode file --role 주문2 --port 8402 --data "$DATA"
 ) >"$LOG.db2" 2>&1 &
 DB2=$!
+(
+    ulimit -n 512
+    echo "payments     ulimit -n=$(ulimit -n)"
+    cd "$ROOT"
+    exec env PAYMENT_DATA_FILE="$DATA/payments.txt" python3 tests/backends/serve_payments.py
+) >"$LOG.pay" 2>&1 &
+PAY=$!
 
-cat "$LOG".redis "$LOG".stocks "$LOG".db1 "$LOG".db2 | grep 'ulimit' || true
+cat "$LOG".redis "$LOG".stocks "$LOG".db1 "$LOG".db2 "$LOG".pay | grep 'ulimit' || true
 
 python3 -c "from dbms_demo.store import make_store; make_store('file', '$DATA').seed(50)" || true
 
@@ -51,7 +58,7 @@ BASE=http://127.0.0.1:8085
 
 cleanup() {
     kill -TERM "$SRV" 2>/dev/null || true
-    kill -TERM "$REDIS" "$STOCKS" "$DB1" "$DB2" 2>/dev/null || true
+    kill -TERM "$REDIS" "$STOCKS" "$DB1" "$DB2" "$PAY" 2>/dev/null || true
     wait 2>/dev/null || true
     rm -rf "$DATA" "$PKG" "$LOG"*
 }
@@ -62,7 +69,7 @@ while [ $i -lt 50 ]; do
     curl -s -o /dev/null --max-time 1 "$BASE/health" && break
     i=$((i + 1)); sleep 0.2
 done
-for port in 8000 8002 8401 8402; do
+for port in 8000 8002 8401 8402 8500; do
     i=0
     while [ $i -lt 50 ]; do
         curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$port/" && break
@@ -83,6 +90,9 @@ echo '=== mini-dbms 백엔드 2대 Round-Robin (/api/orders/) ==='
 for i in 1 2 3 4; do
     curl -s "$BASE/api/orders/orders" | head -c 120; echo
 done
+
+echo '=== 결제 백엔드 (/api/payments/) ==='
+curl -s "$BASE/api/payments/pay-test" | head -c 120; echo
 
 echo '=== 독립 라이프사이클: 8401만 죽였다가 다시 띄움 ==='
 kill -9 "$DB1" 2>/dev/null || true

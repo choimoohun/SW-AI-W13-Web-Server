@@ -93,7 +93,7 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 4. **전역 락 / 락 안 디스크 I/O: 완료.** 항공편별 락 + 메타 락으로 분리하고,
    파일 저장은 스냅샷 후 락 밖에서 수행.
 5. **정적 캐시 헤더: 완료.** `Cache-Control`, 약한 `ETag` 추가.
-6. **남은 것:** 인증/결제 없음(client id 위조 가능), `cdn_purge()` API는 있지만
+6. **남은 것:** 인증 없음(client id 위조 가능), `cdn_purge()` API는 있지만
    호출부가 없어 캐시는 TTL 만료로만 정리됨. `/api/cache/miss`는 프록시 502
    검증용 경로이며 캐시 무효화 엔드포인트가 아님.
 
@@ -134,5 +134,5 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 1. `flight_api.c` / `proxy.c`의 책임 단위 분리(JSON·라우터·핸들러, 라우터·백엔드풀·스레드).
 2. 정적 파일 I/O의 진짜 비동기화(Linux `io_uring`, POSIX AIO) — 이식성과 트레이드오프 검토 필요.
 3. `cdn_purge()` 호출 경로 연결(무효화 API) 또는 명시적으로 TTL-only로 확정.
-4. 인증/결제 도입 시 client id 위조 문제 해결.
+4. 인증 도입 시 client id 위조 문제 해결.
 5. 선택 실험: `SO_REUSEPORT` / `EPOLLEXCLUSIVE`로 accept 단계의 wake-up 비용 측정.

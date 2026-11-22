@@ -10,7 +10,8 @@ make || { echo "BUILD FAILED"; exit 1; }
 
 fail=0
 for t in test integration test-flight integration-flight integration-persist \
-         test-tracking integration-tracking integration-req load-test; do
+         test-tracking integration-tracking integration-req \
+         integration-payments load-test; do
     echo "===== $t ====="
     make "$t" || { echo "FAILED: $t"; fail=1; }
 done
