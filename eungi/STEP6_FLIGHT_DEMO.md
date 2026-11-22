@@ -3,7 +3,7 @@
 ## 범위 / 의도
 
 - 입력에서 두 가지가 섞여 있었다: (1) 항공편 예약 서버(동시성 해결 전/후 데모), (2) 출발/도착 시간 추적 서버.
-- **둘을 하나의 앱으로 합친다.** 예약은 excited 경쟁 지점을 만들고, 출발/도착 추적은 같은 `flight` 레코드에 상태/타임라인 필드를 얹는 것뿐이므로 별도 서버로 나눌 이유가 없다.
+- **둘을 하나의 앱으로 합친다.** 예약은 경쟁이 가장 치열한 지점을 만들고, 출발/도착 추적은 같은 `flight` 레코드에 상태/타임라인 필드를 얹는 것뿐이므로 별도 서버로 나눌 이유가 없다.
 - 기존 웹서버를 그대로 확장한다: `www/` 정적 보드 + `/api/...` 엔드포인트. 외부 API/DB/JSON 라이브러리 없음(시드 데이터는 코드에 박아둠).
 - **전제: STEP5(멀티 워커 스레드) 이후에만 의미가 있다.** STEP1~4의 단일 accept 루프에서는 요청이 직렬 처리되므로 좌석 경쟁이 재현되지 않는다. "before" 모드의 레이스는 워커 스레드가 2개 이상일 때 비로소 보인다.
 
@@ -91,26 +91,26 @@ typedef struct {
 
 ### after (기본, `lock_enabled = 1`)
 
-1. `pthread_mutex_lock(&s->mu)` → 좌석 확인(`seat_left > 0`) → 예약 레코드 추가 → `seat_left--` → 이벤트 기록 → unlock.
-2. **뮤텍스 안에서 응답 문자열을 만들지 않는다.** 필요한 값만 지역 변수/버퍼로 복사하고 unlock한 뒤 직렬화·전송한다(락 보유 시간 최소화 + 데드락 회피).
-3. 읽기 API도 같은 뮤텍스를 사용해 찢어진 값을 읽지 않게 한다.
+1. `pthread_mutex_lock(&flight.mu)` → 좌석 확인(`seat_left > 0`) → 예약 레코드 추가 → `seat_left--` → 이벤트 기록 → `pthread_mutex_unlock(&flight.mu)`.
+2. **락 안에서 응답 문자열을 만들지 않는다.** 필요한 값만 지역 변수/버퍼로 복사하고 `pthread_mutex_unlock()`한 뒤 JSON 직렬화·소켓 전송을 한다(락 보유 시간 최소화).
+3. 파일 저장도 락 안에서 하지 않는다. `snapshot_and_save()`가 스냅샷을 만든 뒤 락을 풀고 `rename()`으로 원자적 교체한다.
+4. 읽기 API(`flight_store_list()`, `flight_store_timeline()`)도 같은 항공편 락을 사용해 찢어진 값을 읽지 않게 한다.
 
 ### before (`lock_enabled = 0`, 의도적 버그)
 
-- 예약 경로에서만 lock을 건너뛴다. check → decrement 사이에 `usleep(20000)`을 넣어 레이스 창을 **인위적으로 넓힌다**(데모 전용. 없으면 너무 빨라서 안 보임).
-- `-O2`에서 최적화로 사라질 수 있으니 `seat_left`를 `volatile`로 두거나 데모 빌드는 `-O0 -g`로 한다.
-- ⚠️ 이건 실제 데이터 레이스(UB)다. 절대 기본값으로 두지 말고, admin 모드로 켜고 데모 끝나면 즉시 `{"lock":true}`로 되돌린다. 주석에 경고 문구 필수.
+- 예약 경로에서만 항공편 락을 건너뛴다. `seat_left > 0` 확인 → `seat_left--` 사이에 `nanosleep(20000µs)`을 넣어 레이스 창을 **인위적으로 넓힌다**(데모 전용. 없으면 너무 빨라서 안 보임).
+- 이건 실제 데이터 레이스(UB)다. 절대 기본값으로 두지 말고, `POST /api/admin/mode`로 `{"lock":false}`를 보내 켜고 데모 끝나면 즉시 `{"lock":true}`로 되돌린다.
 
 ### 스케일 업 메모 (지금은 하지 않는다)
 
-- 단일 전역 뮤텍스는 데모용. 항공편별 뮤텍스/원자 CAS로 바꾸면 처리량이 오른다 → TODO로만 남긴다.
+- 단일 항공편 락 방식도 데모용이다. 처리량을 더 올리려면 `atomic_compare_exchange_n()` 기반 CAS나 항공편별 샤딩을 검토한다.
 
 ---
 
 ## 작업 순서 (Todo — 직접 구현하면서 체크)
 
 - [x] 1. `flight_store.h/c` 스캐폴딩 구현: 고정 배열 저장소 + 시드 + TODO 주석을 실제 계약으로 교체.
-- [x] 2. `flight_store_reserve()` 구현. after=뮤텍스 / before=무락 + usleep(20000) 레이스 창. SOLD_OUT 시 재고 유지.
+- [x] 2. `flight_store_reserve()` 구현. after=항공편 락 / before=무락 + `nanosleep(20000µs)` 레이스 창. `FS_SOLD_OUT` 시 재고 유지.
 - [x] 3. `flight_store_set_status()` 구현: 실제 출발/도착 시각 갱신, 역행·시간 역전 400, 타임라인 기록.
 - [x] 4. `http_response_send_json()` 추가 (201/409 reason phrase 포함). 기존 함수 시그니처 유지.
 - [x] 5. 최소 JSON 유틸: `json_get_string/long/bool`, `jb_str` 이스케이프. UTF-8 바이트 통과.
@@ -167,8 +167,8 @@ seq 1 100 | xargs -P 100 -I{} curl -s -o /dev/null -w '%{http_code}\n' \
 
 1. `www/flights.html` 접속 → 항공편 보드와 좌석 게이지 확인.
 2. `KE202` 지연 시연: `POST /api/admin/flights/KE202/status` 로 `DELAYED` + 도착 시각 변경 → 타임라인에 새 이벤트 추가, 지연 분 표시 갱신.
-3. 락 배지 빨강(before)으로 두고 `KE999`에 100동시 예약 → 초과 예약 → "왜 같은 좌석이 두 번 팔렸나?" 질문 던지기.
-4. 배지 초록(after)으로 토글, 서버 재시작, 같은 100동시 예약 → 201 1건 + 409 99건. 뮤텍스 5줄이 차이임을 보여준다.
+3. 터미널에서 `POST /api/admin/mode`로 `{"lock":false}`(before)를 켜고 `KE999`에 100동시 예약 → 초과 예약 → "왜 같은 좌석이 두 번 팔렸나?" 질문 던지기.
+4. 다시 `{"lock":true}`(after)로 토글하고 서버 재시작 → 같은 100동시 예약 → 201 1건 + 409 99건. 락 관련 코드 몇 줄이 차이임을 보여준다.
 
 ---
 
@@ -202,7 +202,7 @@ seq 1 100 | xargs -P 100 -I{} curl -s -o /dev/null -w '%{http_code}\n' \
   - before(HTTP 100동시): `201 4건 / 409 96건` ← 초과 예약 재현 (3회 연속 동일)
   - after(HTTP 100동시): `201 1건 / 409 99건`, 잔여 좌석 0
 - `make tsan` (실제 워커 4개, 12~40동시 요청):
-  - before: `WARNING: ThreadSanitizer: data race flight_store.c:161` 3건
+  - before: `WARNING: ThreadSanitizer: data race` 1건(`flight_store.c:420`)
   - after: 0건
 - STEP5 워커 풀 완성으로 임시 `FLIGHT_DEMO_MT` 경로 제거. keep-alive/슬로우 클라이언트 검증 추가.
 

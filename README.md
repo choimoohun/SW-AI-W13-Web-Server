@@ -38,6 +38,38 @@ make
 브라우저 화면: `http://127.0.0.1:8080/flights.html`(예약), `http://127.0.0.1:8080/ops.html`(운항 관제).
 동시성 before/after는 앱 UI가 아니라 `make integration-flight`, `make tsan`으로 확인합니다.
 
+## 전체 아키텍처 한눈에 보기
+
+```mermaid
+flowchart TB
+    C["브라우저 / curl"] --> L["단일 listen fd (nonblocking)"]
+    L --> W["워커 N개 (기본 4)<br/>iomux: epoll(Linux) / kqueue(macOS) / poll<br/>이벤트당 accept 1건"]
+
+    W --> CF["connection_feed()<br/>HTTP 파서 + keep-alive 상태 머신"]
+
+    CF --> RT{"config_match_route()"}
+    RT -->|매칭| Q["프록시 큐"]
+    Q --> PT["proxy thread (전용 스레드)"]
+    PT --> BE["백엔드 8401 / 8402<br/>Round-Robin + X-Forwarded-For"]
+    PT -.->|응답 직접 전송| C
+
+    RT -->|없음| BI{"flight_api_builtin()"}
+    BI -->|/health, /echo| J["http_response_build_json()<br/>Date · Server"]
+    BI -->|/api/...| API["flight_api_build()"]
+    API --> ST["flight_store<br/>항공편별 락 + 메타 락"]
+    ST --> SNAP["snapshot_and_save()"] --> DISK[("data/flights.txt")]
+    ST --> CLK["flight_store_tick()<br/>worker 0 전용"]
+
+    BI -->|정적 파일| SH["static_handler()<br/>경로 검증 + MIME"]
+    SH --> CDN["cdn_lookup() / cdn_store()<br/>TTL 캐시 · X-Cache HIT/MISS"]
+    CDN --> RESP["http_response_build_file()<br/>Cache-Control · ETag"]
+
+    J --> OUT["connection_flush() → client"]
+    RESP --> OUT
+```
+
+상세한 계층 설명과 리스크 메모는 [`verify/ARCHITECTURE_REVIEW.md`](./verify/ARCHITECTURE_REVIEW.md)에 있습니다.
+
 ## 기술 영역 및 학습 목표
 
 이 프로젝트를 통해 아래의 핵심 기술 영역들을 깊이 있게 다루고 검증합니다.
