@@ -128,6 +128,13 @@ int connection_feed(connection_t *c, const char *data, size_t len)
         }
 
         keep_alive = (req.http_minor == 1 && !req.connection_close);
+        /* 이 응답으로 upper limit에 도달하면 헤더도 close로 보내야 한다.
+         * 응답을 만든 뒤에 keep_alive를 바꾸면 헤더는 keep-alive인데 소켓은 닫혀
+         * 클라이언트가 read error를 낸다. */
+        if (keep_alive && c->cfg != NULL &&
+            c->requests + 1 >= c->cfg->keepalive_max) {
+            keep_alive = 0;
+        }
         off = c->send_len;
         if (off >= sizeof(c->send_buf)) {
             c->closing = 1;
@@ -267,9 +274,6 @@ int connection_feed(connection_t *c, const char *data, size_t len)
             (void)clock_gettime(CLOCK_MONOTONIC, &c->req_start);
         }
         c->requests++;
-        if (c->cfg != NULL && c->requests >= c->cfg->keepalive_max) {
-            keep_alive = 0;   /* 최대 요청 수 도달 → 이 응답 후 닫는다 */
-        }
 
         /* 파서가 알려준 소비 바이트만큼 버퍼에서 제거(keep-alive pipelining 대비). */
         if (req.consumed >= c->recv_len) {

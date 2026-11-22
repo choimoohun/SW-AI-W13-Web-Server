@@ -341,3 +341,62 @@ make clean && make   # 검증 후 일반 바이너리로 복원
 - `lsof -nP -iTCP:8080 -iTCP:8081 -iTCP:8083 -iTCP:8084 -sTCP:LISTEN` → 리스너 없음. `pgrep -fl 'webserver|backend.py'` → 프로세스 없음.
 - `docker ps -a`에는 기존 `Exited` 컨테이너만 존재(이번 `make leak`는 `--rm`으로 새 컨테이너 잔여 없음).
 - 이 섹션은 기존 내용을 덮어쓰지 않고 맨 아래에 추가만 함. 작업 중 `verify/VERIFICATION_LOG.md` 66행(`## 남은 항목`)이 외부 요인으로 수정된 흔적이 있었으나 기존 텍스트는 보존됨.
+
+---
+
+## 2026-11-23 추가 기록 (7) — Linux(epoll) 전체 회귀 + keep-alive 헤더 버그 수정
+
+### 실행 방식
+
+Docker 이미지에 `python3`을 추가(`Dockerfile`)한 뒤, `tests/linux_check.sh`가
+`src/include/www/conf/tests/Makefile`을 컨테이너 내부 `/tmp/wsl`로 복사해
+호스트 macOS `.o` 혼입 없이 빌드하고 전체 타깃을 실행했습니다.
+
+```sh
+docker compose build
+docker compose run --rm dev sh /workspace/tests/linux_check.sh
+```
+
+### 실제 결과 (모두 exit 0)
+
+| 타깃 | 결과 |
+|---|---|
+| `make`, `make test` | PASS |
+| `make integration` | 10개 PASS |
+| `make test-flight` | after 1/32(잔여 0), before 32/32(잔여 -31) |
+| `make integration-flight` | 22개 PASS, before `201 4/409 96`, after `201 1/409 99` |
+| `make integration-persist` | 6개 PASS |
+| `make test-tracking`, `make integration-tracking` | PASS |
+| `make integration-req` | 17개 PASS, RR 8401↔8402, XFF, 502, slow=2004ms / health=0ms |
+| `make load-test` (wrk) | 10초, 4 threads, 20 connections, 1,033,588 요청, 102,342 RPS, socket errors 없음 |
+| backend detect | `IOMUX_BACKEND_EPOLL` 소스 존재 확인 |
+
+wrk 요약(실제 출력):
+
+```text
+Running 10s test @ http://127.0.0.1:8084/health
+  4 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   372.14us    2.59ms  66.22ms   99.21%
+    Req/Sec    25.78k     3.64k   36.42k    82.38%
+  1033588 requests in 10.10s, 233.25MB read
+Requests/sec: 102342.74
+Transfer/sec:     23.10MB
+```
+
+### 이번 실행에서 발견해 고친 것
+
+첫 Linux wrk 실행에서 `Socket errors: read 11300, timeout 16`이 났습니다.
+원인은 keep-alive 상한 처리 순서였습니다. 응답 헤더를 만든 뒤에
+`c->requests >= keepalive_max`를 검사해서 `keep_alive=0`으로 바꾸고 있었으므로,
+헤더는 `Connection: keep-alive`인데 서버는 소켓을 닫아 클라이언트가 read error를 냈습니다.
+
+`src/connection.c`에서 응답을 만들기 **전에** `c->requests + 1 >= keepalive_max`를
+판단해 헤더와 실제 종료 동작을 일치시켰습니다. 재실행 결과 socket errors 줄 자체가 사라졌습니다.
+
+### 결론
+
+- macOS(kqueue) 전체 스위트 + Linux(epoll) 전체 스위트 모두 통과.
+- wrk 기반 부하 테스트까지 실제로 수행했고, percentile은 여전히 미제공이지만
+  평균 지연·최대 지연·RPS·소켓 오류 수를 측정했습니다.
+- 이 수정으로 "keep-alive 최대 100회"가 헤더 의미와 실제 동작까지 일치합니다.
