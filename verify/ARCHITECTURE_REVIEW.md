@@ -93,8 +93,9 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 4. **전역 락 / 락 안 디스크 I/O: 완료.** 항공편별 락 + 메타 락으로 분리하고,
    파일 저장은 스냅샷 후 락 밖에서 수행.
 5. **정적 캐시 헤더: 완료.** `Cache-Control`, 약한 `ETag` 추가.
-6. **남은 것:** 인증/결제 없음(client id 위조 가능), `cdn_purge()` 호출부 없음(TTL 만료만),
-   캐시 무효화는 `POST /miss`로 확인.
+6. **남은 것:** 인증/결제 없음(client id 위조 가능), `cdn_purge()` API는 있지만
+   호출부가 없어 캐시는 TTL 만료로만 정리됨. `/api/cache/miss`는 프록시 502
+   검증용 경로이며 캐시 무효화 엔드포인트가 아님.
 
 ---
 
@@ -111,14 +112,27 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 | `make test-tracking` / `integration-tracking` | 시계 전이·지연·자동 출발/도착 PASS |
 | `make integration-req` | 헤더/CDN/health/echo/프록시 RR/로그 전부 PASS |
 | `make load-test` | 200요청·동시 20, 성공 200, Non-2xx 0, 약 568 RPS |
-| `make leak` | **미실행** (Docker unavailable) |
+| `make leak` | in use at exit 0 bytes, ERROR SUMMARY 0 errors, exit 0 |
 
 ---
 
-## 6. 다음 우선순위 (권장 순서)
+## 6. 다음 우선순위 (현재 상태 반영)
 
-1. Docker 실행 → `make leak`으로 새 코드 valgrind 재검증 (가장 저비용, 신뢰도 상승)
-2. `iomux` 백엔드 분리 → Linux epoll, macOS kqueue 구현 후 `make integration-req` 재검증
-3. `proxy_handle()`를 nonblocking 상태 머신으로 전환하거나 전용 스레드로 분리
-4. 정적 응답에 `Cache-Control`/`ETag` 추가 → 실제 CDN 연동 준비
-5. 항공편별 락 또는 atomic CAS로 전역 락 경합 완화
+아래 1~5번은 모두 완료했습니다. 예전 문서에서 "다음 우선순위"로 적혀 있던 항목입니다.
+
+1. `make leak` valgrind 재검증 — 완료. in use 0 bytes, ERROR SUMMARY 0.
+2. `iomux` 백엔드 분리 — 완료. Linux epoll / macOS kqueue / poll 폴백,
+   `tests/linux_check.sh`로 재검증.
+3. `proxy_handle()` 블로킹 — 완료. 전용 스레드 + 큐로 분리,
+   느린 백엔드 2065ms 동안 `/health` 0ms 확인.
+4. 정적 캐시 헤더 — 완료. `Cache-Control`, 약한 `ETag` 추가.
+   목적은 외부 연동이 아니라 로컬 캐시 정책 검증임.
+5. 전역 락 경합 — 완료. 항공편별 락 + 메타 락, 파일 저장은 스냅샷 후 락 밖에서 수행.
+
+지금 남은 우선순위는 다음입니다.
+
+1. `flight_api.c` / `proxy.c`의 책임 단위 분리(JSON·라우터·핸들러, 라우터·백엔드풀·스레드).
+2. 정적 파일 I/O의 진짜 비동기화(Linux `io_uring`, POSIX AIO) — 이식성과 트레이드오프 검토 필요.
+3. `cdn_purge()` 호출 경로 연결(무효화 API) 또는 명시적으로 TTL-only로 확정.
+4. 인증/결제 도입 시 client id 위조 문제 해결.
+5. 선택 실험: `SO_REUSEPORT` / `EPOLLEXCLUSIVE`로 accept 단계의 wake-up 비용 측정.
