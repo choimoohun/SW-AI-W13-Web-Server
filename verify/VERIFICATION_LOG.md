@@ -92,7 +92,7 @@ docker compose run --rm dev sh -c "cd /workspace && make && valgrind --leak-chec
 ## 2026-11-22 추가 기록 — STEP5 동시성 코어 + STEP6 항공편 데모
 
 ### 범위
-- STEP5: poll 기반 멀티리액터, 논블로킹 연결 상태 머신, 워커 풀, keep-alive, 유휴 타임아웃, graceful shutdown.
+- STEP5: `iomux` 멀티리액터(Linux epoll / macOS kqueue / 폴백 poll), 논블로킹 연결 상태 머신, 워커 풀, keep-alive, 유휴 타임아웃, graceful shutdown.
 - STEP6: 인메모리 항공편 저장소 + JSON API + 정적 보드 UI. 좌석 경쟁 before/after, 출발/도착 상태·타임라인.
 - 이전 로그의 "동시성 미결정 / Keep-Alive 미지원" 항목은 이 기록으로 대체된다.
 
