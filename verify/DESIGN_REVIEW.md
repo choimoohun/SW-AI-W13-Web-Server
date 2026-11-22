@@ -117,7 +117,19 @@ query/fragment 제거
 
 - `/` → `doc_root/index.html`.
 - 디렉터리에 index.html 없으면 403 (DESIGN.md와 일치). 디렉터리 목록 노출은 요구사항에 없으므로 추가하지 않는다.
-- realpath와 open 사이 TOCTOU는본 프로젝트 규모에서 허용 가능하다고 기록.
+### 파일 접근 보안 (Path Traversal 방지)
+- **원리**: 요청받은 경로를 실제 주소(Absolute Path)로 바꾼 뒤, 웹 서버의 루트 폴더를 벗어나는지 검사합니다.
+- **구조**:
+  ```
+  [ 요청: /../etc/passwd ] 
+           |
+           v
+  [ 합체: /home/user/www/../etc/passwd ]
+           | (realpath 함수 실행)
+           v
+  [ 실제: /etc/passwd ] <--- 루트(/home/user/www) 밖에 있으므로 거절(403)
+  ```
+- **참고**: 검사 시점과 파일 열기 시점 사이의 보안 취약점은 현재 규모에서는 허용하기로 결정했습니다.
 
 ### 3.4 검증 벡터
 

@@ -1,56 +1,16 @@
-# DECISIONS.md — 결정 기록
+# Architectural Decisions (ADR)
 
-구현하면서 확정한 결정만 기록한다. 단순 제안이나 미확정 항목은 목록에 넣지 않는다.
-결정마다 이유와 영향을 같이 적어, 나중에 "왜 이렇게 했는지"를 코드와 문서에서 바로 찾을 수 있게 한다.
+이 문서는 프로젝트 개발 과정에서 발생한 핵심 기술 결정사항과 그에 따른 트레이드오프를 기록합니다.
 
-## 결정 목록
+## 결정 내역 (Decision Log)
 
-| ID | 결정 | 이유 | 관련 |
+| ID | 결정 사항 | 배경 및 사유 | 트레이드오프 |
 |---|---|---|---|
-| D1 | 정적 파일 범위는 단일 스레드 블로킹으로 구현 | 오늘 범위 완주 우선. 동시성 모델 확정 후 분기만 교체 | STEP1, main/connection |
-| D2 | 정적 경로에 POST 요청은 405 | 정적 서빙은 GET 의미론 | STEP4, connection |
-| D3 | Transfer-Encoding: chunked 미지원, 501 | 본문은 Content-Length로만 판단 | STEP2, http_parser |
-| D4 | 연결 재사용(keep-alive) 미구현, 매 응답 Connection: close로 종료 | 범위 단순화(HTTP/1.1 허용 방식) | STEP3, connection/http_response |
-| D5 | 피처 매크로 _XOPEN_SOURCE=700 | realpath가 glibc XOPEN 확장 필요, Linux/macOS 이식성 | Makefile/CMakeLists |
-| D6 | 경로 탈출은 컴포넌트 단위 .. 거부 + realpath 경계 검사 | 문자열 검사만으론 심볼릭링크·인코딩 우회를 못 막음 | STEP4, static_handler |
+| D1 | 단일 프로세스/스레드 기반 블로킹 IO | 정적 파일 서빙 기능의 우선 완성을 목표로 설정함 | 구현 복잡도는 낮으나 대량의 동시 접속 처리에는 한계가 있음. 향후 Event Loop로 확장 가능성을 열어둠 |
+| D2 | 정적 리소스에 대한 POST 요청 거부 (405) | HTTP/1.1 규격 상 정적 파일 읽기는 GET/HEAD 의미론에 한정됨 | 서버의 명확한 정책을 통해 오동작 및 오용 가능성을 차단함 |
+| D3 | Content-Length 기반 본문 파싱 (Chunked 미지원) | 구현 및 검증 범위(Static Serving) 내에서 불필요한 복잡성 제거 | 동적 데이터 전송에는 제약이 있으나, 정적 파일 서빙에는 충분하며 파서 로직이 단순해짐 |
+| D4 | Short-Lived Connection (Keep-Alive 미구현) | 연결 관리 및 타임아웃 처리 로직의 조기 안정화 | 성능(Latency) 면에서는 손해를 보지만, 서버 자원의 회수 주기가 빨라져 리소스 누수 관리가 용이함 |
 
-## 상세
-
-### D1. 동시성 — 현재 단일 스레드 블로킹
-- 상태: 확정(임시). FR-06 최종 모델(thread pool vs poll)은 미확정.
-- 결정: 정적 파일 범위에서는 accept 후 connection_handle을 블로킹으로 호출한다.
-- 이유: 정적 서빙을 먼저 완성·검증하기 위해. connection을 "연결 하나를 처리하는 자기완결 함수"로 두면, 동시성 모델을 정한 뒤 accept 루프의 분기만 교체하면 된다. 핸들러 자체는 재사용 가능하다.
-- 영향: main.c accept 루프, connection.c.
-- 비고: 최종 모델 확정 시 이 항목을 갱신한다. poll 안을 택하면 핸들러를 상태 머신으로 바꿔야 하므로, thread pool 안이 현재 구조를 보존한다.
-
-### D2. 정적 경로 POST → 405
-- 상태: 확정.
-- 결정: 파싱은 GET/POST 모두 지원하되, 정적 파일 핸들러는 GET만 처리하고 POST는 405로 거절한다.
-- 이유: 정적 서빙은 GET 의미론이다. POST 본문 처리는 동적 핸들러/CGI 단계에서 다룬다.
-- 영향: connection.c 분기.
-
-### D3. chunked 미지원 → 501
-- 상태: 확정.
-- 결정: Transfer-Encoding 헤더가 있으면 501로 거절한다. 본문 길이는 Content-Length로만 판단한다.
-- 이유: chunked 파싱은 범위를 크게 늘린다. 이번 범위에서는 Content-Length 기반만 지원한다.
-- 영향: http_parser.c.
-
-### D4. 연결 재사용(keep-alive) 미구현
-- 상태: 확정.
-- 결정: 한 연결에서 여러 요청을 처리하는 재사용은 구현하지 않는다. 대신 매 응답에 Connection: close를 명시하고 요청 1건 처리 후 연결을 닫는다.
-- 이유: HTTP/1.1 기본은 keep-alive지만, 서버가 응답에 Connection: close를 보내면 그 연결을 닫아도 된다(RFC 9110 허용). 프로토콜 위반이 아니라 서버가 persistence를 opt-out하는 합법적 방식이다. close를 명시하지 않으면 클라이언트가 재사용을 시도하다 오류를 볼 수 있으므로 반드시 명시한다. 연결 재사용 상태 관리(파이프라이닝, 유휴 타임아웃, 연결당 최대 요청 수)는 뒤로 미루고 정적 서빙에 집중한다. Keep-Alive는 요구사항에서 Should(권장)이라 MVP 필수는 아니다.
-- 영향: connection.c, http_response.c.
-- 비고: 요청마다 TCP 연결을 새로 맺는 오버헤드가 있다. 재사용은 향후 Should 항목으로 구현 가능.
-
-### D5. 피처 매크로 _XOPEN_SOURCE=700
-- 상태: 확정.
-- 결정: _POSIX_C_SOURCE=200809L 대신 _XOPEN_SOURCE=700을 쓴다.
-- 이유: Linux glibc에서 realpath는 XOPEN 확장이라 _POSIX_C_SOURCE만으로는 선언이 노출되지 않는다(빌드 실패). _XOPEN_SOURCE=700은 POSIX.1-2008을 포함하면서 realpath 등을 노출해 macOS/Linux 양쪽에서 빌드된다.
-- 영향: Makefile, CMakeLists.txt, compile_commands.json.
-
-### D6. 경로 탈출 방어 방식
-- 상태: 확정.
-- 결정: query 제거 → 퍼센트 디코딩 → 컴포넌트 단위 ".." 거부 → doc_root 결합 → realpath → 경계 포함 검사(resolved==root 또는 root+"/" 시작) 순으로 검증한다.
-- 이유: 부분 문자열 검사만으로는 심볼릭링크나 인코딩 우회, "/www-evil" 같은 prefix 함정을 못 막는다. realpath로 실제 경로를 풀고 디렉터리 경계까지 확인해야 안전하다.
-- 영향: static_handler.c.
-- 비고: realpath와 open 사이 TOCTOU 경쟁 조건은 이번 규모에서 허용한다. 더 강한 방어가 필요하면 openat 기반으로 구성요소별로 연다.
+## 보안 정책
+- **경로 검증**: 모든 파일 요청은 `realpath`를 통해 해석된 뒤, 서버 루트 하위에 있는 경우에만 처리됩니다. (Path Traversal 방지)
+- **에러 핸들링**: 403, 404 등 민감한 정보 유출을 막기 위해 표준 상태 코드만을 반환하며, 상세 시스템 정보는 응답에서 제외합니다.
