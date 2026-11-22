@@ -8,7 +8,7 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 
 - 오늘 범위: 정적 파일 서빙 완성 (마일스톤 1~4).
   TCP 수락 → HTTP 요청 파싱 → 정적 파일 찾기 → HTTP 응답 전송(바이너리 무결성).
-- 제외: Proxy, CGI, Keep-Alive, 동시성(FR-06), 부하 테스트 (이후 단계).
+- 제외: Proxy, CGI, Keep-Alive, 동시성(FR-06), 부하 테스트 (당시 범위. 이후 STEP5~10에서 구현 완료).
 
 ## 구현 완료 모듈 (마일스톤 1~4)
 
@@ -134,7 +134,7 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 - macOS SDK에서 `pthread_barrier_t`가 노출되지 않아 단위 테스트는 `volatile int go` 스핀 게이트 사용.
 
 ### 남은 항목
-- epoll/kqueue 백엔드 미구현(poll만 사용). 대규모 fd 처리량 필요 시 추가.
+- epoll/kqueue 백엔드는 이 시점에 미구현이었으나, 이후 `src/iomux.c`에서 구현 완료.
 - 누수 0 확정은 이전 Linux valgrind 기록 유지. 새 워커 코드에 대한 valgrind 재검증은 Docker에서 수행 필요.
 - iCloud 동기화 폴더에서 `eungi/DECISIONS.md`가 작업 중 예전 내용으로 되돌아간 적 있음(재반영 완료). 프로젝트를 ~/dev 밖으로 이동 권장.
 
@@ -169,7 +169,7 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 
 ### 남은 항목
 - 인증/결제 없음. client id는 브라우저 로컬 값이라 실서비스 수준의 소유권 보호는 아님.
-- epoll/kqueue 백엔드, 새 워커 코드의 Linux valgrind 재검증은 미완.
+- epoll/kqueue 백엔드와 Linux valgrind 재검증은 이 시점에는 미완이었으나 이후 완료.
 
 ---
 
@@ -201,10 +201,10 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 
 ## 2026-11-22 추가 기록 (4) — 남은 요구사항 + 미니 CDN
 
-### 외부 CDN 사용 가능 여부에 대한 결론
+### 당시 캐시 계층 검토 기록 (외부 서비스 서술은 현재 문서에서 제거)
 
 이 서버는 로컬에서 실행되는 C11/POSIX 바이너리이고 공개 도메인·DNS·TLS 종료·엣지 PoP가 없다.
-따라서 Cloudflare/CloudFront 같은 **외부 CDN을 이 아키텍처에 직접 붙일 수는 없다.**
+당시에는 외부 서비스 연동이 범위 밖이었고, 캐시 동작은 로컬 TTL 캐시로 검증했다.
 대신 CDN의 핵심 동작만 서버 안에서 재현했다.
 
 | 항목 | 구현 |
@@ -242,7 +242,6 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 
 ### 남은 항목
 
-- 실제 외부 CDN 연동이 필요하면 공개 배포(DNS + TLS + 오리진)가 별도 프로젝트로 필요하다.
 - `hey`/`wrk` 설치 후 percentile(latency p50/p95/p99) 측정 가능. 현재는 curl 병렬 근사값.
 - epoll/kqueue 백엔드와 새 코드의 Linux valgrind 재검증은 미완.
 

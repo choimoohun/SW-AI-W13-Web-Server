@@ -82,7 +82,7 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
   `-p/-r/-c` 파싱, keep-alive 100회, 게이트웨이+로드밸런서, 미니 CDN.
 - `config.c`의 `trim()` 앞 공백 버그를 잡아 프록시 라우팅이 정상화됨.
 
-### 미완 / 리스트 (업데이트)
+### 완료 항목 / 남은 것
 
 1. **epoll/kqueue 백엔드: 완료.** `src/iomux.c`가 Linux epoll, macOS kqueue,
    기타 플랫폼 poll폴백을 같은 인터페이스로 제공한다. 이벤트 배열 256개로 확대.

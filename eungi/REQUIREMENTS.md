@@ -25,7 +25,7 @@
 
 ## 3. 스코프 및 우선순위 (MoSCoW)
 - **Must (필수 - MVP)**: TCP 서버, HTTP/1.1 파싱(GET/POST), 정적 파일 서빙, 동시성 처리, Reverse Proxy(경로 기반 라우팅), 시그널/에러 처리, 단위/기능/누수 테스트.
-- **Should (권장)**: `Connection: keep-alive` 지원, Reverse Proxy Round-Robin 로드 밸런싱, 동적 요청 처리(CGI 실행), 부하 테스트 리포트.
+- **Should (권장)**: `Connection: keep-alive` 지원, Reverse Proxy Round-Robin 로드 밸런싱, 내장 동적 엔드포인트와 백엔드 프록시, 부하 테스트 리포트.
 - **Could (선택 - 여유 시)**: Forward Proxy 구현, Forward Proxy 인메모리 캐싱, Host 헤더 기반 가상 호스팅 라우팅.
 
 ---
