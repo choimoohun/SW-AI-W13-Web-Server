@@ -154,13 +154,63 @@ nc -zv 127.0.0.1 8080   # 포트 열림 → "succeeded!" 확인
 echo $?                 # 종료 코드 0 확인 (graceful shutdown)
 ```
 
-### 마일스톤 4 이후 정적 파일 서빙 검증 명령  
+### 마일스톤 1~4: 정적 파일 서빙 검증 명령
 
 ```sh
 curl -i http://127.0.0.1:8080/                          # 200 + index.html
 curl -i http://127.0.0.1:8080/nope                      # 404
 curl -i --path-as-is http://127.0.0.1:8080/../etc/passwd  # 403 (경로 탈출 차단)
 curl -s http://127.0.0.1:8080/test.png | cmp - www/test.png && echo "binary OK"
+```
+
+### 마일스톤 5: 견고함 검증
+
+```sh
+make test                       # 단위 테스트 전체 PASS
+make asan                       # macOS ASan: 메모리 오류 0
+docker compose run --rm dev make leak   # Linux valgrind: 누수 0 bytes, ERROR SUMMARY 0
+```
+
+### 마일스톤 6: 워커 풀 + 이벤트 루프 검증
+
+```sh
+WEB_WORKERS=4 ./webserver       # 기본 4워커, epoll/kqueue/poll 백엔드 사용
+make integration                # keep-alive/느린 클라이언트/100동시 검증
+make load-test                  # 200요청·동시 20, Non-2xx 0 확인
+```
+
+`:8080/health` 응답의 접근 로그에서 `[wN]`으로 서로 다른 워커가 처리했는지 확인합니다.
+상세 흐름은 [STEP5_CONCURRENCY.md](./eungi/STEP5_CONCURRENCY.md) 참고.
+
+### 마일스톤 7: 항공편 도메인 검증
+
+```sh
+make test-flight                # 좌석 경쟁 단위 (before 32/32, after 1/32)
+make integration-flight         # HTTP 100동시 + keep-alive + slow client
+make integration-persist        # 재시작 후 data/flights.txt 유지
+make test-tracking              # 시계 전이·지연 단위
+make integration-tracking       # 자동 출발/도착 통합
+make tsan                       # after 레이스 0, before 1건 검출
+```
+
+상세 설계는 [STEP6_FLIGHT_DEMO.md](./eungi/STEP6_FLIGHT_DEMO.md) 참고.
+
+### 마일스톤 8: 요구사항 마무리 검증
+
+```sh
+make integration-req            # Date/Server, /health, /echo, -p/-r/-c,
+                                # 게이트웨이 RR/XFF/502, 접근 로그, X-Cache HIT
+```
+
+요구사항 원문은 [REQUIREMENTS.md](./eungi/REQUIREMENTS.md),
+결정 근거는 [DECISIONS.md](./eungi/DECISIONS.md) 참고.
+
+### 마일스톤 9: 별도 백엔드 프로세스 검증
+
+```sh
+make integration-backends       # mini-redis·mini-dbms를 게이트웨이 뒤에 띄움
+# ulimit 64/128/256으로 자원 제한 차등, 8401 종료 시 200/502 혼재,
+# 8401 재시작 후 전부 200, /health 200 확인
 ```
 
 ### 항공권 예약 앱 (STEP5/6)
@@ -233,6 +283,13 @@ eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
 
 초기 단계의 "제안 구조"는 위 현재 구조로 대체됐습니다.
 
+
+## 문서 링크
+
+- 요구사항: [eungi/REQUIREMENTS.md](./eungi/REQUIREMENTS.md)
+- 단계별 계획: [STEP1](./eungi/STEP1_TCP_SERVER.md) · [STEP2](./eungi/STEP2_HTTP_PARSER.md) · [STEP3](./eungi/STEP3_HTTP_RESPONSE.md) · [STEP4](./eungi/STEP4_STATIC_FILE.md) · [STEP5](./eungi/STEP5_CONCURRENCY.md) · [STEP6](./eungi/STEP6_FLIGHT_DEMO.md)
+- 설계: [eungi/DESIGN.md](./eungi/DESIGN.md) · [의사결정](./eungi/DECISIONS.md)
+- 검증: [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md) · [DESIGN_REVIEW.md](./verify/DESIGN_REVIEW.md)
 
 ## 문서 작성 원칙
 
