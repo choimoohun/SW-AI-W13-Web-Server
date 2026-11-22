@@ -393,4 +393,4 @@ eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
 
-참고 문서: [REQUIREMENTS.md](./eungi/REQUIREMENTS.md) · [DESIGN.md](./eungi/DESIGN.md) · [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md)
+참고 문서: [REQUIREMENTS.md](./eungi/REQUIREMENTS.md) · [DESIGN.md](./eungi/DESIGN.md) · [TEST_MATRIX.md](./verify/TEST_MATRIX.md) · [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md)
