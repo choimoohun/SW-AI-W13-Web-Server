@@ -26,7 +26,7 @@ int main(void)
     /* 1) 시그널 정책 (NFR-02). SIGPIPE 무시(전송 중 클라이언트 끊김에도 생존). */
     signal(SIGPIPE, SIG_IGN);
 
-    /*    SIGINT/SIGTERM: g_stop 만 세움. SA_RESTART 끔 → accept 가 EINTR 로中断 → 루프 탈출. */
+    /*    SIGINT/SIGTERM: g_stop 만 세움. SA_RESTART 끔 → accept 가 EINTR 로 중단 → 루프 탈출. */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = on_signal;

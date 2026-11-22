@@ -37,7 +37,7 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 - GET /../etc/passwd, /%2e%2e/etc/passwd → 403 (탈출 차단)
 - POST /(본문) → 405
 - GET /test.png → 원본 바이트 일치(cmp), image/png, Content-Length 149
-- 10개 항목全部 PASS.
+- 10개 항목전부 PASS.
 
 ### 메모리 검사 (`make asan`, macOS)
 - ASAN+UBSan 빌드 후 기능 시나리오 실행 → 메모리 오류/UB 리포트 없음(halt_on_error=1, 중단 없음).

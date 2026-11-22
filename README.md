@@ -14,6 +14,22 @@
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
+## 기술 영역 및 학습 목표
+
+이 프로젝트를 통해 아래의 핵심 기술 영역들을 깊이 있게 다루고 검증합니다.
+
+| 기술 영역 | 핵심 학습 내용 |
+|---|---|
+| **Network** | TCP/IP 스택 이해, Port 할당, Socket 라이프사이클 관리 |
+| **Linux/POSIX** | File Descriptor(FD) 개념, 커널 인터페이스(System Call) 활용 |
+| **HTTP** | 프로토콜 명세(RFC), Request/Response 구조, 상태 코드 정의 |
+| **C Programming** | 엄격한 포인터 운용, 버퍼 관리, 동적 메모리 할당 및 해제 |
+| **File I/O** | `open()`, `read()`, `close()`를 이용한 저수준 파일 제어 |
+| **Network I/O** | `socket()`, `accept()`, `recv()`, `send()` 기반의 데이터 흐름 설계 |
+| **Security** | Path Traversal(경로 탈출) 방어, 메모리 안정성(Buffer Overflow 방지) |
+| **Testing** | Unit/Integration Test 설계, ASAN/Valgrind를 이용한 결함 탐지 |
+| **Architecture** | 관심사 분리(Parser/Handler), FD 소유권 관리, 모듈화 설계 |
+
 ## 구현 마일스톤 및 진행 상태
 
 오늘 범위(정적 파일 서빙까지)를 5개 마일스톤으로 나눠 순서대로 구현·검증합니다.

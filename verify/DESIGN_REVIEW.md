@@ -41,7 +41,7 @@ main.c            설정 준비 + 시그널 정책 + 모듈 조립만 (소켓/�
 
 - `src/http_response.c` 주석은 "직렬화와 전체 전송"을 담당한다고 하고, `src/static_handler.c`는 파일 열기/크기 확인을 담당한다고 하지만, 둘 사이 인터페이스가 어느 문서에도 정의되어 있지 않다.
 - `STEP3_HTTP_RESPONSE.md` 47행, `STEP4_STATIC_FILE.md` 41행 모두 "인터페이스는 구현하면서 정합니다"로 비워 두었다.
-- 대용량 파일(DESIGN.md §4.6①의 100MB 예시)은 본문 버퍼에 통째로 담을 수 없으므로, 파일 fd와 전송 offset 상태를 누가 소유하는지必须先 고정해야 한다.
+- 대용량 파일(DESIGN.md §4.6①의 100MB 예시)은 본문 버퍼에 통째로 담을 수 없으므로, 파일 fd와 전송 offset 상태를 누가 소유하는지반드시 고정해야 한다.
 
 [제안] 소유권 계약:
 1. `static_handler`는 경로 검증·stat·open까지 수행하고 `{status, mime, file_fd, size}`를 반환한다.
@@ -76,7 +76,7 @@ main.c            설정 준비 + 시그널 정책 + 모듈 조립만 (소켓/�
 | `src/common.c` | 0바이트 | 헤더 전용 상수 모듈로 두고 .c는 빌드에서 제외하거나 삭제 권장 | — |
 | `www/index.html` | 내용이 `# 기본 웹 페이지` 22바이트, HTML 아님 | "/"→index.html 데모가 마크다운 텍스트로 노출 | FR-04 |
 | 바이너리 테스트 픽스처(png/jpg) | `www/`에 없음 | 바이너리 무결성 AC 증명 불가 | FR-04 AC |
-| `tests/` 디렉터리 | 없음 | 단위/기능 테스트无处 | REQUIREMENTS §7, DESIGN §3 |
+| `tests/` 디렉터리 | 없음 | 단위/기능 테스트없음 | REQUIREMENTS §7, DESIGN §3 |
 
 ### 2.3 확인 후 기각된 의심
 
@@ -117,7 +117,7 @@ query/fragment 제거
 
 - `/` → `doc_root/index.html`.
 - 디렉터리에 index.html 없으면 403 (DESIGN.md와 일치). 디렉터리 목록 노출은 요구사항에 없으므로 추가하지 않는다.
-- realpath와 open 사이 TOCTOU는本项目 규모에서 허용 가능하다고 기록.
+- realpath와 open 사이 TOCTOU는본 프로젝트 규모에서 허용 가능하다고 기록.
 
 ### 3.4 검증 벡터
 
@@ -144,7 +144,7 @@ query/fragment 제거
 - 타임아웃은 `SO_RCVTIMEO`/`SO_SNDTIMEO` 5초로 설정하면 NFR-03 무한 블로킹 방지 만족.
 - FR-06 AC(slow client 비차단, 동시 100+)는 Must이므로 프로젝트에서 제외 불가, 순서만 조정 가능.
 - 권장 경로: 오늘 흐름을 "연결 하나를 블로킹으로 처리하는 자기완결 함수 `connection_handle(fd)`"로 구현 → 4가지 검증 통과 → accept 루프의 분기만 thread pool로 교체(핸들러 수정 없음). 안 A 채택 시 DESIGN.md §1 서술 수정 + DECISIONS.md D1 기록.
-- poll 안(DESIGN 现状) 선택 시: 오늘 만든 블로킹 핸들러를 상태 머신으로 재작성해야 하고 reactor 모듈도 신규 필요 → 오늘 정적 파일 완주 위험 큼.
+- poll 안(DESIGN 현황) 선택 시: 오늘 만든 블로킹 핸들러를 상태 머신으로 재작성해야 하고 reactor 모듈도 신규 필요 → 오늘 정적 파일 완주 위험 큼.
 - Keep-Alive: 오늘 미지원이 맞음. 단 응답에 `Connection: close` 명시 후 요청 1건 처리 뒤 종료해야 한다(HTTP/1.1 기본이 keep-alive이므로 명시 없이 닫으면 클라이언트 재사용 시 오류). `src/connection.c` 주석에 이미 있음 — 정확.
 
 ---

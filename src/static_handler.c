@@ -8,7 +8,7 @@
  *  4) doc_root 와 결합. doc_root 는 realpath 로 절대경로화.
  *  5) realpath(결합경로) → 경계 포함 검사: resolved==root 또는 root+"/" 시작. 아니면 403.
  *     (단순 prefix 검사는 "/www-evil" 통과 함정 — 경계 "/" 확인 필수. 심볼릭 링크도 realpath 가 푼다.)
- *     realpath 와 open 사이 TOCTOU 경쟁 조건은本项目 규모에서 허용(더 강한 방어는 openat).
+ *     realpath 와 open 사이 TOCTOU 경쟁 조건은본 프로젝트 규모에서 허용(더 강한 방어는 openat).
  *  6) stat/open → errno 매핑: ENOENT→404, EACCES→403, 기타→500.
  *  - "/" → index.html. 디렉터리는 index.html 시도. 목록 노출은 안 함.
  *
