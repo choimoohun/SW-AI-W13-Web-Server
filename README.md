@@ -244,6 +244,85 @@ make integration-tracking   # 8081 포트에서 자동 출발/도착 통합 검�
 
 기본은 실제 시간 모드이고, `FLIGHT_SIM_SPEED`는 가상 모드에서만 의미가 있다.
 
+## 로컬에서 돌려보는 방법
+
+기본 실행:
+
+```sh
+cd /Users/velocitygoal/Desktop/jungle/SW-AI-W13-Web-Server
+make
+./webserver
+# 또는: FLIGHT_DATA_FILE=/dev/null ./webserver -p 8086 -r ./www -c conf/tcpserver.conf
+```
+
+브라우저에서 확인:
+
+- `http://127.0.0.1:8080/` — 기본 페이지
+- `http://127.0.0.1:8080/flights.html` — 항공편 예약/취소/내 예약/운항 이력
+- `http://127.0.0.1:8080/ops.html` — 출발·도착 추적 콘솔
+- `http://127.0.0.1:8080/health`, `/echo`, `/api/flights`
+
+실제 실행 예시(8086 포트):
+
+```text
+/health          200 application/json
+/                200 text/html
+/flights.html    200 text/html
+/ops.html        200 text/html
+/api/flights     200 application/json
+/echo            200
+SIGTERM 전송 후 종료
+```
+
+검증 명령:
+
+```sh
+make test                      # 단위 테스트
+make integration               # keep-alive·slow client·100동시
+make integration-flight        # 좌석 경쟁 HTTP 통합(before/after 모두 수행)
+make integration-persist       # 재시작 후 예약 유지
+make test-tracking             # 시계 전이 단위
+make integration-tracking      # 자동 출발/도착
+make integration-req           # 헤더/health/echo/프록시/캐시
+make integration-backends      # mini-redis·mini-dbms 별도 프로세스 연결
+make tsan                      # 데이터 레이스 비교
+make load-test                 # 부하
+```
+
+기능별 시연:
+
+```sh
+# 로컬 캐시 헤더 (첫 MISS, 두 번째 HIT)
+curl -i http://127.0.0.1:8080/style.css | grep -i x-cache
+curl -i http://127.0.0.1:8080/style.css | grep -i x-cache
+
+# 캐시 무효화 API는 아직 없음. TTL 만료로만 정리됨.
+# /api/cache/miss는 프록시 502 검증용 경로이며 캐시를 지우지 않음.
+
+# before/after는 관리 API로 전환 (UI에는 데모 컨트롤 없음)
+curl -X POST -d '{"lock":false}' http://127.0.0.1:8080/api/admin/mode  # before
+curl -X POST -d '{"lock":true}'  http://127.0.0.1:8080/api/admin/mode  # after
+
+# 출발/도착 시뮬레이션
+FLIGHT_TIME_MODE=sim FLIGHT_SIM_SPEED=3000 ./webserver
+# http://127.0.0.1:8080/ops.html
+
+# 게이트웨이 + 별도 백엔드 4종 (8085/8000/8002/8401/8402 사용)
+make integration-backends
+
+# Linux(epoll) 전체 회귀 — Docker 필요
+docker compose run --rm dev sh /workspace/tests/linux_check.sh
+```
+
+정리:
+
+```sh
+kill -TERM <pid>         # graceful shutdown, 종료 코드 0
+rm -f data/flights.txt   # 예약 데이터 초기화(테스트는 FLIGHT_DATA_FILE=/dev/null 사용)
+```
+
+`integration-backends`는 8085, 8000, 8002, 8401, 8402 포트를 쓰므로 다른 서버가 해당 포트를 점유하고 있으면 먼저 정리해야 합니다.
+
 ## 파일 분리 기준
 
 함수 하나마다 파일을 만들지 않고, 같은 책임을 수행하는 함수들을 모듈 하나에 묶습니다.
