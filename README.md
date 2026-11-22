@@ -12,6 +12,10 @@
 | [STEP4_STATIC_FILE.md](./eungi/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
 | [STEP5_CONCURRENCY.md](./eungi/STEP5_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
 | [STEP6_FLIGHT_DEMO.md](./eungi/STEP6_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
+| [STEP7_DOMAIN_COMPLETION.md](./eungi/STEP7_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 |
+| [STEP8_REQUIREMENTS_WRAPUP.md](./eungi/STEP8_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 |
+| [STEP9_BACKEND_SERVICES.md](./eungi/STEP9_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
+| [STEP10_PAYMENT_SERVICE.md](./eungi/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
 | [DECISIONS.md](./eungi/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
