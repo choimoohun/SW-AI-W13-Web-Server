@@ -136,7 +136,7 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 ### 남은 항목
 - epoll/kqueue 백엔드는 이 시점에 미구현이었으나, 이후 `src/iomux.c`에서 구현 완료.
 - 누수 0 확정은 이전 Linux valgrind 기록 유지. 새 워커 코드에 대한 valgrind 재검증은 Docker에서 수행 필요.
-- iCloud 동기화 폴더에서 `eungi/DECISIONS.md`가 작업 중 예전 내용으로 되돌아간 적 있음(재반영 완료). 프로젝트를 ~/dev 밖으로 이동 권장.
+- iCloud 동기화 폴더에서 `docs/DECISIONS.md`가 작업 중 예전 내용으로 되돌아간 적 있음(재반영 완료). 프로젝트를 ~/dev 밖으로 이동 권장.
 
 ---
 

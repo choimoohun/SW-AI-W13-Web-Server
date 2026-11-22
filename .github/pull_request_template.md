@@ -24,8 +24,8 @@ make integration
 
 ## 관련 문서
 
-- 결정: `eungi/DECISIONS.md`
-- 설계: `eungi/DESIGN.md`
+- 결정: `docs/DECISIONS.md`
+- 설계: `docs/DESIGN.md`
 - 검증: `verify/TEST_MATRIX.md`, `verify/VERIFICATION_LOG.md`
 
 ## 남은 것 / 범위 밖

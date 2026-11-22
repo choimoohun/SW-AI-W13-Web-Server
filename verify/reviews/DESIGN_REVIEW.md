@@ -1,8 +1,8 @@
 # 설계 검증 보고서 — 오늘 구현 범위
 
-> 이 문서는 초기 설계 시점(2026-11-21)의 검토 기록입니다. 현재 상태는 `eungi/DESIGN.md`와 `verify/ARCHITECTURE_REVIEW.md`를 기준으로 보세요.
+> 이 문서는 초기 설계 시점(2026-11-21)의 검토 기록입니다. 현재 상태는 `docs/DESIGN.md`와 `verify/reviews/ARCHITECTURE_REVIEW.md`를 기준으로 보세요.
 
-- 검토 기준: `eungi/REQUIREMENTS.md`, `eungi/DESIGN.md`, `eungi/STEP1~4`, `eungi/DECISIONS.md`, `include/`·`src/` 스텁, 빌드/설정 파일 (2026-11-21 세션)
+- 검토 기준: `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/iterations/STEP1~4`, `docs/DECISIONS.md`, `include/`·`src/` 스텁, 빌드/설정 파일 (2026-11-21 세션)
 - 포함 범위: TCP 연결 수락 → HTTP 요청 읽기·파싱 → 정적 파일 찾기 → HTTP 응답 전송 → 연결 정리
 - 제외 범위: Reverse/Forward Proxy, CGI (오늘 검토 대상 아님)
 - 동시성(FR-06): 오늘 핵심 흐름과 분리하여 §4에서 별도 판정
@@ -34,7 +34,7 @@ main.c            설정 준비 + 시그널 정책 + 모듈 조립만 (소켓/�
 | short read/write 반복 처리, EINTR/EPIPE 구분 | `src/http_response.c` 주석 6~8행 |
 | Content-Length는 문자 수가 아니라 바이트 수 | `src/http_response.c` 주석 4~5행 |
 | 본문은 포인터+길이로 다뤄 바이너리 보존 | `src/static_handler.c`, `include/http_response.h` |
-| 청소는 단일 지점, fd는 -1 초기화, SIGPIPE 무시 | `eungi/DESIGN.md` §5 |
+| 청소는 단일 지점, fd는 -1 초기화, SIGPIPE 무시 | `docs/DESIGN.md` §5 |
 | Keep-Alive 미지원 단계에서는 Connection: close 명시 후 종료 | `src/connection.c` 주석 7~8행 |
 
 이 주석들은 발표 시 동작 원리 설명으로 그대로 사용할 수 있는 수준이다.

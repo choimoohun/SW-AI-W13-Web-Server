@@ -2,7 +2,7 @@
 
 - 상태: **초안**. 팀원끼리 정하지 않았으므로 확정 규칙이 아닙니다.
 - 기준: 현재 저장소(`SW-AI-W13-Web-Server`)의 `eungi-dev` 브랜치와 PR #18
-- 관련 문서: [운영 규칙](./CONVENTIONS.md) · [진행 지도](./PROGRESS.md) · [협업 기록](./COLLABORATION.md) · [검증 로그](../verify/VERIFICATION_LOG.md)
+- 관련 문서: [운영 규칙](./CONVENTIONS.md) · [진행 지도](./PROGRESS.md) · [협업 기록](./COLLABORATION.md) · [검증 로그](../../verify/VERIFICATION_LOG.md)
 
 이 문서는 "나중에 팀과 정할 때 꺼내 쓸 초안"입니다.합의 전에는 제안으로 읽고,
 합의된 항목만 상태를 `확정`으로 바꿔서 씁니다.

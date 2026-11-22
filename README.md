@@ -6,21 +6,21 @@
 
 | 문서 | 범위 |
 |---|---|
-| [STEP1_TCP_SERVER.md](./eungi/STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
-| [STEP2_HTTP_PARSER.md](./eungi/STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
-| [STEP3_HTTP_RESPONSE.md](./eungi/STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
-| [STEP4_STATIC_FILE.md](./eungi/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
-| [STEP5_CONCURRENCY.md](./eungi/STEP5_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
-| [STEP6_FLIGHT_DEMO.md](./eungi/STEP6_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
-| [STEP7_DOMAIN_COMPLETION.md](./eungi/STEP7_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 |
-| [STEP8_REQUIREMENTS_WRAPUP.md](./eungi/STEP8_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 |
-| [STEP9_BACKEND_SERVICES.md](./eungi/STEP9_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
-| [STEP10_PAYMENT_SERVICE.md](./eungi/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
-| [DECISIONS.md](./eungi/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
-| [PROGRESS.md](./eungi/PROGRESS.md) | STEP1~10 진행 지도와 현재 검증 지점 |
-| [CONVENTIONS.md](./eungi/CONVENTIONS.md) | 문서·결정·검증을 남기는 운영 규칙 |
-| [COLLABORATION.md](./eungi/COLLABORATION.md) | 질문이 판단으로 바뀐 협업 기록 |
-| [WORKFLOW.md](./eungi/WORKFLOW.md) | 협업 흐름 초안 (팀 합의 전) |
+| [STEP1_TCP_SERVER.md](./docs/iterations/STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
+| [STEP2_HTTP_PARSER.md](./docs/iterations/STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
+| [STEP3_HTTP_RESPONSE.md](./docs/iterations/STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
+| [STEP4_STATIC_FILE.md](./docs/iterations/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
+| [STEP5_CONCURRENCY.md](./docs/iterations/STEP5_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
+| [STEP6_FLIGHT_DEMO.md](./docs/iterations/STEP6_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
+| [STEP7_DOMAIN_COMPLETION.md](./docs/iterations/STEP7_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 |
+| [STEP8_REQUIREMENTS_WRAPUP.md](./docs/iterations/STEP8_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 |
+| [STEP9_BACKEND_SERVICES.md](./docs/iterations/STEP9_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
+| [STEP10_PAYMENT_SERVICE.md](./docs/iterations/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
+| [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [PROGRESS.md](./docs/workflow/PROGRESS.md) | STEP1~10 진행 지도와 현재 검증 지점 |
+| [CONVENTIONS.md](./docs/workflow/CONVENTIONS.md) | 문서·결정·검증을 남기는 운영 규칙 |
+| [COLLABORATION.md](./docs/workflow/COLLABORATION.md) | 질문이 판단으로 바뀐 협업 기록 |
+| [WORKFLOW.md](./docs/workflow/WORKFLOW.md) | 협업 흐름 초안 (팀 합의 전) |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
@@ -78,7 +78,7 @@ flowchart TB
     RESP --> OUT
 ```
 
-상세한 계층 설명과 리스크 메모는 [`verify/ARCHITECTURE_REVIEW.md`](./verify/ARCHITECTURE_REVIEW.md)에 있습니다.
+상세한 계층 설명과 리스크 메모는 [`verify/reviews/ARCHITECTURE_REVIEW.md`](./verify/reviews/ARCHITECTURE_REVIEW.md)에 있습니다.
 
 ## 기술 영역 및 학습 목표
 
@@ -191,7 +191,7 @@ make load-test                  # 200요청·동시 20, Non-2xx 0 확인
 ```
 
 `:8080/health` 응답의 접근 로그에서 `[wN]`으로 서로 다른 워커가 처리했는지 확인합니다.
-상세 흐름은 [STEP5_CONCURRENCY.md](./eungi/STEP5_CONCURRENCY.md) 참고.
+상세 흐름은 [STEP5_CONCURRENCY.md](./docs/iterations/STEP5_CONCURRENCY.md) 참고.
 
 ### 마일스톤 7: 항공편 도메인 검증
 
@@ -204,7 +204,7 @@ make integration-tracking       # 자동 출발/도착 통합
 make tsan                       # after 레이스 0, before 1건 검출
 ```
 
-상세 설계는 [STEP6_FLIGHT_DEMO.md](./eungi/STEP6_FLIGHT_DEMO.md) 참고.
+상세 설계는 [STEP6_FLIGHT_DEMO.md](./docs/iterations/STEP6_FLIGHT_DEMO.md) 참고.
 
 ### 마일스톤 8: 요구사항 마무리 검증
 
@@ -213,8 +213,8 @@ make integration-req            # Date/Server, /health, /echo, -p/-r/-c,
                                 # 게이트웨이 RR/XFF/502, 접근 로그, X-Cache HIT
 ```
 
-요구사항 원문은 [REQUIREMENTS.md](./eungi/REQUIREMENTS.md),
-결정 근거는 [DECISIONS.md](./eungi/DECISIONS.md) 참고.
+요구사항 원문은 [REQUIREMENTS.md](./docs/REQUIREMENTS.md),
+결정 근거는 [DECISIONS.md](./docs/DECISIONS.md) 참고.
 
 ### 마일스톤 9: 별도 백엔드 프로세스 검증
 
@@ -363,8 +363,8 @@ src/       main, tcpserver, worker, iomux, connection, config, flight_*, proxy, 
 www/       flights.html/js, ops.html/js, 정적 자산
 conf/      tcpserver.conf (포트·워커·라우트·TTL)
 tests/     unit/, integration/, integration/fixtures/
-verify/    VERIFICATION_LOG.md, ARCHITECTURE_REVIEW.md
-eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
+verify/     TEST_MATRIX.md, VERIFICATION_LOG.md, reviews/
+docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, iterations/, workflow/
 ```
 
 ## 모듈 책임 (현재)
@@ -394,4 +394,4 @@ eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
 
-참고 문서: [REQUIREMENTS.md](./eungi/REQUIREMENTS.md) · [DESIGN.md](./eungi/DESIGN.md) · [TEST_MATRIX.md](./verify/TEST_MATRIX.md) · [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md)
+참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./verify/TEST_MATRIX.md) · [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/reviews/ARCHITECTURE_REVIEW.md)

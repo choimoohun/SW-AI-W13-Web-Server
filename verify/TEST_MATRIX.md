@@ -41,7 +41,7 @@
 
 ## 새 항목을 추가할 때
 
-1. `eungi/REQUIREMENTS.md`에 요구사항이 있으면 여기에 행을 추가합니다.
+1. `docs/REQUIREMENTS.md`에 요구사항이 있으면 여기에 행을 추가합니다.
 2. 검증 명령을 적고, 실행 전에는 `NOT RUN`으로 둡니다.
 3. 실행 후 실제 출력 요약을 `VERIFICATION_LOG.md`에 append하고 상태를 `PASS`/`FAIL`로 바꿉니다.
 4. 실패를 지우지 않고 원인·수정·재검증을 같은 날 기록에 남깁니다.
