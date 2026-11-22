@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments reset-flights load-test leak asan tsan clean
+.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases reset-flights load-test leak asan tsan clean
 
 all: $(BIN)
 
@@ -70,6 +70,10 @@ integration-payments: $(BIN)
 # 예약 상태 파일을 지우고 16편 시드로 다시 시작.
 reset-flights:
 	rm -f data/flights.txt data/flights.txt.tmp
+
+# 잘못된 요청/큰 본문/백엔드 없음/클라이언트 끊김 시나리오.
+edge-cases: $(BIN)
+	@sh tests/integration/edge_cases.sh
 
 # 부하 테스트: 200요청 동시 20, RPS/지연/에러 수 기록.
 load-test: $(BIN)
