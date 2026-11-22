@@ -18,4 +18,4 @@
 | NFR-03 | 유휴 연결 정리 | `src/connection.c`, `src/worker.c` | `make integration-req` |
 | NFR-04 | 요청 흔적 | `src/worker.c` | `make integration-req` |
 
-아직 연결이 약한 곳은 [../WORKLOG.md](../WORKLOG.md)에 적습니다.
+아직 연결이 약한 곳은 [../workflow/DAILY_SCOPE.md](../workflow/DAILY_SCOPE.md)에 적습니다.

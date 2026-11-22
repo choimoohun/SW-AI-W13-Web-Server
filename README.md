@@ -2,7 +2,7 @@
 
 ## 현재 작업 상태
 
-오늘 작업 범위와 다음 단계는 [WORKLOG.md](./docs/WORKLOG.md)에 있습니다.
+오늘 작업 범위와 다음 단계는 [WORKLOG.md](./docs/workflow/DAILY_SCOPE.md)에 있습니다.
 
 ## 핵심 문제
 
@@ -27,10 +27,7 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | [STEP09_BACKEND_SERVICES.md](./docs/iterations/STEP09_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
 | [STEP10_PAYMENT_SERVICE.md](./docs/iterations/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
 | [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
-| [PROGRESS.md](./docs/PROGRESS.md) | STEP1~10 진행 지도와 현재 검증 지점 |
-| [CONVENTIONS.md](./docs/CONVENTIONS.md) | 문서·결정·검증을 남기는 운영 규칙 |
-| [COLLABORATION.md](./docs/COLLABORATION.md) | 질문이 판단으로 바뀐 협업 기록 |
-| [TEAM_PROCESS.md](./docs/TEAM_PROCESS.md) | 협업 흐름 초안 (팀 합의 전) |
+| [TEAM_PROCESS.md](./docs/workflow/TEAM_RULES.md) | 협업 흐름 초안 (팀 합의 전) |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
