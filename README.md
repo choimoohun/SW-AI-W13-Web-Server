@@ -2,13 +2,11 @@
 
 ## 현재 작업 상태
 
-오늘 작업 범위와 다음 단계는 [WORKLOG.md](./docs/workflow/DAILY_SCOPE.md)에 있습니다.
+오늘 작업 범위와 다음 단계는 [DAILY_SCOPE.md](./docs/agent/DAILY_SCOPE.md)에 있습니다.
 
 ## 핵심 문제
 
 TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 원합니다. 이 차이를 안전하게 메우고, 여러 클라이언트가 동시에 써도 상태가 깨지지 않게 만드는 것이 이 프로젝트의 출발점입니다. 자세한 문제 정의는 [docs/why_webserver.md](./docs/why_webserver.md)에 있습니다.
-
-전체 문서 지도는 [docs/README.md](./docs/README.md)에 있습니다.
 
 ## 문서 범위
 
@@ -27,7 +25,7 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | [STEP09_BACKEND_SERVICES.md](./docs/iterations/STEP09_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
 | [STEP10_PAYMENT_SERVICE.md](./docs/iterations/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
 | [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
-| [TEAM_PROCESS.md](./docs/workflow/TEAM_RULES.md) | 협업 흐름 초안 (팀 합의 전) |
+| [TEAM_RULES.md](./docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
@@ -85,7 +83,7 @@ flowchart TB
     RESP --> OUT
 ```
 
-상세한 계층 설명과 리스크 메모는 [`verify/reviews/ARCHITECTURE_REVIEW.md`](./docs/reviews/ARCHITECTURE_REVIEW.md)에 있습니다.
+상세한 계층 설명과 리스크 메모는 [`ARCHITECTURE_REVIEW.md`](./docs/design_reviews/ARCHITECTURE_REVIEW.md)에 있습니다.
 
 ## 기술 영역 및 학습 목표
 
@@ -370,8 +368,8 @@ src/       main, tcpserver, worker, iomux, connection, config, flight_*, proxy, 
 www/       flights.html/js, ops.html/js, 정적 자산
 conf/      tcpserver.conf (포트·워커·라우트·TTL)
 tests/     unit/, integration/, integration/fixtures/
-verify/     TEST_MATRIX.md, VERIFICATION_LOG.md, reviews/
-docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, iterations/, workflow/
+verify/     VERIFICATION_MATRIX.md, VERIFICATION_LOG.md, AUTO_FINDINGS.md, design_reviews/
+docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, iterations/, agent/, why_webserver.md
 ```
 
 ## 모듈 책임 (현재)
@@ -401,4 +399,4 @@ docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, iterations/, workflow/
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
 
-참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./docs/verify/TEST_MATRIX.md) · [VERIFICATION_LOG.md](./docs/verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./docs/reviews/ARCHITECTURE_REVIEW.md)
+참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./docs/verify/VERIFICATION_MATRIX.md) · [VERIFICATION_LOG.md](./docs/verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./docs/design_reviews/ARCHITECTURE_REVIEW.md)

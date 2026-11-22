@@ -1,11 +1,12 @@
 # 하루 작업 범위
 
 오늘 무엇을 하고, 무엇을 미루는지 적습니다.
-영구 규칙은 [TEAM_RULES.md](TEAM_RULES.md), 설계는 상위 `docs/`, 실행 증거는 [../verify/README.md](../verify/README.md)에 둡니다.
+영구 규칙은 [TEAM_RULES.md](../TEAM_RULES.md), 설계는 상위 `docs/`, 실행 증거는 [VERIFICATION_LOG.md](../verify/VERIFICATION_LOG.md)에 둡니다.
 
 ## 지금 상태
 
 STEP10 결제 서비스와 문서 정리를 끝냈습니다. 브랜치는 `eungi-dev`입니다.
+2026-11-23: 항공편 시드의 출발지를 11개 공항으로 넓히고, 문서 리네임 이후 깨진 링크 16개를 정리했습니다.
 
 ## 실제로 확인한 것
 
@@ -30,9 +31,9 @@ STEP10 결제 서비스와 문서 정리를 끝냈습니다. 브랜치는 `eungi
 
 문제 → 설계 → 검증 순서로 적습니다.
 실행하지 않은 테스트는 `NOT RUN`, 범위 밖은 `OUT OF SCOPE`으로 둡니다.
-팀 합의가 필요한 항목은 여기서 제외하고 [TEAM_RULES.md](TEAM_RULES.md)의 미정 항목에 둡니다.
+팀 합의가 필요한 항목은 여기서 제외하고 [TEAM_RULES.md](../TEAM_RULES.md)의 미정 항목에 둡니다.
 
 ## 리밋 운영
 
 작업 범위가 클 때는 `tools/rate_limit_manager.py`로 하루 목표를 나눕니다.
-사용법은 [tools/README.md](tools/README.md)에 있습니다.
+사용법은 [rate_limit_manager 안내](tools/readme-rate-limit-manager.md)에 있습니다.

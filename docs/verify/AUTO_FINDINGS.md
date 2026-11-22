@@ -1,6 +1,6 @@
 # 검증에서 잡은 문제
 
-실행 중 발견해서 고친 문제입니다. 설계 의견은 [../reviews/README.md](../reviews/README.md)에 둡니다.
+실행 중 발견해서 고친 문제입니다. 설계 의견은 [DESIGN_REVIEW.md](../design_reviews/DESIGN_REVIEW.md)에 둡니다.
 
 | 단계 | 증상 | 원인 | 수정 | 재검증 |
 |---|---|---|---|---|

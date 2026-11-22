@@ -5,7 +5,7 @@
 
 | 요구사항 | 푸는 문제 | 구현 | 검증 |
 |---|---|---|---|
-| FR-01 | 연결을 받을 진입점 | `src/server.c`, `src/main.c` | `make test`, `make integration` |
+| FR-01 | 연결을 받을 진입점 | `src/tcpserver.c`, `src/main.c` | `make test`, `make integration` |
 | FR-02 | 요청의 시작과 끝 | `src/http_parser.c` | `make test` |
 | FR-03 | 응답 구조 | `src/http_response.c` | `make integration` |
 | FR-04 | 경로 탈출과 MIME | `src/static_handler.c` | `make integration` |
@@ -18,4 +18,4 @@
 | NFR-03 | 유휴 연결 정리 | `src/connection.c`, `src/worker.c` | `make integration-req` |
 | NFR-04 | 요청 흔적 | `src/worker.c` | `make integration-req` |
 
-아직 연결이 약한 곳은 [../workflow/DAILY_SCOPE.md](../workflow/DAILY_SCOPE.md)에 적습니다.
+아직 연결이 약한 곳은 [DAILY_SCOPE.md](../agent/DAILY_SCOPE.md)에 적습니다.
