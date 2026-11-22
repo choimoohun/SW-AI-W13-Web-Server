@@ -36,3 +36,21 @@
 ### 3.2 리소스 관리 정책
 - **RAII 패턴**: 모든 연결 리소스는 에러 발생 시 단일 지점(connection_close)에서 안전하게 해제되도록 설계하여 누수를 방지합니다.
 - **보안**: `realpath`를 활용한 경로 정규화를 통해 루트 디렉터리 상위로의 접근을 물리적으로 차단합니다.
+
+## 4. 이후 확장된 구조 (STEP5~6, FR-05~07)
+
+초기 설계 위에 다음 계층이 추가됐습니다. 현재 구현 기준입니다.
+
+| 계층 | 모듈 | 역할 |
+|---|---|---|
+| 이벤트 | `worker`, `iomux` | 워커 스레드별 이벤트 루프, epoll(Linux)/kqueue(macOS)/poll, accept 분산 |
+| 연결 | `connection` | 비동기 feed/flush, keep-alive 100회, 접근 로그 |
+| 설정 | `config` | 기본값 → `conf/tcpserver.conf` → CLI(`-p/-r/-c`) |
+| 도메인 | `flight_store`, `flight_clock`, `flight_api` | 항공편 예약·취소·영속저장, 출발/도착 추적, JSON API |
+| 게이트웨이 | `proxy` | 경로 prefix 라우팅 + Round-Robin, 전용 스레드, 502/504, XFF |
+| 캐시 | `cdn` | 정적 자산 TTL 캐시, `X-Cache` HIT/MISS |
+| 응답 | `http_response` | `Date`, `Server`, `Cache-Control`, `ETag` |
+
+서비스 경계와 HTTP/2 처리 방침은 `eungi/DECISIONS.md`의 D26~D27을 따릅니다.
+
+상세 데이터 흐름은 [`verify/ARCHITECTURE_REVIEW.md`](../verify/ARCHITECTURE_REVIEW.md)와 README의 아키텍처 도식을 참고합니다.

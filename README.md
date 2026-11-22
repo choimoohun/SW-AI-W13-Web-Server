@@ -199,75 +199,36 @@ make integration-tracking   # 8081 포트에서 자동 출발/도착 통합 검�
 - `http_response`: HTTP 응답 생성 및 전송
 - `static_handler`: 요청 경로에 대응하는 정적 파일 처리
 
-## 현재 제안하는 디렉터리 구조
+## 현재 디렉터리 구조
 
 ```text
-webserver/
-├── Makefile                  # 컴파일 및 빌드 작업을 관리하는 파일
-├── include/                  # 헤더 파일(.h)을 모아두는 디렉터리
-│   ├── tcpserver.h           # 서버 초기화 및 실행 관련 함수 선언
-│   ├── connection.h          # 클라이언트 연결 및 연결 상태 관련 함수 선언
-│   ├── http_parser.h         # HTTP 요청 메시지 파싱 관련 함수 선언
-│   ├── http_response.h       # HTTP 응답 생성 및 전송 관련 함수 선언
-│   └── static_handler.h      # 정적 파일 요청 처리 관련 함수 선언
-│
-├── src/                      # C 소스 파일(.c)을 모아두는 디렉터리
-│   ├── main.c                # 프로그램 진입점 및 서버 실행
-│   ├── tcpserver.c           # TCP 소켓 생성, bind(), listen(), accept() 처리
-│   ├── connection.c          # 클라이언트 연결별 데이터 수신 및 전송 관리
-│   ├── http_parser.c         # HTTP 요청 메서드, URI, 헤더, 본문 파싱
-│   ├── http_response.c       # HTTP 응답 상태 줄, 헤더, 본문 생성 및 전송
-│   └── static_handler.c      # 요청 URI에 대응하는 정적 파일 탐색 및 응답 처리
-│
-├── www/                      # 클라이언트에게 제공할 정적 파일 디렉터리
-│   └── index.html            # 기본 웹 페이지
-│
-└── tests/                    # 테스트 코드 디렉터리
-    ├── unit/                 # 개별 함수 및 모듈 단위 테스트
-    └── integration/          # 서버와 클라이언트 간 통합 테스트
+include/   iomux, worker, connection, config, flight_*, proxy, cdn, http_*
+src/       main, tcpserver, worker, iomux, connection, config, flight_*, proxy, cdn, http_*
+www/       flights.html/js, ops.html/js, 정적 자산
+conf/      tcpserver.conf (포트·워커·라우트·TTL)
+tests/     unit/, integration/, integration/fixtures/
+verify/    VERIFICATION_LOG.md, ARCHITECTURE_REVIEW.md
+eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
 ```
 
-위 구조는 파일 분리를 위한 제안입니다. 실제 파일 생성 여부와 최종 모듈 경계는 구현하면서 확인합니다. 아직 구현하지 않는 프록시, CGI, 캐시 등의 모듈은 포함하지 않습니다.
+## 모듈 책임 (현재)
 
-## 모듈 책임과 의존 관계 초안
+| 모듈 | 책임 |
+|---|---|
+| `main` | 설정 로드, 리스닝 소켓 생성, 워커 풀·프록시 스레드 시작/종료 |
+| `tcpserver` | 소켓 생성·bind·listen, graceful shutdown |
+| `worker` | 워커별 이벤트 루프, 이벤트당 accept 1건, 유휴 정리 |
+| `iomux` | epoll(Linux)/kqueue(macOS)/poll 백엔드 추상화 |
+| `connection` | 비동기 feed/flush 상태 머신, keep-alive, 접근 로그 |
+| `flight_store` | 항공편·예약·타임라인, 항공편별 락, 스냅샷 파일 저장 |
+| `flight_api` | `/api/*` 라우팅, 최소 JSON 직렬화, `/health`·`/echo` |
+| `flight_clock` | real/sim 시계, 자동 출발·도착 전이 |
+| `proxy` | 경로 기반 게이트웨이 + Round-Robin 로드밸런서(전용 스레드) |
+| `cdn` | 정적 자산 TTL 캐시, `X-Cache` HIT/MISS |
+| `static_handler` | 경로 검증, MIME, 정적 파일/캐시 서빙 |
+| `http_response` | Date/Server/Cache-Control/ETag 포함 응답 직렬화 |
 
-| 모듈 | 책임 | 사용할 모듈 |
-|---|---|---|
-| `main` | 프로그램 시작 및 서버 실행 | `server` |
-| `server` | 서버 소켓 생성, 설정, 접속 수락 | `connection` |
-| `connection` | 클라이언트 연결과 수신 데이터 관리 | `http_parser`, `http_response` |
-| `http_parser` | HTTP 요청 줄·헤더·본문 해석 | 없음 |
-| `http_response` | HTTP 응답 형식 생성 및 전송 | 없음 |
-| `static_handler` | 파일 경로 확인, 파일 정보 조회 및 파일 내용 처리 | `http_response` |
-
-의존 관계는 구현 전에 정리한 초안입니다. 실제 함수 호출 관계와 인터페이스가 정해지면 수정합니다.
-
-## 모듈 간 관계 초안
-
-아래 그림은 위 표의 의존 관계를 간단히 나타낸 것입니다.
-
-```text
-                 main.c
-                   |
-                   v
-                 server
-                   |
-                   v
-               connection
-                /       \
-               v         v
-         http_parser  http_response
-                          ^
-                          |
-                   static_handler
-```
-
-- `main.c`에서 `server`를 실행합니다.
-- `server`가 클라이언트 연결을 수락하면 `connection`이 연결별 처리를 담당합니다.
-- `connection`은 `http_parser`를 이용해 요청을 해석하고, `http_response`를 이용해 응답을 생성·전송합니다.
-- `static_handler`는 정적 파일 요청을 처리하며, 응답 생성에 `http_response`를 사용하도록 제안했습니다.
-
-위 관계는 구현 전 초안입니다. 실제 함수 호출 순서와 인터페이스는 구현하면서 확인하고 수정합니다.
+초기 단계의 "제안 구조"는 위 현재 구조로 대체됐습니다.
 
 
 ## 문서 작성 원칙

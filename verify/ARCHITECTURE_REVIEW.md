@@ -95,7 +95,7 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 
 ### 잘 붙은 부분
 
-- 단일 프로세스 + 워커 N개, 각자 poll 인스턴스 소유 → fd 핸드오프 큐 없음.
+- 단일 프로세스 + 워커 N개, 각자 iomux 인스턴스 소유(epoll/kqueue/poll) → fd 핸드오프 큐 없음.
 - 이벤트당 accept 1건 정책 덕분에 100동시 요청에서 좌석 경쟁이 실제로 재현됨
   (`make integration-flight`, `make tsan`으로 확인).
 - before(의도적 레이스) / after(뮤텍스) 분리, UI에는 데모 컨트롤 없음.
