@@ -1,5 +1,5 @@
 #!/bin/sh
-# 결제 서비스 연동 시연: 별도 프로세스 + 자기 파일 DB + 멱등키 + 환불 + 독립 재시작.
+# 결제 서비스 연동 시연: 별도 프로세스 + 자기 파일 DB + 중복 방지 키 + 환불 + 독립 재시작.
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/jg_payment_XXXXXX")

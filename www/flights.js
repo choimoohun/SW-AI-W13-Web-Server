@@ -27,6 +27,31 @@
     });
   }
 
+  function draftKey(flightId) { return 'jg_draft_' + flightId; }
+
+  function saveDraft(flightId) {
+    var name = $('pName');
+    var contact = $('pContact');
+    if (!name || !contact) return;
+    localStorage.setItem(draftKey(flightId), JSON.stringify({
+      name: name.value, contact: contact.value
+    }));
+  }
+
+  function restoreDraft(flightId) {
+    var name = $('pName');
+    var contact = $('pContact');
+    if (!name || !contact) return;
+    try {
+      var saved = JSON.parse(localStorage.getItem(draftKey(flightId)) || '{}');
+      name.value = saved.name || '';
+      contact.value = saved.contact || '';
+    } catch (e) {
+      name.value = '';
+      contact.value = '';
+    }
+  }
+
   function post(url, body) {
     return fetch(url, {
       method: 'POST',
@@ -88,6 +113,9 @@
       '</div>' +
       '<button id="reserveBtn" class="primary" style="margin-top:14px"' +
         (f.seat_left <= 0 ? ' disabled' : '') + '>예약하기</button>';
+    restoreDraft(f.id);
+    $('pName').oninput = function () { saveDraft(f.id); };
+    $('pContact').oninput = function () { saveDraft(f.id); };
     $('reserveBtn').onclick = function () {
       var name = $('pName').value.trim();
       var contact = $('pContact').value.trim();
@@ -96,6 +124,7 @@
         name: name, contact: contact, client: client
       }).then(function (r) {
         if (r.error) { toast(r.message || r.error, true); return; }
+        localStorage.removeItem(draftKey(f.id));
         toast('예약 완료: ' + r.reservation.id);
         loadFlights();
         selectFlight(f.id);

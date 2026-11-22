@@ -472,14 +472,14 @@ config/proxy 변경 후 `make test`, `make integration`, `make integration-fligh
 ### 구현
 
 - `tests/backends/serve_payments.py`: 8500 포트, 자기 파일 DB, `CAPTURED`/`REFUNDED`,
-  멱등키, 환불. `PAYMENT_DATA_FILE`로 테스트 DB를 분리.
+  중복 방지 키, 환불. `PAYMENT_DATA_FILE`로 테스트 DB를 분리.
 - `conf/backends.conf`: `route = /api/payments/|127.0.0.1:8500|/`.
 - `www/flights.js`: 내 예약 목록에서 결제 상태를 조회하고, 미결제 건은 "결제하기" 버튼 제공.
 - `make integration-payments`, Linux 회귀에 결제 시나리오 추가.
 
 디버깅 중 두 가지를 확인했습니다.
 
-1. 프록시는 `Idempotency-Key` 같은 임의 헤더를 전달하지 않습니다. 그래서 멱등키를
+1. 프록시는 `Idempotency-Key` 같은 임의 헤더를 전달하지 않습니다. 그래서 중복 방지 키를
    요청 본문의 `idempotency_key`에도 넣었습니다.
 2. `POST /api/payments/{id}/refund`처럼 본문이 없는 POST는 서버가 411을 반환합니다.
    요구사항의 `POST` 본문 처리 정책과 일치하므로, 테스트와 화면에서 `{}` 본문을 보냅니다.

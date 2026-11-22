@@ -103,7 +103,7 @@ flowchart TB
 | 7 | 항공편 도메인: 예약·취소·영속 저장, 좌석 경쟁 before/after, 출발/도착 추적 | 완료·검증 |
 | 8 | 요구사항 마무리: Date/Server, health/echo, 접근 로그, `-p/-r/-c`, 프록시 게이트웨이+RR, 미니 CDN | 완료·검증 |
 | 9 | 별도 백엔드 프로세스 연결: mini-redis·mini-dbms를 게이트웨이 뒤에 연결, 리소스 제한·독립 재시작 시연 | 완료·검증 |
-| 10 | 결제 서비스 분리: 자기 DB·멱등키·환불, `flights.html` 결제 버튼, 독립 재시작 | 완료·검증 |
+| 10 | 결제 서비스 분리: 자기 DB·중복 방지 키·환불, `flights.html` 결제 버튼, 독립 재시작 | 완료·검증 |
 
 ### 마일스톤 1에서 실제로 검증한 것
 
@@ -220,7 +220,7 @@ make integration-backends       # mini-redis·mini-dbms를 게이트웨이 뒤�
 
 ```sh
 make integration-backends     # 8500 결제 프로세스까지 함께 기동
-make integration-payments     # 충전·멱등키·조회·환불·잘못된 금액·독립 재시작
+make integration-payments     # 충전·중복 방지 키·조회·환불·잘못된 금액·독립 재시작
 # http://127.0.0.1:8085/flights.html → 내 예약에서 결제하기
 ```
 
@@ -294,7 +294,7 @@ make test-tracking             # 시계 전이 단위
 make integration-tracking      # 자동 출발/도착
 make integration-req           # 헤더/health/echo/프록시/캐시
 make integration-backends      # mini-redis·mini-dbms·결제 별도 프로세스 연결
-make integration-payments     # 결제 충전·멱등키·환불·독립 재시작
+make integration-payments     # 결제 충전·중복 방지 키·환불·독립 재시작
 make tsan                      # 데이터 레이스 비교
 make load-test                 # 부하
 ```
