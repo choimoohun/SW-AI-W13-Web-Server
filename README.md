@@ -2,7 +2,7 @@
 
 ## 문서 범위
 
-오늘 작업 범위로 잡은 TCP 서버, HTTP 요청 파싱, HTTP 응답 생성, 정적 파일 서빙을 다룹니다.
+오늘 작업 범위로 잡은 TCP 서버부터 정적 파일 서빙, 워커 풀·동시성, 항공편 예약 서비스까지를 다룹니다.
 
 | 문서 | 범위 |
 |---|---|
@@ -10,6 +10,8 @@
 | [STEP2_HTTP_PARSER.md](./eungi/STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
 | [STEP3_HTTP_RESPONSE.md](./eungi/STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
 | [STEP4_STATIC_FILE.md](./eungi/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
+| [STEP5_CONCURRENCY.md](./eungi/STEP5_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
+| [STEP6_FLIGHT_DEMO.md](./eungi/STEP6_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
 | [DECISIONS.md](./eungi/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
@@ -284,16 +286,11 @@ eungi/     STEP*, REQUIREMENTS.md, DESIGN.md, DECISIONS.md
 초기 단계의 "제안 구조"는 위 현재 구조로 대체됐습니다.
 
 
-## 문서 링크
-
-- 요구사항: [eungi/REQUIREMENTS.md](./eungi/REQUIREMENTS.md)
-- 단계별 계획: [STEP1](./eungi/STEP1_TCP_SERVER.md) · [STEP2](./eungi/STEP2_HTTP_PARSER.md) · [STEP3](./eungi/STEP3_HTTP_RESPONSE.md) · [STEP4](./eungi/STEP4_STATIC_FILE.md) · [STEP5](./eungi/STEP5_CONCURRENCY.md) · [STEP6](./eungi/STEP6_FLIGHT_DEMO.md)
-- 설계: [eungi/DESIGN.md](./eungi/DESIGN.md) · [의사결정](./eungi/DECISIONS.md)
-- 검증: [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md) · [DESIGN_REVIEW.md](./verify/DESIGN_REVIEW.md)
-
 ## 문서 작성 원칙
 
 - 구현하지 않은 기능을 완료한 것처럼 기록하지 않습니다.
 - 실행하지 않은 테스트를 통과했다고 기록하지 않습니다.
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
+
+참고 문서: [REQUIREMENTS.md](./eungi/REQUIREMENTS.md) · [DESIGN.md](./eungi/DESIGN.md) · [VERIFICATION_LOG.md](./verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./verify/ARCHITECTURE_REVIEW.md)
