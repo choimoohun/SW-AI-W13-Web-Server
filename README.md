@@ -20,7 +20,7 @@
 | [PROGRESS.md](./docs/workflow/PROGRESS.md) | STEP1~10 진행 지도와 현재 검증 지점 |
 | [CONVENTIONS.md](./docs/workflow/CONVENTIONS.md) | 문서·결정·검증을 남기는 운영 규칙 |
 | [COLLABORATION.md](./docs/workflow/COLLABORATION.md) | 질문이 판단으로 바뀐 협업 기록 |
-| [WORKFLOW.md](./docs/workflow/WORKFLOW.md) | 협업 흐름 초안 (팀 합의 전) |
+| [TEAM_PROCESS.md](./docs/workflow/TEAM_PROCESS.md) | 협업 흐름 초안 (팀 합의 전) |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 

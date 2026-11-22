@@ -9,6 +9,6 @@
 | `workflow/CONVENTIONS.md` | 문서·결정·검증 운영 규칙 |
 | `workflow/PROGRESS.md` | 전체 진행 지도 |
 | `workflow/COLLABORATION.md` | 질문이 판단으로 바뀐 협업 기록 |
-| `workflow/WORKFLOW.md` | 팀 협업 흐름 초안 |
+| `workflow/TEAM_PROCESS.md` | 팀 협업 흐름 초안 |
 
 실행 증거는 `verify/`에 있습니다. 시작은 루트 `README.md`를 먼저 보세요.
