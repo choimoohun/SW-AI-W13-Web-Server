@@ -400,3 +400,60 @@ Transfer/sec:     23.10MB
 - wrk 기반 부하 테스트까지 실제로 수행했고, percentile은 여전히 미제공이지만
   평균 지연·최대 지연·RPS·소켓 오류 수를 측정했습니다.
 - 이 수정으로 "keep-alive 최대 100회"가 헤더 의미와 실제 동작까지 일치합니다.
+
+---
+
+## 2026-11-23 추가 기록 (8) — 별도 프로세스 백엔드 연결 (라이프사이클·리소스 제한)
+
+### 무엇을 붙였나
+
+실제 다른 레포의 코드를 별도 프로세스로 띄우고, C 게이트웨이 뒤에 연결했습니다.
+
+| 경로 | 백엔드 | 사용한 코드 |
+|---|---|---|
+| `/api/cache/*` → rewrite `/` | 8000 | `mini-redis-repo/mini_redis/store.py`의 `Store`를 표준 라이브러리 어댑터로 감쌈 |
+| `/api/stocks/*` → rewrite `/` | 8002 | 같은 `Store`를 TTL 캐시로 쓰는 주식 데모 어댑터 |
+| `/api/orders/*` → rewrite `/` | 8401, 8402 | `mini-dbms/docs/study/WHY_DBMS/why_dbms_demo/app.py`를 역할만 바꿔 2개 프로세스로 실행 |
+
+Flask가 설치돼 있지 않아 mini-redis의 Flask 앱 대신 `Store`를 직접 import하는
+`http.server` 어댑터를 사용했습니다. mini-dbms 데모 앱은 표준 라이브러리라 그대로 실행했습니다.
+
+### 게이트웨이 변경
+
+`route = prefix|backend1,backend2|rewrite` 형식의 세 번째 필드를 추가했습니다.
+prefix를 떼고 rewrite 경로를 붙여 백엔드로 전달하므로, 실제 서비스 경로(`/api/cache/get`)와
+백엔드 내부 경로(`/get`)를 분리할 수 있습니다. `conf/backends.conf`에 정의했습니다.
+
+### 실제 결과 (`make integration-backends`)
+
+```text
+mini-redis  ulimit -n=64
+stocks      ulimit -n=128
+dbms-8401   ulimit -n=256
+dbms-8402   ulimit -n=256
+
+get before set -> 404
+set            -> 200
+{"key": "k", "value": "v"}
+
+stocks 1회차: source=db, elapsed_ms≈206~275
+stocks 2회차: source=cache, elapsed_ms=0.0
+
+orders RR: program=주문2 / 주문 / 주문2 / 주문
+
+8401 강제 종료 후: 200 502 200 502
+8401 재시작 후:   200 200 200 200
+/health -> 200
+```
+
+### 의미
+
+- 리소스 제한: 프로세스마다 `ulimit -n`을 64 / 128 / 256으로 다르게 줬습니다. 스레드라면 같은 주소공간이라 이런 격리가 불가능합니다.
+- 독립 라이프사이클: 8401만 죽여도 게이트웨이와 나머지 백엔드는 살아 있고, RR 결과가 `200/502`로 섞입니다. 해당 프로세스만 다시 띄우면 `200`으로 돌아옵니다.
+- 독립 스케일링/배포의 기초: 각 백엔드가 별도 프로세스라 따로 재시작·교체·제한할 수 있습니다.
+
+### 회귀
+
+config/proxy 변경 후 `make test`, `make integration`, `make integration-flight`,
+`make integration-req`, Linux(epoll) 전체 회귀(`tests/linux_check.sh`) 모두 PASS.
+기본 `conf/tcpserver.conf`의 502 시나리오는 그대로 동작합니다.

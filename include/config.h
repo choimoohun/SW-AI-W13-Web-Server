@@ -16,6 +16,7 @@
 typedef struct {
     char prefix[CFG_PREFIX_LEN];
     char backends[CFG_MAX_BACKENDS][CFG_ADDR_LEN];
+    char rewrite[CFG_PREFIX_LEN];   /* prefix 뒤 경로를 이 값으로 바꿔 전달. 비어 있으면 원본 URI 사용 */
     int backend_count;
 } cfg_route_t;
 

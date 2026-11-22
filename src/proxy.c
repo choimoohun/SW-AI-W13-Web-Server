@@ -321,9 +321,22 @@ int proxy_submit(int client_fd, const http_request_t *req,
     memcpy(j->method, req->method, j->method_len);
     j->method[j->method_len] = '\0';
 
-    j->uri_len = req->uri_len < sizeof(j->uri) - 1
-                     ? req->uri_len : sizeof(j->uri) - 1;
-    memcpy(j->uri, req->uri, j->uri_len);
+    /* rewrite가 설정돼 있으면 prefix를 잘라내고 rewrite로 바꿔 백엔드에 전달. */
+    {
+        const cfg_route_t *route = &cfg->routes[route_index];
+        size_t plen = strlen(route->prefix);
+        if (route->rewrite[0] != '\0') {
+            size_t rest = req->uri_len > plen ? req->uri_len - plen : 0;
+            int n = snprintf(j->uri, sizeof(j->uri), "%s%.*s",
+                             route->rewrite, (int)rest, req->uri + plen);
+            j->uri_len = (n > 0 && (size_t)n < sizeof(j->uri))
+                             ? (size_t)n : sizeof(j->uri) - 1;
+        } else {
+            j->uri_len = req->uri_len < sizeof(j->uri) - 1
+                             ? req->uri_len : sizeof(j->uri) - 1;
+            memcpy(j->uri, req->uri, j->uri_len);
+        }
+    }
     j->uri[j->uri_len] = '\0';
 
     j->body_len = req->body_len < sizeof(j->body)

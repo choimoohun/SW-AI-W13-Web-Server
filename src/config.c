@@ -69,6 +69,15 @@ static void parse_route(server_config_t *cfg, const char *value)
     memset(r, 0, sizeof(*r));
     set_str(r->prefix, sizeof(r->prefix), buf);
 
+    /* 세 번째 필드가 있으면 경로 rewrite 값. 없으면 원본 URI를 그대로 쓴다. */
+    {
+        char *bar2 = strchr(bar + 1, '|');
+        if (bar2 != NULL) {
+            *bar2 = '\0';
+            set_str(r->rewrite, sizeof(r->rewrite), bar2 + 1);
+        }
+    }
+
     p = bar + 1;
     while (*p != '\0' && r->backend_count < CFG_MAX_BACKENDS) {
         char *comma = strchr(p, ',');
