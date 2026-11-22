@@ -125,10 +125,48 @@
       }).then(function (r) {
         if (r.error) { toast(r.message || r.error, true); return; }
         localStorage.removeItem(draftKey(f.id));
-        toast('예약 완료: ' + r.reservation.id);
+        toast('예약 완료. 오른쪽에서 결제를 진행해 주세요.');
         loadFlights();
-        selectFlight(f.id);
+        renderPaymentPanel(r.reservation.id, f, r.reservation);
+      });
+    };
+  }
+
+  function renderPaymentPanel(rid, f, reservation) {
+    $('detailTitle').textContent = '결제 · ' + rid;
+    $('detailBody').innerHTML =
+      '<div class="code">' + f.id + ' ' + f.from + ' → ' + f.to + '</div>' +
+      '<div class="muted">' + reservation.name +
+        (reservation.contact ? ' · ' + reservation.contact : '') + '</div>' +
+      '<div style="font-size:26px;font-weight:800;color:#7ee787;margin:14px 0">89,000원</div>' +
+      '<div class="fields">' +
+        '<label>결제 수단<select id="payMethod">' +
+          '<option value="card">신용카드</option>' +
+          '<option value="bank">무통장 입금</option>' +
+        '</select></label>' +
+        '<button id="payInlineBtn" class="primary">결제하기</button>' +
+      '</div>' +
+      '<div id="payInlineResult" class="muted" style="margin-top:12px">결제 대기 중</div>';
+    $('timeline').innerHTML = '';
+    $('payInlineBtn').onclick = function () {
+      $('payInlineBtn').disabled = true;
+      $('payInlineResult').textContent = '결제 요청 중…';
+      post('/api/payments/charge', {
+        reservation_id: rid,
+        amount: 89000,
+        method: $('payMethod').value,
+        idempotency_key: 'pay-' + rid
+      }).then(function (pay) {
+        if (pay.error) {
+          $('payInlineResult').textContent = '결제 실패: ' + (pay.message || pay.error);
+          $('payInlineBtn').disabled = false;
+          return;
+        }
+        $('payInlineResult').textContent = '결제 완료: ' + pay.id + ' · ' + pay.status;
         loadReservations();
+      }).catch(function () {
+        $('payInlineResult').textContent = '결제 서비스에 연결할 수 없습니다.';
+        $('payInlineBtn').disabled = false;
       });
     };
   }
@@ -159,38 +197,35 @@
     box.innerHTML = '';
     var list = (data.reservations || []).slice().reverse();
     if (list.length === 0) {
-      box.innerHTML = '<div class="empty">예약 내역이 없습니다.</div>';
+      box.innerHTML = '<div class="empty">결제된 예약이 없습니다.</div>';
       return;
     }
+    var remaining = list.length;
     list.forEach(function (r) {
-      var el = document.createElement('div');
-      el.className = 'res';
-      el.innerHTML =
-        '<div class="' + (r.cancelled ? 'cancelled' : '') + '">' +
-          '<div class="code">' + r.flight_id + ' <span class="muted">' + r.id + '</span></div>' +
-          '<div class="muted">' + r.name + (r.contact ? ' · ' + r.contact : '') + '</div>' +
-          '<div class="muted">예약 시각 ' + time(r.created_epoch) +
-            (r.cancelled ? ' · 취소됨' : '') + '</div>' +
-          '<span class="muted" data-pay-status="' + r.id + '">' +
-            (r.cancelled ? '' : '결제 확인 중…') + '</span></div>' +
-        (r.cancelled ? '' : '<button class="ghost" data-cancel="' + r.id + '">취소</button>');
-      box.appendChild(el);
-      if (r.cancelled) return;
       fetch('/api/payments/by-reservation?rid=' + encodeURIComponent(r.id))
         .then(function (resp) { return resp.status === 404 ? null : resp.json(); })
         .then(function (pay) {
-          var slot = box.querySelector('[data-pay-status="' + r.id + '"]');
-          if (!slot) return;
-          if (pay) {
-            slot.textContent = (pay.status === 'REFUNDED' ? '환불됨' : '결제 완료') +
-              ' · ' + pay.amount + '원';
-          } else {
-            slot.innerHTML = '<button class="ghost" data-pay="' + r.id + '">결제하기</button>';
-          }
+          if (!pay) return;   /* 결제 전 예약은 내 예약에 보여주지 않는다. */
+          var el = document.createElement('div');
+          el.className = 'res';
+          el.innerHTML =
+            '<div class="' + (r.cancelled ? 'cancelled' : '') + '">' +
+              '<div class="code">' + r.flight_id + ' <span class="muted">' + r.id + '</span></div>' +
+              '<div class="muted">' + r.name + (r.contact ? ' · ' + r.contact : '') + '</div>' +
+              '<div class="muted">예약 시각 ' + time(r.created_epoch) +
+                (r.cancelled ? ' · 취소됨' : '') + '</div>' +
+              '<span class="muted">' +
+                (pay.status === 'REFUNDED' ? '환불됨' : '결제 완료') +
+                ' · ' + pay.amount + '원</span></div>' +
+            (r.cancelled ? '' : '<button class="ghost" data-cancel="' + r.id + '">취소</button>');
+          box.appendChild(el);
         })
-        .catch(function () {
-          var slot = box.querySelector('[data-pay-status="' + r.id + '"]');
-          if (slot) slot.textContent = '결제 서비스 확인 불가';
+        .catch(function () { /* 결제 서비스가 없으면 조용히 건너뛴다. */ })
+        .then(function () {
+          remaining--;
+          if (remaining === 0 && box.children.length === 0) {
+            box.innerHTML = '<div class="empty">결제된 예약이 없습니다.</div>';
+          }
         });
     });
   }
@@ -207,16 +242,7 @@
     var pay = e.target.getAttribute('data-pay');
     if (id) { selectFlight(id); return; }
     if (pay) {
-      post('/api/payments/charge', {
-        reservation_id: pay,
-        amount: 89000,
-        method: 'card',
-        idempotency_key: 'pay-' + pay
-      }).then(function (r) {
-        if (r.error) { toast(r.message || r.error, true); return; }
-        toast('결제 완료: ' + r.id);
-        loadReservations();
-      });
+      window.location.href = '/pay.html?rid=' + encodeURIComponent(pay);
       return;
     }
     if (cancel) {
