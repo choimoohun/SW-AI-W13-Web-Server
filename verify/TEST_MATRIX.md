@@ -35,6 +35,7 @@
 | 별도 백엔드 연결 | `make integration-backends` | 리소스 제한, 독립 재시작 | PASS | 200/502 혼재 후 복구 |
 | 결제 서비스 | `make integration-payments` | 충전·중복 방지·환불·재시작 복원 | PASS | payment integration all passed |
 | 잘못된 요청/끊김 | `make edge-cases` | 405/505/414/413/502, 생존 | PASS | edge cases all passed |
+| 뮤테이션 테스트 | `make mutation` | 두 mutant 모두 테스트가 실패 | PASS | `mutation tests: all killed` |
 | Read/Write timeout 전용 시연 | - | 서버가 5초 후 연결 종료 | NOT RUN | 코드에는 적용, 별도 스크립트 없음 |
 | 물리 링크 장애 | - | 케이블 단절/복구 | OUT OF SCOPE | 현재 단계 범위 밖 |
 

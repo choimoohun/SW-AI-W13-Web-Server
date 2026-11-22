@@ -307,6 +307,7 @@ make integration-payments     # 결제 충전·중복 방지 키·환불·독립
 make tsan                      # 데이터 레이스 비교
 make load-test                 # 부하 (동시 20, 200요청)
 make load-test-heavy           # 동시 100, 1000요청
+make mutation                  # 뮤테이션 테스트(조건 뒤집기 → 테스트가 실패해야 PASS)
 ```
 
 기능별 시연:

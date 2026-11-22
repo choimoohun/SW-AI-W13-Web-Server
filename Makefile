@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases reset-flights load-test load-test-heavy leak asan tsan clean
+.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan clean
 
 all: $(BIN)
 
@@ -74,6 +74,10 @@ reset-flights:
 # 잘못된 요청/큰 본문/백엔드 없음/클라이언트 끊김 시나리오.
 edge-cases: $(BIN)
 	@sh tests/integration/edge_cases.sh
+
+# 뮤테이션 테스트: 복사본에서 조건을 뒤집고 기존 테스트가 잡는지 확인.
+mutation:
+	@sh tests/mutation_check.sh
 
 # 부하 테스트: 기본 200요청 동시 20, RPS/지연/에러 수 기록.
 load-test: $(BIN)

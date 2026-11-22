@@ -1,0 +1,15 @@
+name: mutation
+
+on:
+  push:
+    branches: [eungi-dev]
+  pull_request:
+    branches: [eungi-dev, eungi-main]
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run mutation checks
+        run: sh tests/mutation_check.sh
