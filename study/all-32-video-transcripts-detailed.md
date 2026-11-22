@@ -1,6 +1,6 @@
-# 13주차 학습 로드맵 28개 전체 영상 및 자료 1:1 상세 대본 집대성 보고서
+# 13주차 학습 로드맵 31개 전체 영상 및 자료 1:1 상세 대본 집대성 보고서
 
-본 보고서는 노트북에 등록된 28개 학습 자료(유튜브 강좌, 기술 웹 가이드)의 전체 대본과 강의 내용을 1:1 매칭하여 상세히 분석한 종합 서술 문서입니다. 각 자료별 구동 메커니즘, POSIX/리눅스 시스템 콜, C 언어 코드 구현 및 세부 대본 내용을 빠짐없이 다룹니다.
+본 보고서는 노트북에 등록된 30개 학습 자료(유튜브 강좌, 기술 웹 가이드)의 전체 대본과 강의 내용을 1:1 매칭하여 상세히 분석한 종합 서술 문서입니다. 각 자료별 구동 메커니즘, POSIX/리눅스 시스템 콜, C 언어 코드 구현 및 세부 대본 내용을 빠짐없이 다룹니다.
 
 ---
 
@@ -825,7 +825,8 @@ Jacob Sorber는 화상 통신 중 패킷 1개가 손실되었을 때 TCP처럼 �
 * **주요 주제**: C 언어 터미널 프로그레스 바 구현 및 `fflush(stdout)` 버퍼링 처리
 
 ### 1) 상세 구동 메커니즘
-* **동일 라인 갱신**: 복귀 문자(``, Carriage Return)를 출력하여 커서를 줄의 맨 앞으로 이동시킨 뒤 새로운 문자열을 덮어씁니다.
+* **동일 라인 갱신**: 복귀 문자(`
+`, Carriage Return)를 출력하여 커서를 줄의 맨 앞으로 이동시킨 뒤 새로운 문자열을 덮어씁니다.
 * **버퍼 플러시 (`fflush`)**: C 표준 출력이 줄바꿈(`
 `) 전까지 버퍼링되므로 매 프레임마다 `fflush(stdout)`를 호출해야 터미널에 즉시 반영됩니다.
 
@@ -833,7 +834,9 @@ Jacob Sorber는 화상 통신 중 패킷 1개가 손실되었을 때 TCP처럼 �
 ```c
 void update_bar(int percent_done) {
     int num_chars = (percent_done * 30) / 100;
-    printf("["); // 로 커서를 맨 앞으로 이동
+    printf("
+["); // 
+로 커서를 맨 앞으로 이동
     for (int i = 0; i < num_chars; i++) printf("#");
     for (int i = 0; i < 30 - num_chars; i++) printf(" ");
     printf("] %d%%", percent_done);
@@ -876,3 +879,156 @@ Jacob Sorber는 네트워크 다운로드 크기의 불확실성으로 인해 �
 Chris Kanich 교수는 이벤트 기반 멀티플렉싱이 프레임워크나 최신 언어의 `async`/`await` 키워드의 기초임을 설명하고, 단일 스레드 이벤트 루프가 스레드 생성이나 뮤텍스 동기화 오버헤드 없이 수만 개의 동시 연결을 다루는 메커니즘을 총정리합니다.
 
 ---
+
+
+## 29. BJ.5 프로세스, 스레드, 멀티태스킹, 멀티스레딩, 멀티프로세싱, 멀티프로그래밍까지 한 방에 깔끔하게 설명합니다!
+
+### 1) 상세 구동 메커니즘
+* **운영체제의 핵심 실행 단위 정립**:
+  * **프로그램 (Program)**: 저장 장치(Disk)에 바이너리 형태로 존재하는 비활성 상태의 코드 및 데이터 집합입니다.
+  * **프로세스 (Process)**: 메모리에 로드되어 운영체제 커널로부터 독립된 가상 주소 공간(Code, Data, Heap, Stack)과 PCB(Process Control Block), 파일 디스크립터 테이블을 할당받아 실행 중인 프로그램의 인스턴스입니다.
+  * **스레드 (Thread)**: 프로세스 내에서 실행되는 제어 흐름(Flow of Execution)의 최소 단위입니다. 각 스레드는 고유한 레지스터 세트와 스택(Stack) 영역만 보유하며, 속한 프로세스의 Code, Data, Heap 영역 및 파일 디스크립터를 다른 스레드들과 공유합니다.
+* **다중 실행 패러다임 비교**:
+  * **멀티프로그래밍 (Multiprogramming)**: 단일 CPU 환경에서 I/O 작업 등으로 대기 시간이 발생할 때 CPU가 놀지 않고 다른 프로그램으로 전환하여 CPU 이용률(Utilization)을 극대화하는 기법입니다.
+  * **멀티태스킹 (Multitasking)**: 시분할(Time-sharing) 시스템을 기반으로 CPU 사용 시간을 매우 짧은 단위(Time Slice)로 쪼개어 여러 프로세스/스레드를 교대로 실행함으로써 사용자가 동시에 여러 작업을 수행하는 것처럼 느끼게 합니다.
+  * **멀티스레딩 (Multithreading)**: 하나의 프로세스 안에서 복수의 스레드를 생성하여 논리적 동시성(Concurrency) 및 병렬성(Parallelism)을 달성하는 기법으로, 자원 공유가 용이하나 동기화 이슈가 발생합니다.
+  * **멀티프로세싱 (Multiprocessing)**: 다중 CPU 또는 멀티 코어(Multi-Core) 물리 환경에서 여러 프로세스/스레드가 실제로 동시에(Parallel) 병렬 처리되는 상태입니다.
+* **자원 공유와 동기화(Synchronization) 필요성**:
+  * 프로세스 간에는 독립된 주소 공간을 가지므로 한 프로세스의 오류가 다른 프로세스에 영향을 주지 않지만, IPC(Inter-Process Communication: Pipe, Shared Memory, Socket 등)를 거쳐야만 통신이 가능합니다.
+  * 스레드 간에는 Heap과 Data 영역을 공유하므로 통신 오버헤드가 적고 빠른 데이터 교환이 가능하지만, 동시 수정 시 경쟁 상태(Race Condition)가 발생하므로 뮤텍스(Mutex), 세마포어(Semaphore) 등의 동기화 메커니즘이 필수적입니다.
+
+### 2) C 언어 및 운영체제 자원 구조 분석
+* **프로세스 생성 (`fork`)과 스레드 생성 (`pthread_create`)의 자원 구조 차이**:
+  * `fork()` 호출 시 커널은 부모 프로세스의 가상 메모리와 PCB를 복제(Copy-On-Write 방식)하여 독립된 자식 프로세스를 생성합니다.
+  * `pthread_create()` 호출 시 커널은 동일한 프로세스 주소 공간 내에 새로운 TCB(Thread Control Block)와 전용 스택 영역만 할당합니다.
+* **공유 자원 접근 및 동기화 코드 구조 예시**:
+```c
+#include <stdio.h>
+#include <pthread.h>
+
+int shared_counter = 0; // Data 영역 (모든 스레드가 공유)
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+void* thread_func(void* arg) {
+    for (int i = 0; i < 100000; i++) {
+        pthread_mutex_lock(&lock);
+        shared_counter++; // 임계 영역 (Critical Section)
+        pthread_mutex_unlock(&lock);
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t t1, t2;
+    pthread_create(&t1, NULL, thread_func, NULL);
+    pthread_create(&t2, NULL, thread_func, NULL);
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    printf("Final Counter: %d
+", shared_counter); // 200000 보장
+    return 0;
+}
+```
+
+### 3) 세부 대본 정리
+* **프로세스와 스레드의 본질 해설**: 디스크의 파일(프로그램)이 메모리에 올려지는 순간 프로세스가 되며, 운영체제 스케줄러가 실제로 CPU 코어에 올리는 스케줄링 단위는 스레드입니다.
+* **동시성(Concurrency)과 병렬성(Parallelism)의 차이**: 단일 코어에서 시분할로 빠르게 번갈아 실행되는 것은 동시성이며, 멀티 코어에서 실제로 여러 코어가 동시에 명령어를 수행하는 것은 병렬성입니다.
+* **백엔드 서버 및 시스템 프로그래밍에서의 시사점**: 데이터 무결성을 유지하면서도 최대 성능을 내기 위해서는 프로세스 기반 아키텍처와 스레드 기반 아키텍처의 자원 격리 및 공유 특성을 정확히 이해하고 적절한 동기화 및 I/O 모델을 선택해야 합니다.
+
+## 30. HTTP/1.1 vs HTTP/2 vs HTTP/3 Visually Explained | System Design Tutorial #7
+
+### 1) 상세 구동 메커니즘
+HTTP(HyperText Transfer Protocol)는 웹 브라우저와 웹 서버 간의 데이터 통신을 담당하는 응용 계층 프로토콜입니다. 성능 및 네트워크 효율성 극대화를 위해 HTTP/1.1부터 HTTP/2, HTTP/3에 이르기까지 전송 프로토콜과 다중화(Multiplexing) 메커니즘이 획기적으로 발전해 왔습니다.
+
+1. **HTTP/1.1 (1997년)**:
+   * **지속 연결(Keep-Alive)**: 매 요청마다 TCP 3-Way Handshake를 반복하던 HTTP/1.0의 단점을 극복하기 위해 단일 TCP 연결을 재사용하는  헤더를 도입했습니다.
+   * **HTTP 파이프라이닝(Pipelining)**: 응답을 기다리지 않고 여러 HTTP 요청을 연속 전송하는 기능을 도입했습니다.
+   * **한계 (HTTP 수준의 Head-of-Line Blocking)**: 응답은 반드시 요청이 보내진 순서대로 돌아와야 하므로, 앞선 요청(예: 대용량 이미지)의 처리가 지연되면 뒤따르는 모든 요청이 블로킹되는 **HTTP HOL Blocking** 문제가 발생합니다. 브라우저는 이를 회피하기 위해 도메인당 최대 6개의 TCP 연결을 생성하는 방식으로 임시 대처했습니다.
+
+2. **HTTP/2 (2015년)**:
+   * **바이너리 프레이밍 계층 (Binary Framing Layer)**: 텍스트 기반 메시지를  프레임과  프레임 등의 바이너리 단위로 세분화했습니다.
+   * **멀티플렉싱 (Multiplexing)**: 단일 TCP 연결 내부에서 여러 개의 독립된 스트림(Stream ID)을 생성하고, 프레임들을 조각내어 교차 전송(Interleaving)함으로써 HTTP 수준의 HOL Blocking을 완전히 해결했습니다.
+   * **헤더 압축 (HPACK)**: 중복 수신되는 HTTP 헤더를 Huffman 코딩 및 인덱스 테이블 기반으로 압축하여 전송 오버헤드를 대폭 줄였습니다.
+   * **서버 푸시 (Server Push)**: 클라이언트가 요청하기 전에 CSS, JS 등 필요 자원을 서버가 선제적으로 전송합니다.
+   * **한계 (TCP 수준의 Head-of-Line Blocking)**: 단일 TCP 연결을 공유하므로, 네트워크 패킷 1개가 손실되면 TCP 커널 버퍼가 해당 패킷의 재전송 및 정렬을 완료할 때까지 연결 내의 **모든 스트림이 함께 블로킹**되는 문제가 남았습니다.
+
+3. **HTTP/3 (2022년)**:
+   * **QUIC (Quick UDP Internet Connections) 도입**: 전송 계층 프로토콜을 TCP에서 **UDP**로 교체하고, 커널 상단에 QUIC 프로토콜을 도입했습니다.
+   * **전송 계층 수준의 완전 멀티플렉싱**: QUIC은 각각의 스트림을 독자적인 패킷 흐름으로 다루므로, 특정 스트림의 패킷이 손실되어도 다른 스트림의 데이터 전송에는 **전혀 영향을 주지 않아 TCP HOL Blocking을 완벽 해소**했습니다.
+   * **빠른 연결 수립 (1-RTT / 0-RTT)**: TCP Handshake와 TLS 1.3 암호화 Handshake를 단일 과정으로 통합하여 1-RTT(재접속 시 0-RTT)만에 보안 연결을 완료합니다.
+   * **연결 마이그레이션 (Connection Migration)**: IP 주소와 포트 기반이 아닌 64비트 Connection ID로 식별하므로, 사용자가 Wi-Fi에서 LTE/5G 네트워크로 전환되어 IP가 바뀌어도 기존 연결이 끊기지 않고 유지됩니다.
+
+---
+
+### 2. 프로토콜별 특징 비교표
+
+| 항목 | HTTP/1.1 | HTTP/2 | HTTP/3 |
+| :--- | :--- | :--- | :--- |
+| **전송 계층 프로토콜** | TCP | TCP | **UDP (QUIC)** |
+| **데이터 형식** | 텍스트 (Plain Text) | 바이너리 프레임 (Binary Frame) | 바이너리 프레임 (Binary Frame) |
+| **다중화 (Multiplexing)** | 순차 처리 (Pipelining 한계) | **단일 TCP 멀티플렉싱** | **스트림 독립형 UDP 멀티플렉싱** |
+| **Head-of-Line Blocking** | HTTP 계층 HOL Blocking 발생 | **TCP 계층 HOL Blocking 존재** | **HOL Blocking 완전 해소** |
+| **헤더 압축** | 미지원 | HPACK (Huffman + Index) | QPACK (out-of-order 호환) |
+| **연결 수립 지연** | 2~3 RTT (TCP + TLS) | 2~3 RTT (TCP + TLS) | **1 RTT 이하 (0-RTT 지원)** |
+| **네트워크 전환** | 연결 끊김 (IP 변경 시) | 연결 끊김 (IP 변경 시) | **Connection ID로 끊김 없음** |
+
+---
+
+### 3. 세부 내용 정리
+* **HTTP/1.1의 병목 원인**: 텍스트 데이터의 비효율성, 오버헤드가 큰 요청/응답 헤더 중복 전송, 순차적 응답 대기로 인한 HTTP 수준 HOL Blocking이 주 원인입니다.
+* **HTTP/2의 혁신과 한계**: 프레임 단위 분할 및 멀티플렉싱을 통해 하나의 TCP 연결로 효율성을 극대화했으나, 전송 계층이 여전히 TCP이므로 패킷 손실 시 전체 스트림 지연이 발생하는 한계를 가집니다.
+* **HTTP/3 및 QUIC의 미래성**: UDP 위에 신뢰성과 암호화를 직접 탑재한 QUIC을 사용함으로써, 패킷 손실 시 해당 스트림만 영향을 받도록 격리하고 핸드셰이크 시간을 극적으로 단축시켰습니다.
+
+
+## 31. Stop Confusing API Gateway, Load Balancer And Reverse Proxy (ByteByteGo)
+
+### 1) 상세 구동 메커니즘
+본 강좌는 현대 백엔드 및 마이크로서비스 아키텍처에서 자주 혼동되는 **Reverse Proxy**, **Load Balancer**, **API Gateway**의 역할과 차이점을 다룹니다.
+
+* **Reverse Proxy (리버스 프록시)**:
+  * 클라이언트와 백엔드 서버 사이에서 중앙 중계자 역할을 수행합니다.
+  * 클라이언트는 백엔드 서버의 실제 IP나 내부 구조를 알 수 없으며, 프록시가 제공하는 단일 주소로 요청을 전송합니다.
+  * 주요 기능: 보안(내부 IP 은닉), SSL/TLS 터미네이션(암복호화 분리), 캐싱(반복 요청 자체 응답), 헤더 압축 및 보안 필터링.
+* **Load Balancer (로드밸런서)**:
+  * 단일 서버의 트래픽 과부하를 방지하기 위해 들어오는 요청을 여러 백엔드 서버 인스턴스로 분산(Distribution)합니다.
+  * L4(IP/Port 기반) 또는 L7(HTTP URL/Cookie 기반)에서 작동하며, 헬스 체크(Health Check)를 통해 장애가 발생한 서버를 자동으로 트래픽 배정 대상에서 제외합니다.
+* **API Gateway (API 게이트웨이)**:
+  * 마이크로서비스 아키텍처(MSA) 전단에 위치하는 통합 API 관리 및 라우팅 엔트리 포인트입니다.
+  * 단순 트래픽 전송을 넘어 사용자 인증/인가(OAuth, JWT), 처리율 제한(Rate Limiting / Throttling), API 버전 관리, 서비스 디스커버리 연동, 프로토콜 변환(HTTP/REST ↔ gRPC), 로깅 및 모니터링 기능을 제공합니다.
+
+---
+
+### 2) 세 메커니즘 간 비교 정리
+
+| 항목 | Reverse Proxy | Load Balancer | API Gateway |
+| :--- | :--- | :--- | :--- |
+| **주요 목적** | 서버 보호, SSL 종단, 캐싱 | 트래픽 분산 및 고가용성(HA) 확보 | 마이크로서비스 API 통합 관리 및 라우팅 |
+| **주요 계층** | L4 / L7 계층 | L4 / L7 계층 | L7 (응용 계층) 중심 |
+| **핵심 기능** | IP 은닉, 캐싱, TLS 복호화 | 라운드로빈, 헬스체크, 트래픽 분배 | 인증/인가, Rate Limiting, 프로토콜 변환, 라우팅 |
+| **대표 솔루션** | Nginx, HAProxy | AWS ALB/NLB, HAProxy | Kong, AWS API Gateway, Envoy |
+
+---
+
+### 3) 세부 대본 정리
+* **개념적 혼동의 이유**: 세 요소 모두 네트워크 요청을 중간에서 수용하여 백엔드로 전달하는 공통적 특성을 지니고 있어 단일 소프트웨어(예: Nginx, Envoy, HAProxy)가 프록시, 로드밸런서, API 게이트웨이 역할을 동시에 수행할 수 있습니다.
+* **포워드 프록시 vs 리버스 프록시**: 포워드 프록시는 클라이언트 편(내부망)에 위치해 클라이언트의 신원을 숨기고, 리버스 프록시는 서버 전단에 위치해 백엔드 서버의 신원과 IP를 보호합니다.
+* **마이크로서비스에서의 발전**: 단일 리버스 프록시가 로드밸런싱 기능을 추가하고, 나아가 MSA의 복잡성을 흡수하기 위해 인증, 비즈니스 라우팅, Rate Limiting 기능을 결합하면서 API 게이트웨이 형태로 발전했습니다.
+
+
+## 32. Reverse Proxy vs Load Balancer vs API Gateway: The Real Difference ?
+### 1) 상세 구동 메커니즘
+- **Reverse Proxy**: 백엔드 서버 전단에 위치하여 클라이언트의 요청을 받아 실제 서버 대신 응답을 전달하는 대리자 역할을 수행합니다. 서버의 실제 IP 주소를 은닉하여 보안을 강화하며, SSL/TLS 터미네이션, 응답 Caching, Gzip 압축 등을 처리합니다.
+- **Load Balancer**: 역방향 프록시의 특화된 형태로, 여러 대의 백엔드 서버 인스턴스로 들어오는 대용량 트래픽을 분산 라우팅(Round Robin, Least Connection, IP Hash 등)하여 시스템의 확장성(Scalability)과 고가용성(Availability)을 보장합니다. L4(IP/TCP 레벨) 및 L7(HTTP URL/헤더 레벨) 계층에서 작동합니다.
+- **API Gateway**: 마이크로서비스(MSA) 아키텍처의 통합 진입점(Edge)으로서, Reverse Proxy 및 Load Balancer의 기본 기능을 모두 포함함과 동시에 API 관리 기능(인증/인가, Rate Limiting, 요청/응답 변환, API 버전 관리, 모니터링/로깅)을 통합 제공합니다.
+
+### 2) 세부 기능 비교표
+| 구분 | Reverse Proxy | Load Balancer | API Gateway |
+| :--- | :--- | :--- | :--- |
+| **주 목적** | 서버 보호, Caching, SSL 처리 | 트래픽 분산, 고가용성(HA) 확보 | API 중앙화 관리, 마이크로서비스 관문 |
+| **핵심 기능** | IP 은닉, SSL 터미네이션, Caching | Round Robin, Health Check, Failover | Auth, Rate Limiting, Routing, Logging |
+| **주요 위치** | 단일/복수 서버 전단 | 서버 클러스터/풀 전단 | MSA 클러스터 최전단 (Edge) |
+| **대표 도구** | NGINX, HAProxy, Caddy | AWS ALB/NLB, NGINX, HAProxy | Kong, AWS API Gateway, Apogee |
+
+### 3) 세부 대본 정리
+- 클라이언트와 백엔드 서비스 간의 중계 계층을 구성할 때 요구사항에 맞춰 최적의 컴포넌트를 조합해 활용할 수 있습니다.
+- 단순 SSL 처리와 정적 Caching이 목적이면 **Reverse Proxy**, 서버 인스턴스 증설에 따른 트래픽 분산이 목적이면 **Load Balancer**, 여러 마이크로서비스 간 인증, 쿼터 제한, 라우팅 통제가 필요하다면 **API Gateway**를 선택합니다.

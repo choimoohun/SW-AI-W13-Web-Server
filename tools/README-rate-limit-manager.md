@@ -1,84 +1,67 @@
-# Hermes / Nous Rate Limit Manager
+# Hermes Rate Limit Manager (Nous · Qwen · All Providers)
 
-Hermes TUI의 `~/.hermes/logs/agent.log`를 분석하고, 사용자가 정한 일일/작업별 요청 예산과 로그에 기록된 Fair-share cooldown을 검사하는 로컬 도구입니다.
+Hermes TUI의 로그(`~/.hermes/logs/agent.log`)에서 모든 프로바이더(`nous`, `qwen`, `openrouter` 등)의 429/재시도 이벤트를 자동 감지하고, 오늘 할 목표를 한 줄로 입력하면 작업 단계와 안전 예산을 자동으로 나누어 주는 로컬 도우미입니다.
 
-> 중요: 이 도구는 Hermes TUI 내부의 입력/API 요청을 가로채지 않습니다. `request` 명령으로 사전 검사를 한 다음, 사용자가 직접 Hermes TUI에 프롬프트를 입력하는 방식입니다. Nous의 실제 잔여 fair-share 용량을 조회할 수도 없으므로 제한을 완전히 예방하지는 못합니다.
+> **한계 및 주의사항**
+> - Hermes TUI 내부 API 호출을 강제로 가로채지 않습니다.
+> - 에이전트는 질문 1번에 내부적으로 여러 번 API를 호출할 수 있으므로, **한 작업 단계가 끝날 때마다 Hermes 채팅창에 `/new`를 입력해 대화를 새로 여는 것**이 리밋 방지에 가장 효과적입니다.
 
-## 설치
+---
 
-프로젝트에 다음처럼 배치합니다.
+## 1. 설치 및 자동 실행 연결 (최초 1회)
 
-```text
-your-project/
-└── tools/
-    └── rate_limit_manager.py
-```
+스크립트 위치: `~/.hermes/tools/rate_limit_manager.py` (Python 3.10 이상, 추가 패키지 설치 불필요)
 
-Python 표준 라이브러리만 사용합니다.
+터미널에서 `hermes` 실행 시 자동으로 오늘 계획 확인 및 로그 스캔이 돌도록 쉘 설정 파일 맨 아래에 추가합니다.
 
-## 처음 설정
+- **macOS (`~/.zshrc`)**:
+  ```bash
+  hermes() {
+    python3 "$HOME/.hermes/tools/rate_limit_manager.py" auto && command hermes "$@"
+  }
+  ```
+- **Linux / WSL2 (`~/.bashrc`)**:
+  ```bash
+  hermes() {
+    python3 "$HOME/.hermes/tools/rate_limit_manager.py" auto && command hermes "$@"
+  }
+  ```
 
-프로젝트 루트에서 실행합니다. 예시 예산 22회는 사용자가 정하는 내부 계획값이며 Nous의 공식 무료 한도가 아닙니다.
+---
 
-```bash
-python3 tools/rate_limit_manager.py plan-create --budget 22
-python3 tools/rate_limit_manager.py task-add --id tcp-server --name "TCP 서버 구현" --budget 5
-python3 tools/rate_limit_manager.py task-add --id http-parser --name "HTTP 요청 파서 구현" --budget 6
-python3 tools/rate_limit_manager.py task-add --id http-response --name "HTTP 응답 생성" --budget 4
-python3 tools/rate_limit_manager.py task-add --id static-files --name "정적 파일 서빙" --budget 5
-python3 tools/rate_limit_manager.py task-add --id tests --name "테스트 및 문서화" --budget 2
-```
+## 2. 평소 사용법 (명령어 외울 필요 없음)
 
-## 매 요청 전 검사
+1. 터미널에 그냥 **`hermes`**를 입력합니다.
+2. 그날 처음 실행이면 **"오늘 하고 싶은 작업을 편하게 한 줄로 입력하세요"**가 뜹니다.
+   - 예: `동시성 STEP.md 완성하고 항공편 예약 및 출발/도착 시간 추적 서버 만들기`
+   - 안전 모드(`[1] 보수적 / [2] 균형 / [3] 넉넉함`)를 고르거나 엔터를 누르면 `t1 ~ t4` 단계와 예산이 자동 배분되고 즉시 Hermes TUI가 켜집니다.
+3. 같은 날 다시 `hermes`를 켜면 묻지 않고 **오늘 작업 현황과 현재 쿨다운 여부(Nous/Qwen 등)**만 보여주고 바로 실행됩니다.
 
-Hermes TUI에 새 프롬프트를 입력하기 전에 실행합니다.
+---
 
-```bash
-python3 tools/rate_limit_manager.py request --task http-parser
-```
-
-- `ALLOW`: 로컬 일일 예산, 작업별 예산, 일시 중지 상태, 로그에 기록된 cooldown 검사를 통과했습니다. 이제 TUI에 요청을 입력합니다.
-- `BLOCKED`: 요청 예산 초과, 수동 일시 중지 또는 관측된 cooldown 때문에 로컬 게이트가 차단했습니다.
-
-`request`는 프롬프트 한 건을 보낼 계획으로 보고 예약량을 1 증가시킵니다. Hermes 내부 재시도 횟수나 실제 토큰 수를 측정하는 값은 아닙니다. 검사 후 실제 요청을 보내지 않았다면 예약량은 수동으로 보정해야 합니다(현재 버전에는 예약 취소 명령이 없습니다).
-
-## 상태 및 로그
+## 3. 자주 쓰는 보조 명령어
 
 ```bash
-python3 tools/rate_limit_manager.py plan status
-python3 tools/rate_limit_manager.py scan
-python3 tools/rate_limit_manager.py report
-python3 tools/rate_limit_manager.py watch
+# 오늘 목표를 한 줄로 다시 입력해서 작업/예산 새로 나누기
+python3 ~/.hermes/tools/rate_limit_manager.py setup
+
+# 현재 작업 현황 및 프로바이더별 쿨다운 상태 확인
+python3 ~/.hermes/tools/rate_limit_manager.py plan status
+
+# 로그에서 감지된 429/rate-limit 통계 보기 (Nous, Qwen 등)
+python3 ~/.hermes/tools/rate_limit_manager.py scan
+python3 ~/.hermes/tools/rate_limit_manager.py report
+
+# 실제 agent.log에 429/qwen/nous 로그가 어떻게 찍히고 있는지 원본 줄 확인
+python3 ~/.hermes/tools/rate_limit_manager.py inspect
+
+# 옆 터미널 창에 켜두고 실시간 429 감시하기 (종료: Ctrl+C)
+python3 ~/.hermes/tools/rate_limit_manager.py watch
+
+# (선택) 질문 직전 수동 게이트 검사 (기본 작업 또는 t1~t4 지정)
+python3 ~/.hermes/tools/rate_limit_manager.py request --task t1
 ```
 
-`watch`는 기본 10초 간격으로 로그를 확인합니다. `Ctrl+C`로 종료합니다.
-
-## 일시 중지 / 재개
-
-```bash
-python3 tools/rate_limit_manager.py pause --reason "Fair-share 오류 반복"
-python3 tools/rate_limit_manager.py resume
-```
-
-## 저장 위치
-
-기본 SQLite 파일은 실행한 현재 디렉터리의 `.hermes-rate-limits.sqlite3`입니다. Hermes 설정이나 소스 파일은 수정하지 않습니다.
-
-## 제한 사항
-
-- Nous의 실시간 fair-share 잔여량/다음 허용 시각은 조회할 수 없습니다.
-- `retry_after`는 해당 응답이 제안한 대기 시간이며, 대기 후 성공을 보장하지 않습니다.
-- 예산은 실제 API 호출/토큰이 아니라 사용자가 승인한 프롬프트 예약 횟수입니다.
-- TUI에 직접 입력하는 것을 기술적으로 막지 않습니다. 실제 자동 차단에는 Hermes 내부 요청 경로에 검증된 훅/래퍼를 연결해야 합니다.
-
-## 예약 취소
-
-`request` 검사에서 ALLOW를 받았지만 실제로 TUI에 요청을 보내지 않았다면 마지막 예약을 취소할 수 있습니다.
-
-```bash
-python3 tools/rate_limit_manager.py cancel --task http-parser
-```
-
-## 로그 읽기 방식
-
-로그 파일의 마지막 읽은 바이트 위치를 SQLite에 기록합니다. 따라서 `watch`나 `request`가 실행될 때마다 전체 로그를 다시 읽지 않고 새로 추가된 부분만 읽습니다. 로그 파일이 교체/회전된 경우 처음부터 다시 읽습니다.
+## 4. 데이터 저장 위치
+- 기본 SQLite DB: `~/.hermes/rate-limit-manager.sqlite3` (실행 폴더가 바뀌어도 기록 유지)
+- 다른 DB를 쓰려면 `--db <경로>` 옵션을 추가하세요.
