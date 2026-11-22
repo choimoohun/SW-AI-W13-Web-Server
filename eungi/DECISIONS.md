@@ -9,7 +9,7 @@
 | D1 | 단일 프로세스/스레드 기반 블로킹 IO | 정적 파일 서빙 기능의 우선 완성을 목표로 설정함 | 구현 복잡도는 낮으나 대량의 동시 접속 처리에는 한계가 있음. 향후 Event Loop로 확장 가능성을 열어둠 |
 | D2 | 정적 리소스에 대한 POST 요청 거부 (405) | HTTP/1.1 규격 상 정적 파일 읽기는 GET/HEAD 의미론에 한정됨 | 서버의 명확한 정책을 통해 오동작 및 오용 가능성을 차단함 |
 | D3 | Content-Length 기반 본문 파싱 (Chunked 미지원) | 구현 및 검증 범위(Static Serving) 내에서 불필요한 복잡성 제거 | 동적 데이터 전송에는 제약이 있으나, 정적 파일 서빙에는 충분하며 파서 로직이 단순해짐 |
-| D4 | (폐기) Short-Lived Connection → HTTP/1.1 keep-alive 최대 100회 | 초기 안정화 후 연결 재사용 추가. `Connection: keep-alive`, 유휴 5초, 요청 경계는 `req.consumed`로 확정 | 연결 상태를 워커가 끝까지 소유해야 함. 느린 클라이언트는 타임아웃으로 정리 |
+| D4 | (폐기) Short-Lived Connection → HTTP/1.1 keep-alive 최대 100회 | 초기 안정화 후 연결 재사용 추가. `Connection: keep-alive`, 유휴 5초, 요청 경계는 `req.consumed`로 확정 | 폐기 이유: 매 요청마다 연결을 닫는 방식은 기본 동작을 먼저 검증하기 위한 단계였고, 안정화 후 재사용을 추가했다. 연결 상태를 워커가 끝까지 소유해야 하며 느린 클라이언트는 타임아웃으로 정리 |
 | D5 | Envoy식 multi-reactor: 워커 스레드 N개, 각자 iomux(poll/epoll/kqueue) 이벤트 루프 (단일 프로세스) | shared-nothing 워커 + 코어 어피니티 원칙과, 항공편 예약 데모의 공유 상태(좌석) 요구를 동시에 만족. 스레드라 shm/좀비/재기동 코드 불필요, accept한 워커가 연결을 끝까지 소유해 fd 핸드오프 불필요 | 단일 루프+큐+스레드풀 안 대비 루프 코드가 워커별이지만 소유권 규칙이 단순해짐. 멀티프로세스 안 대비 크래시 격리는 없음. 어피니티는 Linux 전용(#ifdef), accept 분산은 공유 listen fd 기본안(macOS 이식성), SO_REUSEPORT/EPOLLEXCLUSIVE는 Linux 선택 최적화 |
 | D6 | 항공편별 락 + 메타 락으로 좌석 보호 | 워커 스레드가 같은 주소공간을 공유하므로 IPC 없이 뮤텍스만으로 정확성 확보. 좌석/상태는 `flight_t.mu`, 예약 목록·모드는 `g_store.mu`가 보호 | 락 순서(flight→meta) 규칙 준수 필요. 여전히 단일 프로세스라 다중 서버 확장에는 DB 트랜잭션 필요 |
 | D7 | `before` 모드는 의도적 데이터 레이스(기본 OFF) | 초과 예약 재현이 데모 핵심. `seat_left > 0` 확인 → `seat_left--` 사이 `nanosleep(20000µs)`으로 창을 넓힘 | 실제 UB, TSan 경고. 운영 금지, 데모 후 즉시 after 복귀 |
