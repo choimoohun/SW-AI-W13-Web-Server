@@ -88,16 +88,19 @@ flowchart TB
 
 ## 구현 마일스톤 및 진행 상태
 
-오늘 범위(정적 파일 서빙까지)를 5개 마일스톤으로 나눠 순서대로 구현·검증합니다.
-각 마일스톤은 "구현 → 실제 실행으로 검증 → 다음" 순서로 진행합니다.
+구현 순서대로 9개 마일스톤을 나눠 "구현 → 실제 실행으로 검증 → 다음" 순서로 진행했습니다.
 
 | 마일스톤 | 내용 | 상태 |
 |---|---|---|
-| 1 | TCP 서버 배관: listen → accept → 수락 후 닫기 + graceful shutdown | 완료·검증 |
-| 2 | HTTP 요청 파싱: connection 누적 읽기 + http_parser (COMPLETE/NEED_MORE/ERROR) | 완료·검증 |
-| 3 | 정적 파일 찾기: static_handler 경로 검증(탈출 차단) + MIME + 404/403/500 | 완료·검증 |
-| 4 | HTTP 응답: http_response 직렬화 + 청크 전송 + 바이너리 무결성 | 완료·검증 |
-| 5 | 견고함: 단일 정리 지점 + 타임아웃 + asan/valgrind 누수 0 | 완료·검증(누수 0) |
+| 1 | TCP 서버 골격: listen → accept → 요청/응답 + graceful shutdown | 완료·검증 |
+| 2 | HTTP 요청 파싱: connection 누적 읽기 + `http_parser` (`PARSE_COMPLETE/NEED_MORE/ERROR`) | 완료·검증 |
+| 3 | 정적 파일 찾기: `static_handler` 경로 검증 + MIME + 404/403/500 | 완료·검증 |
+| 4 | HTTP 응답: `http_response` 직렬화 + 청크 전송 + 바이너리 무결성 | 완료·검증 |
+| 5 | 견고함: 단일 정리 지점 + 타임아웃 + ASan/valgrind 누수 0 | 완료·검증 |
+| 6 | 워커 풀 + 이벤트 루프: `worker`, `iomux`(epoll/kqueue/poll), accept 분산, keep-alive 100회 | 완료·검증 |
+| 7 | 항공편 도메인: 예약·취소·영속 저장, 좌석 경쟁 before/after, 출발/도착 추적 | 완료·검증 |
+| 8 | 요구사항 마무리: Date/Server, health/echo, 접근 로그, `-p/-r/-c`, 프록시 게이트웨이+RR, 미니 CDN | 완료·검증 |
+| 9 | 별도 백엔드 프로세스 연결: mini-redis·mini-dbms를 게이트웨이 뒤에 연결, 리소스 제한·독립 재시작 시연 | 완료·검증 |
 
 ### 마일스톤 1에서 실제로 검증한 것
 
@@ -124,7 +127,7 @@ flowchart TB
 - `POST /`(본문 있음) → `405` (정적 서빙은 GET 의미론).
 - `kill -TERM` → 종료 코드 0.
 
-오늘 범위(마일스톤 1~4, 정적 파일 서빙) 완료. 마일스톤 5(ASAN/Valgrind 누수 0 등 견고함 증명)는 대기.
+마일스톤 1~5(정적 파일 서빙과 견고함) 완료 이후, 6~9에서 동시성·도메인·요구사항·별도 백엔드 연결까지 마무리했습니다.
 
 ### 테스트 실행 방법
 
