@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments load-test leak asan tsan clean
+.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments reset-flights load-test leak asan tsan clean
 
 all: $(BIN)
 
@@ -63,9 +63,13 @@ integration-req: $(BIN)
 integration-backends: $(BIN)
 	@sh tests/integration/backend_services.sh
 
-# 결제 서비스(별도 프로세스·자기 DB·멱등키·환불·독립 재시작) 연동 검증.
+# 결제 서비스(별도 프로세스·자기 DB·중복 방지 키·환불·독립 재시작) 연동 검증.
 integration-payments: $(BIN)
 	@sh tests/integration/payment_service.sh
+
+# 예약 상태 파일을 지우고 16편 시드로 다시 시작.
+reset-flights:
+	rm -f data/flights.txt data/flights.txt.tmp
 
 # 부하 테스트: 200요청 동시 20, RPS/지연/에러 수 기록.
 load-test: $(BIN)

@@ -55,7 +55,8 @@
         $('payBtn').disabled = false;
         return;
       }
-      $('result').textContent = '결제 완료: ' + pay.id + ' · ' + pay.status;
+      $('result').innerHTML = '결제 완료: ' + pay.id + ' · ' + pay.status +
+        '<br><a class="ghost" href="/flights.html" style="display:inline-block;margin-top:12px">예약 화면으로 돌아가기</a>';
     }).catch(function () {
       $('result').textContent = '결제 서비스에 연결할 수 없습니다.';
       $('payBtn').disabled = false;

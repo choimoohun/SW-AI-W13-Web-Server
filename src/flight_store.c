@@ -316,10 +316,29 @@ void flight_store_init(void)
     g_store.lock_enabled = 1;   /* after가 기본. before는 실행 중 admin API로만 전환 */
 
     if (g_store.flight_count == 0) {
+        /* 기존 3편은 테스트가 좌석 수와 ID를 기준으로 하므로 값을 유지한다. */
         seed_flight(0, "KE701", "ICN", "NRT", 1795424400L, 1795433400L, 3);
         seed_flight(1, "KE999", "ICN", "JFK", 1795428900L, 1795438800L, 1);
         seed_flight(2, "KE202", "ICN", "NRT", 1795507200L, 1795514400L, 5);
-        g_store.flight_count = 3;
+
+        /* 나머지는 현재 시각 기준 상대 시간이라 언제 실행해도 미래 편이 보인다. */
+        {
+            long now = (long)time(NULL);
+            seed_flight(3,  "KE703", "ICN", "NRT", now +   3*3600L, now +   5*3600L, 24);
+            seed_flight(4,  "KE705", "ICN", "HKG", now +   6*3600L, now +   9*3600L, 18);
+            seed_flight(5,  "KE707", "ICN", "SIN", now +   9*3600L, now +  15*3600L, 32);
+            seed_flight(6,  "KE711", "ICN", "BKK", now +  14*3600L, now +  20*3600L, 28);
+            seed_flight(7,  "KE713", "NRT", "ICN", now +  18*3600L, now +  20*3600L, 16);
+            seed_flight(8,  "KE715", "ICN", "LAX", now +  26*3600L, now +  38*3600L, 12);
+            seed_flight(9,  "KE717", "JFK", "ICN", now +  30*3600L, now +  46*3600L,  8);
+            seed_flight(10, "KE721", "ICN", "DXB", now +  40*3600L, now +  52*3600L, 20);
+            seed_flight(11, "KE723", "ICN", "CDG", now +  48*3600L, now +  64*3600L, 14);
+            seed_flight(12, "KE901", "ICN", "LHR", now +   2*86400L, now +   3*86400L, 10);
+            seed_flight(13, "KE903", "ICN", "SYD", now +   3*86400L, now +   5*86400L, 22);
+            seed_flight(14, "KE905", "ICN", "SIN", now +   5*86400L, now +   6*86400L, 30);
+            seed_flight(15, "KE907", "ICN", "HKG", now +   9*86400L, now +  10*86400L, 26);
+        }
+        g_store.flight_count = 16;
         seeded = 1;
     }
 

@@ -73,7 +73,10 @@ int main(void)
     CHECK(find_flight("KE701") >= 0, "KE701 시드 존재");
     f = get_flight("KE701");
     CHECK(f.status == F_SCHEDULED, "초기 상태 SCHEDULED");
-    CHECK(flight_store_tick(f.depart_epoch - 1) == 0, "출발 직전에는 전이 없음");
+    /* 다른 편은 이미 출발 시각이 지나 있을 수 있으니 전체 반환값 대신 KE701 상태만 본다. */
+    (void)flight_store_tick(f.depart_epoch - 1);
+    f = get_flight("KE701");
+    CHECK(f.status == F_SCHEDULED, "출발 직전에는 KE701 전이 없음");
     CHECK(flight_store_tick(f.depart_epoch) > 0, "출발 시각에 전이 발생");
     f = get_flight("KE701");
     CHECK(f.status == F_DEPARTED, "출발 상태");

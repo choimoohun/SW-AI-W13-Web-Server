@@ -145,6 +145,7 @@
           '<option value="bank">무통장 입금</option>' +
         '</select></label>' +
         '<button id="payInlineBtn" class="primary">결제하기</button>' +
+        '<a class="ghost" href="/pay.html?rid=' + encodeURIComponent(rid) + '">별도 결제 페이지</a>' +
       '</div>' +
       '<div id="payInlineResult" class="muted" style="margin-top:12px">결제 대기 중</div>';
     $('timeline').innerHTML = '';

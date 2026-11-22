@@ -328,7 +328,8 @@ docker compose run --rm dev sh /workspace/tests/linux_check.sh
 
 ```sh
 kill -TERM <pid>         # graceful shutdown, 종료 코드 0
-rm -f data/flights.txt   # 예약 데이터 초기화(테스트는 FLIGHT_DATA_FILE=/dev/null 사용)
+make reset-flights      # 예약 데이터 초기화 후 16편 시드로 다시 시작
+# 또는: rm -f data/flights.txt   (테스트는 FLIGHT_DATA_FILE=/dev/null 사용)
 ```
 
 `integration-backends`는 8085, 8000, 8002, 8401, 8402 포트를 쓰므로 다른 서버가 해당 포트를 점유하고 있으면 먼저 정리해야 합니다.
