@@ -19,7 +19,7 @@
 - **C-05 (실행 인터페이스)**:
   - CLI 인자 또는 설정 파일로 포트, 정적 파일 루트, 프록시 라우팅 규칙을 주입받는다.
   - 예: `./webserver -p <port> -r <doc_root> -c <config_file>`
-  - `[결정 필요]` 설정 파일 포맷 확정 (예: key=value 형태의 단순 `.conf` 포맷).
+  - 결정: `key = value` 형태의 단순 `.conf` 포맷(`conf/tcpserver.conf`, `conf/backends.conf`).
 
 ---
 
@@ -49,7 +49,7 @@
   - 최대 URI 길이: `2048` bytes (초과 시 `414 URI Too Long`)
   - 최대 헤더 전체 크기: `8192` bytes (초과 시 `431 Request Header Fields Too Large` 또는 `400`)
   - 최대 요청 본문 크기: `1048576` bytes (1MB, 초과 시 `413 Payload Too Large`)
-  - `[결정 필요]` `Transfer-Encoding: chunked` 지원 여부 (미지원 시 `501` 또는 `400` 반환 명시).
+  - 결정: `Transfer-Encoding: chunked` 미지원, `501 Not Implemented` 반환.
 - **수용 기준 (AC)**:
   - TCP 패킷이 여러 조각으로 나뉘어(short read) 도착해도 `\r\n\r\n` 및 `Content-Length` 경계를 정확히 조립한다.
   - `HTTP/1.1` 요청에 `Host` 헤더가 누락된 경우 `400 Bad Request`를 반환한다.
@@ -72,7 +72,8 @@
   - 바이너리 파일(PNG/JPG)이 손상 없이 원본 바이트와 일치하게 전송된다.
 
 ### FR-05. 동적 요청 처리
-- **명세**: `[결정 필요]` 아래 방식 중 1개 이상 선택
+- **결정**: 안 B(내장 동적 핸들러 + 백엔드 프록시) 채택. 안 A(CGI)는 구현하지 않음.
+- **명세**: 아래 방식 중 1개 이상 선택
   - **안 A (CGI)**: 특정 경로(예: `/cgi-bin/*`) 요청 시 `fork()` + `pipe()` + `execve()`로 외부 스크립트/실행 파일을 실행하고 표준 출력(`stdout`)을 HTTP 응답으로 반환한다. (`POST` 본문은 `stdin`으로 전달)
   - **안 B (내장 동적 핸들러 + 백엔드 프록시)**: `/health`, `/echo`(POST JSON/폼 에코) 등의 내장 동적 엔드포인트 처리 및 `/api/*` 백엔드 서버 전달.
 - **수용 기준 (AC)**:
@@ -80,7 +81,8 @@
   - CGI 자식 프로세스 종료 시 좀비 프로세스가 남지 않는다(`waitpid`).
 
 ### FR-06. 동시 요청 처리
-- **명세**: `[결정 필요]` 아래 중 1개 확정
+- **결정**: 안 A(고정 워커 풀) + 안 B(`iomux` 이벤트 루프) 결합. 안 C(`fork`)는 사용하지 않음.
+- **명세**: 아래 중 1개 확정
   - **안 A (권장 기본안)**: `pthread` 기반 고정 크기 스레드 풀 (Worker Thread Pool + Bounded Task Queue).
   - **안 B**: `poll()`(또는 `epoll`/`kqueue`) 기반 논블로킹 이벤트 루프.
   - **안 C**: `fork()` 기반 멀티프로세스.
@@ -92,7 +94,7 @@
 - **명세**:
   - 설정된 라우팅 규칙에 따라 요청을 내부 백엔드 서버로 중계한다.
     - 예: `/api/*` → 백엔드 풀(`127.0.0.1:8001`, `127.0.0.1:8002`)
-    - `[결정 필요]` 라우팅 기준 확정 (Path Prefix 기반 vs Host 헤더 기반, 경로 prefix 제거 여부 `/api/users` → `/users` or `/api/users`).
+    - 결정: Path Prefix 기반. `route = prefix|backend...|rewrite`의 rewrite로 `/api/users` → `/users`처럼 경로를 바꿀 수 있음.
   - **로드 밸런싱**: 동일 경로에 여러 백엔드가 등록된 경우 Round-Robin 방식으로 분산한다.
   - **헤더 보강**: 업스트림 전달 시 `X-Forwarded-For` 헤더를 추가/갱신한다.
   - **오류 처리**:
@@ -148,6 +150,6 @@
 ## 7. 테스트 및 데모 검증 기준 (Verification)
 목요일 발표(README.md 기준)에 포함할 검증 항목은 다음과 같다.
 1. **단위 테스트 (`make test`)**: HTTP 요청 라인/헤더 파서, 경로 보안 검사, MIME 매핑, Round-Robin 선택 로직.
-2. **기능 테스트 (`tests/integration/`)**: `curl` 또는 Python `pytest` 스크립트로 정적 파일(200/403/404), POST, Keep-Alive, CGI, Reverse Proxy 라우팅/로드밸런싱/502·504 자동 검증.
+2. **기능 테스트 (`tests/integration/`)**: `curl` 또는 Python `pytest` 스크립트로 정적 파일(200/403/404), POST, Keep-Alive, 내장 동적 엔드포인트, Reverse Proxy 라우팅/로드밸런싱/502·504 자동 검증.
 3. **메모리 검사 (`make asan` / `valgrind`)**: 통합 테스트 시나리오 전체 실행 후 누수 0건 확인.
 4. **부하 테스트**: `wrk` 또는 `hey`/`ab`로 동시 접속(예: `-c 50 -t 4 -d 10s`) 실행 후 RPS, 평균 지연시간, Non-2xx 에러 수 기록.
