@@ -37,20 +37,48 @@
 - **RAII 패턴**: 모든 연결 리소스는 에러 발생 시 단일 지점(connection_close)에서 안전하게 해제되도록 설계하여 누수를 방지합니다.
 - **보안**: `realpath`를 활용한 경로 정규화를 통해 루트 디렉터리 상위로의 접근을 물리적으로 차단합니다.
 
-## 4. 이후 확장된 구조 (STEP5~6, FR-05~07)
+## 4. 레이어를 쌓아 확장한 구조 (STEP1 → STEP6, FR-05~07)
 
-초기 설계 위에 다음 계층이 추가됐습니다. 현재 구현 기준입니다.
+초기 정적 서버 위에 한 겹씩 얹었습니다. 각 단계는 아래 레이어의 인터페이스를 그대로 쓰고, 위에 새 책임만 추가했습니다.
 
-| 계층 | 모듈 | 역할 |
-|---|---|---|
-| 이벤트 | `worker`, `iomux` | 워커 스레드별 이벤트 루프, epoll(Linux)/kqueue(macOS)/poll, accept 분산 |
-| 연결 | `connection` | 비동기 feed/flush, keep-alive 100회, 접근 로그 |
-| 설정 | `config` | 기본값 → `conf/tcpserver.conf` → CLI(`-p/-r/-c`) |
-| 도메인 | `flight_store`, `flight_clock`, `flight_api` | 항공편 예약·취소·영속저장, 출발/도착 추적, JSON API |
-| 게이트웨이 | `proxy` | 경로 prefix 라우팅 + Round-Robin, 전용 스레드, 502/504, XFF |
-| 캐시 | `cdn` | 정적 자산 TTL 캐시, `X-Cache` HIT/MISS |
-| 응답 | `http_response` | `Date`, `Server`, `Cache-Control`, `ETag` |
+### L0. 기반 — 정적 서버 (STEP1~4)
 
-서비스 경계와 HTTP/2 처리 방침은 `eungi/DECISIONS.md`의 D26~D27을 따릅니다.
+`tcpserver` → `connection` → `http_parser` / `static_handler` → `http_response`
 
-상세 데이터 흐름은 [`verify/ARCHITECTURE_REVIEW.md`](../verify/ARCHITECTURE_REVIEW.md)와 README의 아키텍처 도식을 참고합니다.
+- 소켓 열기, HTTP 파싱, 경로 검증, MIME, 청크 전송, 404/403 처리까지.
+- 이 시점에는 공유 상태도, 워커도 없었습니다.
+
+### L1. 동시성 레이어 (STEP5)
+
+`worker`, `iomux`를 추가했습니다.
+
+- 공유 listen fd를 nonblocking으로 두고, 이벤트당 accept 1건으로 워커 간 분산.
+- `connection`을 `connection_feed()` / `connection_flush()` 상태 머신으로 바꾸고 keep-alive 최대 100회, 유휴 5초, 접근 로그를 얹었습니다.
+- 여기서 좌석처럼 여러 워커가 동시에 만지는 상태가 생깁니다.
+
+### L2. 도메인 레이어 (STEP6)
+
+`flight_store`, `flight_clock`, `flight_api`를 추가했습니다.
+
+- L1의 워커가 만드는 경쟁을 그대로 이용해 `seat_left` before/after 재현.
+- 단일 뮤텍스 → 항공편별 락 + 메타 락으로 다듬고, 파일 저장은 스냅샷 후 락 밖에서 기록.
+- 예약/취소/내 예약/운항 이력과 출발·도착 추적이 여기서 동작합니다.
+
+### L3. 게이트웨이 레이어 (FR-07)
+
+`config`로 라우트를 읽고 `proxy`가 경로 prefix 라우팅 + Round-Robin을 맡습니다.
+
+- 프록시를 전용 스레드 + 큐로 분리해, 느린 백엔드가 L1의 이벤트 루프를 막지 않게 했습니다.
+- `X-Forwarded-For`, 502/504, 백엔드 타임아웃도 이 레이어 책임입니다.
+
+### L4. 캐시·관측 레이어
+
+`cdn`과 `http_response` 확장, 내장 엔드포인트를 얹었습니다.
+
+- 정적 자산 TTL 캐시, `X-Cache: HIT/MISS`, `Cache-Control`, `ETag`.
+- `Date`, `Server` 헤더와 `/health`, `/echo`, 접근 로그(`[wN]`, IP, 지연시간)로 관측성 완성.
+
+### 위에 얹힌 결정
+
+- HTTP/2는 C에 직접 넣지 않고 게이트웨이에서 종료합니다(D26).
+- 항공편 도메인은 C 안에 두고, 캐시·DB·프론트만 별도 서비스/산출물로 연결합니다(D27).
