@@ -243,7 +243,7 @@ make tsan && ./webserver                  # before/after 데이터 레이스 비
 ### 남은 항목
 
 - `hey`/`wrk` 설치 후 percentile(latency p50/p95/p99) 측정 가능. 현재는 curl 병렬 근사값.
-- epoll/kqueue 백엔드와 새 코드의 Linux valgrind 재검증은 미완.
+- epoll/kqueue 백엔드와 새 코드의 Linux valgrind 재검증은 당시 미완이었으나 이후 완료.
 
 
 ---
