@@ -34,6 +34,35 @@
 | "환불 정책 어떻게 할까" | 신청 마감과 환불율 구간을 확정해야 함 | 100/80/50%, 1일 이내 마감 | `STEP10_PAYMENT_SERVICE.md` |
 | "문서가 실제랑 맞나" | 과거 검증 로그에 미완/외부 CDN 문구 잔존 | 당시 기록 표시, 현재 상태 문서와 분리 | `verify/VERIFICATION_LOG.md` |
 
+## 검증 루프가 잡아낸 것
+
+구현과 검증을 분리해서, 발견한 문제를 지우지 않고 남깁니다.
+형식은 이렇습니다.
+
+```text
+발견 시점: 설계 검토 / 단위 / 통합 / valgrind / 부하 / 실행 환경
+증상: 무엇이 틀렸나
+원인: 왜 그랬나
+수정: 무엇을 바꿨나
+회귀 검증: 다시 무엇을 돌렸나
+근거: VERIFICATION_LOG 또는 STEP 링크
+```
+
+| 발견 시점 | 증상 | 원인 | 수정 | 회귀 검증 |
+|---|---|---|---|---|
+| 빌드 | `KE999`가 404 | `flight_t`에 뮤텍스 추가 후 헤더 의존성 없어 객체가 안 바뀜 | `-MMD -MP` 추가 | `make test`, `make integration` |
+| 게이트웨이 | 모든 라우트 404 | `trim()`이 앞 공백을 포인터만 옮김 | `memmove`로 버퍼를 당김 | `make integration-req` |
+| 프록시 | 느린 백엔드가 `/health`까지 막음 | blocking `recv()`가 워커를 점유 | 전용 스레드 + 큐, `dup()` 소유권 이전 | `slow=2008ms / health=0ms` |
+| valgrind | `epoll_pwait()` OOB | 이벤트 배열 64, 요청 최대 256 | 배열 256 + clamp | `make leak` 0 errors |
+| 결제 | 게이트웨이 경유 충전이 400 | 프록시가 `Idempotency-Key` 헤더를 안 넘김 | 중복 방지 키를 본문에도 포함 | `make integration-payments` |
+| 결제 | 환불 요청이 411 | 본문 없는 POST | `{}` 본문 전송 | `make integration-payments` |
+| 영속 테스트 | 예약 5개 항목 FAIL | 이전 실험 서버가 8080을 점유 | 프로세스 정리 후 재실행 | `flight persistence: all passed` |
+| 항공편 확장 | `test-tracking` FAIL | 전체 `tick()` 반환값이 다른 편 전이까지 포함 | `KE701` 상태만 확인 | Linux 회귀 all passed |
+
+이 표는 "버그가 없었다"가 아니라 **검증 루프가 실제로 문제를 잡았다**는 증거입니다.
+리액트 레포에서 해본 방식과 같은 결입니다. 구현한 쪽과 검토하는 쪽을 나누고,
+고치면 고친 범위의 회귀만 다시 돌립니다.
+
 ## 다음 단계에서 같은 방식으로 적을 것
 
 - 로그인을 붙일 때: 왜 레디스 세션인지, JWT를 미룬 이유
