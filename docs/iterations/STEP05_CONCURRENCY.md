@@ -33,12 +33,6 @@
 - `make asan` + Docker valgrind(`make leak`): 누수 0(NFR-01).
 - 접근 로그에 워커 ID(`[wN]`) 포함(NFR-04) → 병렬 처리 증명.
 
-## 데모 시나리오 (항공편 앱, 별도 단계)
-- 화면: `www/flights.html`(예약), `www/ops.html`(운항 관제) + `GET /api/flights` 조회.
-- 예약 경쟁: 마지막 1석에 동시 `POST /api/flights/KE999/reserve` 100건.
-  before(좌석 뮤텍스 없음) = 초과 예약 / after(뮤텍스) = 성공 1건 + 나머지 409.
-- 앱 데이터는 시드 + 파일 영속 저장(`data/flights.txt`). 외부 API 의존 없음.
-
 ## 검증 결과 기록 (macOS arm64, 워커 4개)
 
 - `make` / `make test` / `make integration`: 회귀 없음, 기존 10개 항목 PASS.
