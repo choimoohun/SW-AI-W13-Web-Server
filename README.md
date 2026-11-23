@@ -1,6 +1,6 @@
 # C/POSIX 웹 서버 과제
 
-현재는 **개발 환경만** 구성되어 있습니다. C 소스, 서버 실행 파일, 테스트 케이스가 없으므로 아직 HTTP 포트를 열거나 요청을 처리하지 않습니다.
+외부 라이브러리 없이 표준 C와 POSIX API로 웹 서버를 만드는 과제입니다. CS:APP 3판 11~12장의 예제에서 출발해 단계별로 확장합니다. 단계 순서와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
 
 ## Docker Desktop — Windows / macOS
 
@@ -10,7 +10,7 @@ Windows에서는 Docker Desktop을 **WSL 2 백엔드 및 Linux 컨테이너 모�
 docker compose run --build --rm dev
 ```
 
-개발 이미지를 빌드하고, 호스트 소스를 `/workspace`에 마운트한 뒤 CMake 구성과 빌드를 실행합니다. 지금은 C 컴파일러와 POSIX `socket()` 사용 가능 여부를 확인하며 실행 파일은 생성하지 않습니다. 빌드 결과는 컨테이너 안 `/tmp/web-server-build`에만 생성되며 컨테이너 종료 시 제거됩니다.
+개발 이미지를 빌드하고, 호스트 소스를 `/workspace`에 마운트한 뒤 CMake 구성과 빌드를 실행합니다. 빌드 결과는 컨테이너 안 `/tmp/web-server-build`에만 생성되며 컨테이너 종료 시 제거됩니다.
 
 같은 개발 환경에서 직접 명령을 실행하려면:
 
@@ -30,14 +30,11 @@ cmake --build build
 (cd build && ctest --output-on-failure)
 ```
 
-CTest에는 HTTP 요청 파싱 단위 테스트 `test_http_request`와 HTTP 응답 생성 단위 테스트 `test_http_response`가 등록되어 있습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
+단위 테스트는 CTest에 등록되어 있습니다. 실행 파일과 실행 방법은 각 단계의 설계 문서에 있습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
 
 ## 설계 문서
 
-- TCP 소켓 서버(CS:APP 11.4 에코 서버): [설계](docs/tcp-socket-server/design.md), [함수 명세](docs/tcp-socket-server/functions.md), [테스트 케이스](docs/tcp-socket-server/test-cases.md)
-- HTTP 요청 파싱(CS:APP 11.5.3): [설계](docs/http-request-parsing/design.md), [함수 명세](docs/http-request-parsing/functions.md), [테스트 케이스](docs/http-request-parsing/test-cases.md)
-- HTTP 응답 생성(CS:APP 11.5.3): [설계](docs/http-response/design.md), [함수 명세](docs/http-response/functions.md), [테스트 케이스](docs/http-response/test-cases.md)
-- 정적 파일 서빙(CS:APP 11.5.2): [설계](docs/static-file-serving/design.md), [함수 명세](docs/static-file-serving/functions.md), [테스트 케이스](docs/static-file-serving/test-cases.md)
+과제 요구사항은 [docs/웹 서버 만들기.md](docs/웹%20서버%20만들기.md), 단계별 설계와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
 
 ## 구현 단계에서 지킬 범위
 
