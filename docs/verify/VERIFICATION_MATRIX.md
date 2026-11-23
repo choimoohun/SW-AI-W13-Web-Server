@@ -1,7 +1,7 @@
 # 검증 매트릭스
 
 요구사항 하나가 어느 명령으로 검증되는지 연결하는 문서입니다.
-이 문서는 현재 상태를 보여 주고, 실제 실행 증거는 `VERIFICATION_LOG.md`에 둡니다.
+이 문서는 현재 상태를 보여 주고, 실제 실행 증거는 `../records/VERIFICATION_LOG.md`에 둡니다.
 여기에 PASS라고 적으려면 로그에 해당 실행 기록이 있어야 합니다.
 
 상태:
@@ -13,12 +13,12 @@
 
 | 요구사항 | 검증 명령 | 기대 결과 | 상태 | 증거 |
 |---|---|---|---|---|
-| C-01 C11/POSIX | `make` | `-Wall -Wextra -Werror` 통과 | PASS | `VERIFICATION_LOG.md` 빌드 항목 |
+| C-01 C11/POSIX | `make` | `-Wall -Wextra -Werror` 통과 | PASS | `../records/VERIFICATION_LOG.md` 빌드 항목 |
 | C-02 외부 라이브러리 금지 | `grep` / Makefile 확인 | `libevent`, `libuv`, `curl` 링크 없음 | PASS | `Makefile`, `src/` |
 | C-03 Linux/macOS 이식성 | `make`, Docker `tests/linux_check.sh` | 양쪽 빌드·회귀 통과 | PASS | Linux regression all passed |
 | C-04 Makefile 타겟 | `make test`, `make asan`, `make clean` | 타겟 존재·실행 | PASS | `Makefile` |
 | C-05 CLI/설정 | `./webserver -p -r -c`, `make integration-req` | 포트/루트/설정 적용 | PASS | `integration-req` |
-| FR-01 TCP 서버 | `nc -zv 127.0.0.1 8080`, 재시작 | 포트 열림, 재바인딩 성공 | PASS | `STEP1`, `VERIFICATION_LOG.md` |
+| FR-01 TCP 서버 | `nc -zv 127.0.0.1 8080`, 재시작 | 포트 열림, 재바인딩 성공 | PASS | `STEP1`, `../records/VERIFICATION_LOG.md` |
 | FR-02 HTTP 파싱 | `make test`, `make edge-cases` | 405/505/414/413, short read 조립 | PASS | `test_parser`, `edge-cases` |
 | FR-03 HTTP 응답 | `curl -i`, `make integration` | 상태 라인·헤더·본문 정상 | PASS | `integration` |
 | FR-04 정적 파일 | `make integration` | 200/403/404/500, PNG 무결성 | PASS | `test_static`, `integration` |
@@ -43,6 +43,6 @@
 
 1. `docs/REQUIREMENTS.md`에 요구사항이 있으면 여기에 행을 추가합니다.
 2. 검증 명령을 적고, 실행 전에는 `NOT RUN`으로 둡니다.
-3. 실행 후 실제 출력 요약을 `VERIFICATION_LOG.md`에 append하고 상태를 `PASS`/`FAIL`로 바꿉니다.
+3. 실행 후 실제 출력 요약을 `../records/VERIFICATION_LOG.md`에 append하고 상태를 `PASS`/`FAIL`로 바꿉니다.
 4. 실패를 지우지 않고 원인·수정·재검증을 같은 날 기록에 남깁니다.
 5. 요구사항이 바뀌면 이 표와 `STEP 문서`, `DECISIONS.md`를 함께 갱신합니다.

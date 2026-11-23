@@ -1,7 +1,7 @@
 # 하루 작업 범위
 
 오늘 무엇을 하고, 무엇을 미루는지 적습니다.
-영구 규칙은 [TEAM_RULES.md](../TEAM_RULES.md), 설계는 상위 `docs/`, 실행 증거는 [VERIFICATION_LOG.md](../verify/VERIFICATION_LOG.md)에 둡니다.
+영구 규칙은 [TEAM_RULES.md](../TEAM_RULES.md), 설계는 상위 `docs/`, 실행 증거는 [VERIFICATION_LOG.md](../records/VERIFICATION_LOG.md)에 둡니다.
 
 ## 지금 상태
 
@@ -15,7 +15,7 @@
 - `make mutation`, `make asan`, `make leak`
 - Linux epoll 회귀 `tests/linux_check.sh`
 
-출력은 [../verify/VERIFICATION_LOG.md](../verify/VERIFICATION_LOG.md)에 있습니다.
+출력은 [../records/VERIFICATION_LOG.md](../records/VERIFICATION_LOG.md)에 있습니다.
 
 ## 다음 작업
 

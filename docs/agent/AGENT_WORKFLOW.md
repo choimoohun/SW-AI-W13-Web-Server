@@ -10,7 +10,7 @@
 3. [why_webserver.md](../why_webserver.md)
 4. [REQUIREMENTS.md](../REQUIREMENTS.md)
 5. [DESIGN.md](../DESIGN.md), [DECISIONS.md](../DECISIONS.md)
-6. [VERIFICATION_MATRIX.md](../verify/VERIFICATION_MATRIX.md), [VERIFICATION_LOG.md](../verify/VERIFICATION_LOG.md)
+6. [VERIFICATION_MATRIX.md](../verify/VERIFICATION_MATRIX.md), [VERIFICATION_LOG.md](../records/VERIFICATION_LOG.md)
 
 ## 하지 말아야 할 것
 

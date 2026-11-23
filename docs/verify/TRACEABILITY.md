@@ -1,7 +1,7 @@
 # 요구사항 추적
 
 요구사항이 실제 코드와 테스트까지 이어지는지 정리합니다.
-자세한 실행 출력은 [VERIFICATION_LOG.md](VERIFICATION_LOG.md)에 있습니다.
+자세한 실행 출력은 [VERIFICATION_LOG.md](../records/VERIFICATION_LOG.md)에 있습니다.
 
 | 요구사항 | 푸는 문제 | 구현 | 검증 |
 |---|---|---|---|

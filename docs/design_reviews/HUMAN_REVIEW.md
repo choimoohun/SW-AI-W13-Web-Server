@@ -2,7 +2,7 @@
 
 여기에는사람이 대화에서 검토하고 확정한 내용을 적습니다.
 자동 검증이 잡은 문제는 [../verify/AUTO_FINDINGS.md](../verify/AUTO_FINDINGS.md)에,
-실행 기록은 [../verify/VERIFICATION_LOG.md](../verify/VERIFICATION_LOG.md)에 있습니다.
+실행 기록은 [../records/VERIFICATION_LOG.md](../records/VERIFICATION_LOG.md)에 있습니다.
 
 | 검토 내용 | 사람이 정한 것 | 반영 |
 |---|---|---|

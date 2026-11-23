@@ -339,7 +339,7 @@ make clean && make   # 검증 후 일반 바이너리로 복원
 - 검증 후 `make clean && make` exit 0, 재빌드 바이너리에서 `test_parser: all passed` / `test_static: all passed` 재확인. `webserver` 바이너리에 sanitizer 심볼 없음(일반 빌드로 복원).
 - `lsof -nP -iTCP:8080 -iTCP:8081 -iTCP:8083 -iTCP:8084 -sTCP:LISTEN` → 리스너 없음. `pgrep -fl 'webserver|backend.py'` → 프로세스 없음.
 - `docker ps -a`에는 기존 `Exited` 컨테이너만 존재(이번 `make leak`는 `--rm`으로 새 컨테이너 잔여 없음).
-- 이 섹션은 기존 내용을 덮어쓰지 않고 맨 아래에 추가만 함. 작업 중 `verify/VERIFICATION_LOG.md` 66행(`## 남은 항목`)이 외부 요인으로 수정된 흔적이 있었으나 기존 텍스트는 보존됨.
+- 이 섹션은 기존 내용을 덮어쓰지 않고 맨 아래에 추가만 함. 작업 중 `records/VERIFICATION_LOG.md` 66행(`## 남은 항목`)이 외부 요인으로 수정된 흔적이 있었으나 기존 텍스트는 보존됨.
 
 ---
 

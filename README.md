@@ -157,7 +157,7 @@ make asan        # ASAN+UBSan 빌드 → 메모리 오류 검사
 - ASAN(macOS): 메모리 오류·UB 0건.
 - 누수 검사(Linux Valgrind, Docker): 누수 0 bytes, 오류 0건 확정 (NFR-01 충족).
   Docker Desktop 실행 후 `docker compose run --rm dev sh`에서 valgrind로 수행.
-- 상세 검증 기록: [verify/VERIFICATION_LOG.md](./docs/verify/VERIFICATION_LOG.md).
+- 상세 검증 기록: [records/VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md).
 
 ### 직접 확인하는 방법 (마일스톤 1)
 
@@ -368,8 +368,8 @@ src/       main, tcpserver, worker, iomux, connection, config, flight_*, proxy, 
 www/       flights.html/js, ops.html/js, 정적 자산
 conf/      tcpserver.conf (포트·워커·라우트·TTL)
 tests/     unit/, integration/, integration/fixtures/
-verify/     VERIFICATION_MATRIX.md, VERIFICATION_LOG.md, AUTO_FINDINGS.md, design_reviews/
-docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, why_webserver.md
+verify/     VERIFICATION_MATRIX.md, TRACEABILITY.md, AUTO_FINDINGS.md, design_reviews/
+docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, records/, why_webserver.md
 ```
 
 ## 모듈 책임 (현재)
@@ -399,4 +399,4 @@ docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, a
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
 
-참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./docs/verify/VERIFICATION_MATRIX.md) · [VERIFICATION_LOG.md](./docs/verify/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./docs/design_reviews/ARCHITECTURE_REVIEW.md)
+참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./docs/verify/VERIFICATION_MATRIX.md) · [VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./docs/design_reviews/ARCHITECTURE_REVIEW.md)
