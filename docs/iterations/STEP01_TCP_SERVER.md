@@ -35,12 +35,12 @@ main.c → tcpserver.c → connection.c
 |---|---|
 | `tcpserver_listen(port, backlog)` | `getaddrinfo(AI_PASSIVE)`로 후보를 만들고 후보마다 `socket` → `setsockopt(SO_REUSEADDR)` → `bind` → `listen`. 성공하면 fd, 전부 실패하면 -1. `freeaddrinfo`로 후보 해제 |
 | `tcpserver_accept(listen_fd)` | `accept`로 client fd 반환 |
-| `main` | SIGPIPE 무시, SIGINT/SIGTERM은 `sigaction`(SA_RESTART 끔)으로 종료 플래그만 세움. accept 루프에서 `connection_handle` 호출. 종료 시 listen fd 닫고 exit 0 |
+| `main` | `SIGPIPE` 무시, `SIGINT`/`SIGTERM`은 `sigaction`(`SA_RESTART` 끔)으로 종료 플래그만 세움. accept 루프에서 `connection_handle` 호출. 종료 시 `listen fd` 닫고 `exit 0` |
 
 ## 테스트 기록
-- make → exit 0 (-Wall -Wextra -Werror).
-- ./webserver 후 nc -zv 127.0.0.1 8080 → "succeeded".
-- kill -TERM → 종료 코드 0 (graceful shutdown).
+- `make` → exit 0 (`-Wall -Wextra -Werror`).
+- `./webserver` 후 `nc -zv 127.0.0.1 8080` → "succeeded".
+- `kill -TERM` → 종료 코드 0 (graceful shutdown).
 
 ## 확인할 항목
 - [x] 지정한 포트에서 실행

@@ -10,11 +10,16 @@ BASE="http://127.0.0.1:$PORT"
 SRV=$!
 trap 'kill -TERM $SRV 2>/dev/null; wait $SRV 2>/dev/null' EXIT
 # 서버 준비 대기(ASAN 빌드는 시작이 느릴 수 있음) — 최대 ~10초 폴링
+ready=0
 i=0
 while [ $i -lt 50 ]; do
-    curl -s -o /dev/null --max-time 1 "$BASE/" && break
+    if curl -s -o /dev/null --max-time 1 "$BASE/"; then ready=1; break; fi
     i=$((i+1)); sleep 0.2
 done
+if [ "$ready" != 1 ]; then
+    echo "FAIL  서버 시작 실패 (port $PORT)"
+    exit 1
+fi
 
 fail=0
 code() { curl -s -o /dev/null -w "%{http_code}" "$@"; }

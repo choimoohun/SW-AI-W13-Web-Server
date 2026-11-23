@@ -15,14 +15,18 @@
 
 #include "config.h"
 
+/* 초기 수신 버퍼. 요청이 크면 connection_feed 가 이 크기에서 키운다. */
 #define CONN_RECV_CAP 8192
+/* 수신 버퍼 상한: 헤더(8192) + 본문(1MiB) + 여유. 넘으면 431. */
+#define CONN_RECV_MAX (CONN_RECV_CAP + 1048576L + 1L)
 #define CONN_SEND_CAP 17408   /* JSON 본문 16KB + 헤더 여유 */
 
 typedef struct {
     int fd;
     const server_config_t *cfg;   /* 설정 소유자는 main */
 
-    char recv_buf[CONN_RECV_CAP];
+    char  *recv_buf;              /* 수신 버퍼. 요청이 크면 확장, connection_destroy 가 해제 */
+    size_t recv_cap;              /* recv_buf 의 확보 크기 */
     size_t recv_len;
 
     char send_buf[CONN_SEND_CAP];

@@ -10,20 +10,20 @@ Hermes TUI의 로그(`~/.hermes/logs/agent.log`)에서 모든 프로바이더(`n
 
 ## 설치 및 자동 실행 연결 (최초 1회)
 
-스크립트 위치: `~/.hermes/tools/rate_limit_manager.py` (Python 3.10 이상, 추가 패키지 설치 불필요)
+스크립트 위치: `docs/agent/tools/rate_limit_manager.py` (Python 3.10 이상, 추가 패키지 설치 불필요)
 
 터미널에서 `hermes` 실행 시 자동으로 오늘 계획 확인 및 로그 스캔이 돌도록 쉘 설정 파일 맨 아래에 추가합니다.
 
 - macOS (`~/.zshrc`):
   ```bash
   hermes() {
-    python3 "$HOME/.hermes/tools/rate_limit_manager.py" auto && command hermes "$@"
+    python3 "$PWD/docs/agent/tools/rate_limit_manager.py" auto && command hermes "$@"
   }
   ```
 - Linux / WSL2 (`~/.bashrc`):
   ```bash
   hermes() {
-    python3 "$HOME/.hermes/tools/rate_limit_manager.py" auto && command hermes "$@"
+    python3 "$PWD/docs/agent/tools/rate_limit_manager.py" auto && command hermes "$@"
   }
   ```
 

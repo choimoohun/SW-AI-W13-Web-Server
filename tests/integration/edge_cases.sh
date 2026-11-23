@@ -41,6 +41,13 @@ printf 'POST /echo HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1048577\r\nCon
 resp=$(nc -w 2 127.0.0.1 "$PORT" <"$REQ" | head -1 || true)
 case "$resp" in *413*) pass "1MB 초과 본문 ($resp)";; *) fail_case "큰 본문 ($resp)";; esac
 
+# 본문 8192 바이트: 이전에는 수신 버퍼(8192)가 헤더+본문을 못 담아 431이 떴다.
+BODY=/tmp/jg_edge_body_$$.txt
+python3 -c 'print("x" * 8192, end="")' >"$BODY"
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST --data-binary "@$BODY" "$BASE/echo")
+expect_code 200 "$code" '8KB 본문'
+rm -f "$BODY"
+
 echo '=== 백엔드 미기동 / 프록시 오류 ==='
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/orders/test")
 expect_code 502 "$code" '백엔드 없음 502'

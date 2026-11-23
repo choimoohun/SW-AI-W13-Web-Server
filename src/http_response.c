@@ -167,7 +167,9 @@ void http_response_send_file(int client_fd, const char *mime, int file_fd, long 
     char chunk[16384];
     long sent = 0;
     while (sent < size) {
-        ssize_t r = read(file_fd, chunk, sizeof(chunk));
+        size_t want = sizeof(chunk);
+        if ((long)want > size - sent) want = (size_t)(size - sent);
+        ssize_t r = read(file_fd, chunk, want);
         if (r < 0) {
             if (errno == EINTR) continue;
             return;   /* 읽기 오류 */

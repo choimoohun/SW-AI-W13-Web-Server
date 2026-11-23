@@ -43,8 +43,27 @@ int main(void)
     CHECK(ps("GET / HTTP/1.1\r\nHo", &r) == PARSE_NEED_MORE, "partial header -> need more");
     CHECK(ps("GET / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n", &r) == PARSE_ERROR
           && r.err_status == 501, "chunked -> 501");
-    CHECK(ps("GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\n", &r) == PARSE_ERROR
+    CHECK(ps("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\n", &r) == PARSE_ERROR
           && r.err_status == 400, "duplicate CL -> 400");
+
+    /* Content-Length 값은 전부 숫자여야 한다. strtol 만으로는 "+3", "-1", "3\0junk" 를 통과시킨다. */
+    CHECK(ps("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: +3\r\n\r\nabc", &r) == PARSE_ERROR
+          && r.err_status == 400, "CL '+3' -> 400");
+    CHECK(ps("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: -1\r\n\r\n", &r) == PARSE_ERROR
+          && r.err_status == 400, "CL '-1' -> 400");
+    CHECK(ps("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 3x\r\n\r\nabc", &r) == PARSE_ERROR
+          && r.err_status == 400, "CL '3x' -> 400");
+    {
+        char buf[96];
+        size_t n = 0;
+        static const char pre[] = "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: ";
+        memcpy(buf, pre, sizeof(pre) - 1); n = sizeof(pre) - 1;
+        buf[n++] = '3'; buf[n++] = '\0'; buf[n++] = 'j'; buf[n++] = 'u';
+        buf[n++] = 'n'; buf[n++] = 'k';
+        memcpy(buf + n, "\r\n\r\n", 4); n += 4;
+        CHECK(http_parser_parse(buf, n, &r) == PARSE_ERROR && r.err_status == 400,
+              "CL with embedded NUL -> 400");
+    }
 
     /* 긴 URI (> 2048) -> 414 */
     char longuri[3000];

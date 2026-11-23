@@ -155,6 +155,26 @@ fi
 body=$(curl -s "$BASE/api/flights/KE999")
 contains "$body" '"seat_left":0' "after 후 잔여 좌석 0"
 
+echo '--- 엣지 케이스 ---'
+longname=$(python3 -c 'print("a"*80)')
+expect 400 "이름 64자 초과" -X POST -H 'Content-Type: application/json' \
+    -d "{\"name\":\"$longname\"}" "$BASE/api/flights/KE701/reserve"
+expect 404 "없는 항공편 예약" -X POST -H 'Content-Type: application/json' \
+    -d '{"name":"x"}' "$BASE/api/flights/NOPE/reserve"
+expect 409 "좌석 0석 예약" -X POST -H 'Content-Type: application/json' \
+    -d '{"name":"zero"}' "$BASE/api/flights/KE999/reserve"
+expect 200 "출발 설정" -X POST -H 'Content-Type: application/json' \
+    -d '{"status":"DEPARTED","at":1795600000}' "$BASE/api/admin/flights/KE202/status"
+expect 400 "도착 시각 역전" -X POST -H 'Content-Type: application/json' \
+    -d '{"status":"ARRIVED","at":1795500000}' "$BASE/api/admin/flights/KE202/status"
+body=$(curl -s -X POST -H 'Content-Type: application/json' \
+    -d '{"name":"a\"b\\c","contact":"x"}' "$BASE/api/flights/KE701/reserve")
+if printf '%s' "$body" | python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(0 if d["reservation"]["name"]=="a\"b\\c" else 1)' 2>/dev/null; then
+    echo "PASS  JSON escape (round-trip)"
+else
+    echo "FAIL  JSON escape: $body"; fail=1
+fi
+
 stop_server
 if [ $fail -eq 0 ]; then
     echo 'flight integration: all passed'

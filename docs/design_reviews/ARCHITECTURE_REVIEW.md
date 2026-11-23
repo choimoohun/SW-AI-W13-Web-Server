@@ -21,8 +21,8 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
                                   |
         +-------------------------+-------------------------+
         |                         |                         |
-     worker 0                 worker 1                  worker 3
-   (poll 인스턴스)           (poll 인스턴스)            (poll 인스턴스)
+     worker 0                 worker 1                  worker 2
+   (iomux 인스턴스)          (iomux 인스턴스)           (iomux 인스턴스)
         |                         |                         |
         +----------- connection_feed / connection_flush ----+
                     (READ/WRITE 이벤트 상태 머신)

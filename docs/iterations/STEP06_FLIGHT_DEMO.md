@@ -128,15 +128,17 @@ typedef struct {
 
 ## 엣지 케이스 체크리스트
 
-- [ ] 마지막 1석에 동시 요청 → after에서 정확히 1건만 201, 나머지 전부 409.
-- [ ] 좌석 0석에서 예약 → 201 없음, 재고가 음수로 내려가지 않음.
-- [ ] 빈 이름 / 64자 초과 이름 → 400, 레코드 증가 없음.
-- [ ] 없는 항공편 ID → 404 (예약/조회/상태변경 모두).
-- [ ] 출발 전 도착 시각 입력 → 400.
-- [ ] 상태 전이 역행(ARRIVED → SCHEDULED) → 400.
-- [ ] JSON escape: 이름에 `"`, `\`, 개행 포함 → 응답 JSON이 파싱 가능.
-- [ ] Content-Length 거짓/과대 → 413 or 400, 서버가 멈추거나 무한 대기하지 않음.
-- [ ] 모드 토글 직후 동시 요청 → mixed 결과가 나와도 서버는 크래시하지 않음.
+- [x] 마지막 1석에 동시 요청 → after에서 정확히 1건만 201, 나머지 전부 409. (`tests/integration/flight_run.sh`)
+- [x] 좌석 0석에서 예약 → 201 없음, 재고가 음수로 내려가지 않음. (`flight_run.sh` 좌석 0석 예약 409 + `seat_left:0` 확인)
+- [x] 빈 이름 → 400. (`flight_run.sh` 이름 누락)
+- [x] 64자 초과 이름 → 400. (`flight_run.sh`)
+- [x] 없는 항공편 ID → 404. (`flight_run.sh`)
+- [x] 출발 전 도착 시각 입력 → 400. (`flight_run.sh` 도착 시각 역전)
+- [x] 상태 전이 역행(ARRIVED → SCHEDULED) → 400. (`flight_run.sh`)
+- [x] JSON escape: 이름에 `"`, `\` 포함 → 응답 JSON이 파싱 가능. (`flight_run.sh` python json round-trip)
+- [x] Content-Length 과대 → 413. (`tests/integration/edge_cases.sh`)
+- [ ] Content-Length 거짓(실제 본문보다 작게 선언) → 400 또는 연결 종료. (미검증)
+- [x] 모드 토글 직후 동시 요청 → 서버 크래시 없음. (`flight_run.sh` before/after 각각 동시 요청)
 
 ---
 

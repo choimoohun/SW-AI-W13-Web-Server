@@ -165,6 +165,7 @@ static int json_get_string(const char *buf, size_t len, const char *key,
 {
     const char *v = find_value(buf, len, key);
     size_t i, o = 0;
+    int overflow = 0;
 
     if (v == NULL || *v != '"') {
         return -1;
@@ -187,11 +188,16 @@ static int json_get_string(const char *buf, size_t len, const char *key,
         }
         if (o + 1 < cap) {
             out[o++] = c;
+        } else {
+            overflow = 1;   /* 버퍼보다 긴 값은 조용히 자르지 않고 거절 */
         }
         ++i;
     }
     if (i >= len) {
         return -1;   /* 닫는 따옴표 없음 */
+    }
+    if (overflow) {
+        return -1;
     }
     out[o] = '\0';
     return 0;

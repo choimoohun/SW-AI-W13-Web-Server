@@ -19,7 +19,7 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 | static_handler | src/static_handler.c | 경로 탈출 방어(realpath 경계), MIME, 404/403/500, "/"→index.html |
 | http_response | src/http_response.c | 상태줄+헤더 직렬화, send_all, 16KB 청크 전송 |
 | connection | src/connection.c | read 누적→파싱→정적파일→응답→단일 close, 5초 타임아웃 |
-| main | src/main.c | 시그널 정책(SIGPIPE 무시, sigaction SA_RESTART 끔), accept 루프, doc_root |
+| `main` | `src/main.c` | 시그널 정책(`SIGPIPE` 무시, `sigaction` `SA_RESTART` 끔), accept 루프, `doc_root` |
 
 ## 검증 결과 (실제 실행)
 
@@ -56,11 +56,11 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 ```sh
 make            # 빌드
 make test       # 단위 테스트 (파서, 경로보안/MIME)
-make integration# 기능 테스트 (서버 기동 후 curl 검증, 자동 종료)
+make integration  # 기능 테스트 (서버 기동 후 curl 검증, 자동 종료)
 make asan       # ASAN+UBSan 빌드 (macOS=메모리오류 검사)
 # 누수 0 확정 (Linux/Docker):
 open -a Docker  # Docker Desktop 데몬 실행 후
-docker compose run --rm dev sh -c "cd /workspace && make && valgrind --leak-check=full ./webserver ..."
+docker compose run --rm dev sh /workspace/tests/leak_check.sh
 ```
 
 ## 남은 항목 (초기 기록 — 이후 섹션에서 대부분 해결됨)

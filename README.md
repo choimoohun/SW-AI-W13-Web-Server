@@ -25,6 +25,10 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | [EXT03_BACKEND_SERVICES.md](./docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장) |
 | [EXT04_PAYMENT_SERVICE.md](./docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
 | [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [notes/iomux.md](./docs/notes/iomux.md) | I/O 멀티플렉싱 기술 선택 이유(`epoll`/`kqueue`/`poll`) |
+| [notes/operation.md](./docs/notes/operation.md) | 이 서버에서 실제로 일어나는 동작 원리 |
+| [notes/multiplexing-rationale.md](./docs/notes/multiplexing-rationale.md) | 이 프로젝트에서 I/O 멀티플렉싱을 고른 이유 |
+| [notes/event-loop.md](./docs/notes/event-loop.md) | 이벤트 루프 동작 순서와 큐 위치 |
 | [TEAM_RULES.md](./docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
@@ -84,6 +88,7 @@ flowchart TB
 ```
 
 상세한 계층 설명과 리스크 메모는 [`ARCHITECTURE_REVIEW.md`](./docs/design_reviews/ARCHITECTURE_REVIEW.md)에 있습니다.
+AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_FINDINGS.md`](./docs/design_reviews/AI_FINDINGS.md)에 있습니다.
 
 ## 기술 영역 및 학습 목표
 
@@ -118,154 +123,16 @@ flowchart TB
 | 9 | 별도 백엔드 프로세스 연결: mini-redis·mini-dbms를 게이트웨이 뒤에 연결, 리소스 제한·독립 재시작 시연 | 완료·검증 |
 | 10 | 결제 서비스 분리: 자기 DB·중복 방지 키·환불, `flights.html` 결제 버튼, 독립 재시작 | 완료·검증 |
 
-### 마일스톤 1에서 실제로 검증한 것
+### 마일스톤별 검증 요약
 
-- `make` → exit 0, `webserver` 실행 파일 생성 (`-std=c11 -Wall -Wextra -Werror` 통과).
-- `./webserver` 실행 후 `nc -zv 127.0.0.1 8080` → "Connection ... succeeded!" (포트 열림 확인).
-- `kill -TERM <pid>` → 종료 코드 0 (graceful shutdown, NFR-02).
+- 1~4(TCP·파서·응답·정적 파일): `make` exit 0, `GET /` 200, `/nope` 404, `/../etc/passwd`와 `/%2e%2e/etc/passwd` 403, `/test.png` 바이트 일치, MIME 매핑, `POST /` 405, `kill -TERM` 종료 코드 0.
+- 5(견고함): `make test`·`make asan` 통과, Docker valgrind 누수 0.
+- 6(워커 풀·이벤트 루프): keep-alive `200 200`, slow client가 다른 요청을 막지 않음, 100동시 통과.
+- 7(항공편 도메인): after 201 1건/409 99건, before 초과 예약 재현, 재시작 후 예약 유지, `make tsan` after 0건.
+- 8(요구사항 마무리): Date/Server·`/health`·`/echo`·`-p/-r/-c`, 게이트웨이 RR/XFF/502, 접근 로그, `X-Cache` HIT.
+- 9~10(별도 백엔드·결제): `ulimit` 자원 제한 차등, 백엔드 종료 시 200/502 혼재 후 재시작 복구, 결제 충전·중복 방지 키·환불·독립 재시작.
 
-### 마일스톤 2에서 실제로 검증한 것
-
-- `make` → exit 0 (`-std=c11 -Wall -Wextra -Werror` 통과).
-- 정상 `GET /` → `200 OK` + 본문 `hi`.
-- 잘못된 요청 라인 → `400`, POST Content-Length 누락 → `411`, 미지원 메서드(DELETE) → `405`,
-  HTTP/1.1 Host 누락 → `400`. (curl/nc로 실제 확인)
-- `kill -TERM` → 종료 코드 0 (graceful shutdown 유지).
-
-### 마일스톤 3·4에서 실제로 검증한 것 (정적 파일 서빙 완성)
-
-- `make` → exit 0 (`-std=c11 -Wall -Wextra -Werror` 통과).
-- `GET /` → `200` + `Content-Type: text/html` + index.html 전체 내용.
-- `GET /nope` → `404`.
-- `GET /../etc/passwd`, `GET /%2e%2e/etc/passwd` → `403` (경로 탈출 차단, 퍼센트 인코딩 포함).
-- `GET /test.png` → 원본과 바이트 일치(`cmp` 통과), `Content-Type: image/png`, `Content-Length: 149`.
-- `GET /style.css` → `text/css`, `GET /sample.txt` → `text/plain` (MIME 매핑).
-- `POST /`(본문 있음) → `405` (정적 서빙은 GET 의미론).
-- `kill -TERM` → 종료 코드 0.
-
-마일스톤 1~5(정적 파일 서빙과 견고함) 완료 이후, 6~9에서 동시성·도메인·요구사항·별도 백엔드 연결까지 마무리했습니다.
-
-### 테스트 실행 방법
-
-```sh
-make test        # 단위 테스트: 파서 + 경로보안/MIME (tests/unit/)
-make integration # 기능 테스트: 서버 기동 후 curl 검증 (tests/integration/run.sh)
-make asan        # ASAN+UBSan 빌드 → 메모리 오류 검사
-```
-
-- 단위/기능 테스트: 전부 통과 (파서 오류코드, 경로 탈출 403, MIME, 바이너리 무결성 등).
-- ASAN(macOS): 메모리 오류·UB 0건.
-- 누수 검사(Linux Valgrind, Docker): 누수 0 bytes, 오류 0건 확정 (NFR-01 충족).
-  Docker Desktop 실행 후 `docker compose run --rm dev sh`에서 valgrind로 수행.
-- 상세 검증 기록: [records/VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md).
-
-### 직접 확인하는 방법 (마일스톤 1)
-
-```sh
-make                    # 빌드 → exit 0 확인
-./webserver             # 서버 실행 (포트 8080)
-# 다른 터미널에서:
-nc -zv 127.0.0.1 8080   # 포트 열림 → "succeeded!" 확인
-# 서버 터미널에서 Ctrl+C 로 종료 후:
-echo $?                 # 종료 코드 0 확인 (graceful shutdown)
-```
-
-### 마일스톤 1~4: 정적 파일 서빙 검증 명령
-
-```sh
-curl -i http://127.0.0.1:8080/                          # 200 + index.html
-curl -i http://127.0.0.1:8080/nope                      # 404
-curl -i --path-as-is http://127.0.0.1:8080/../etc/passwd  # 403 (경로 탈출 차단)
-curl -s http://127.0.0.1:8080/test.png | cmp - www/test.png && echo "binary OK"
-```
-
-### 마일스톤 5: 견고함 검증
-
-```sh
-make test                       # 단위 테스트 전체 PASS
-make asan                       # macOS ASan: 메모리 오류 0
-docker compose run --rm dev make leak   # Linux valgrind: 누수 0 bytes, ERROR SUMMARY 0
-```
-
-### 마일스톤 6: 워커 풀 + 이벤트 루프 검증
-
-```sh
-WEB_WORKERS=4 ./webserver       # 기본 4워커, epoll/kqueue/poll 백엔드 사용
-make integration                # keep-alive/느린 클라이언트/100동시 검증
-make load-test                  # 200요청·동시 20, Non-2xx 0 확인
-```
-
-`:8080/health` 응답의 접근 로그에서 `[wN]`으로 서로 다른 워커가 처리했는지 확인합니다.
-상세 흐름은 [STEP05_CONCURRENCY.md](./docs/iterations/STEP05_CONCURRENCY.md) 참고.
-
-### 마일스톤 7: 항공편 도메인 검증
-
-```sh
-make test-flight                # 좌석 경쟁 단위 (before 32/32, after 1/32)
-make integration-flight         # HTTP 100동시 + keep-alive + slow client
-make integration-persist        # 재시작 후 data/flights.txt 유지
-make test-tracking              # 시계 전이·지연 단위
-make integration-tracking       # 자동 출발/도착 통합
-make tsan                       # after 레이스 0, before 1건 검출
-```
-
-상세 설계는 [STEP06_FLIGHT_DEMO.md](./docs/iterations/STEP06_FLIGHT_DEMO.md) 참고.
-
-### 마일스톤 8: 요구사항 마무리 검증
-
-```sh
-make integration-req            # Date/Server, /health, /echo, -p/-r/-c,
-                                # 게이트웨이 RR/XFF/502, 접근 로그, X-Cache HIT
-```
-
-요구사항 원문은 [REQUIREMENTS.md](./docs/REQUIREMENTS.md),
-결정 근거는 [DECISIONS.md](./docs/DECISIONS.md) 참고.
-
-### 마일스톤 9: 별도 백엔드 프로세스 검증
-
-```sh
-make integration-backends       # mini-redis·mini-dbms를 게이트웨이 뒤에 띄움
-# ulimit 64/128/256으로 자원 제한 차등, 8401 종료 시 200/502 혼재,
-# 8401 재시작 후 전부 200, /health 200 확인
-```
-
-### 마일스톤 10: 결제 서비스 검증
-
-```sh
-make integration-backends     # 8500 결제 프로세스까지 함께 기동
-make integration-payments     # 충전·중복 방지 키·조회·환불·잘못된 금액·독립 재시작
-# http://127.0.0.1:8085/flights.html → 예약하기 → 오른쪽 결제 패널의 "결제하기" → /pay.html → 결제 완료 후 내 예약에 표시
-# 내 예약: 출발 7~5일 전 100%, 5~2일 전 80%, 2~1일 전 50%, 1일 이내 신청 마감
-```
-
-### 항공권 예약 앱 (STEP5/6)
-
-```sh
-make && ./webserver            # 기본 워커 4개, after 모드
-# 브라우저: http://127.0.0.1:8080/flights.html
-#   검색 → 항공편 선택 → 승객 정보 입력 → 예약 → 내 예약 → 취소
-# 예약은 data/flights.txt에 저장되어 재시작 후에도 유지된다.
-# 테스트는 FLIGHT_DATA_FILE=/dev/null로 격리한다.
-
-make test-flight               # 좌석 경쟁 단위 검증 (before/after)
-make integration-flight        # HTTP 100동시 + keep-alive + slow client
-make integration-persist       # 재시작 후 예약 유지 검증
-make tsan                      # 데이터 레이스 비교 빌드
-```
-
-동시성 before/after는 앱 화면에 노출하지 않는다. 터미널 검증과 TSan으로만 확인한다.
-
-### 출발/도착 추적 (운영 콘솔)
-
-```sh
-FLIGHT_TIME_MODE=sim FLIGHT_SIM_SPEED=3000 ./webserver
-# 운영 화면: http://127.0.0.1:8080/ops.html
-#   예정/실제 출발·도착, 카운트다운, 지연 입력, 운항 이력
-make test-tracking          # 시계·전이 단위 검증
-make integration-tracking   # 8081 포트에서 자동 출발/도착 통합 검증
-```
-
-기본은 실제 시간 모드이고, `FLIGHT_SIM_SPEED`는 가상 모드에서만 의미가 있다.
+실행 명령은 아래 "로컬에서 돌려보는 방법"에 모아 두었고, 상세 기록은 [records/VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md)에 있습니다.
 
 ## 로컬에서 돌려보는 방법
 
@@ -276,6 +143,15 @@ cd /Users/velocitygoal/Desktop/jungle/SW-AI-W13-Web-Server
 make
 ./webserver
 # 또는: FLIGHT_DATA_FILE=/dev/null ./webserver -p 8086 -r ./www -c conf/tcpserver.conf
+```
+
+실행 확인:
+
+```sh
+nc -zv 127.0.0.1 8080      # 포트 열림
+WEB_WORKERS=4 ./webserver  # 워커 4개 (기본값)
+# 종료 후 종료 코드 확인: echo $?
+# 접근 로그의 [wN]으로 여러 워커가 처리했는지 확인
 ```
 
 브라우저에서 확인:
@@ -313,6 +189,7 @@ make tsan                      # 데이터 레이스 비교
 make load-test                 # 부하 (동시 20, 200요청)
 make load-test-heavy           # 동시 100, 1000요청
 make mutation                  # 뮤테이션 테스트(조건 뒤집기 → 테스트가 실패해야 PASS)
+make edge-cases                # 잘못된 요청·큰 본문·백엔드 없음·클라이언트 끊김
 ```
 
 기능별 시연:
@@ -354,7 +231,7 @@ make reset-flights      # 예약 데이터 초기화 후 16편 시드로 다시 
 
 함수 하나마다 파일을 만들지 않고, 같은 책임을 수행하는 함수들을 모듈 하나에 묶습니다.
 
-- `server`: TCP 서버 소켓 생성과 클라이언트 접속 수락
+- `tcpserver`: TCP 서버 소켓 생성과 클라이언트 접속 수락
 - `connection`: 클라이언트 연결별 데이터와 상태 관리
 - `http_parser`: 수신한 HTTP 요청 해석
 - `http_response`: HTTP 응답 생성 및 전송

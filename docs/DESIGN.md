@@ -9,6 +9,34 @@
 각자 `iomux`(epoll/kqueue/poll) 인스턴스로 이벤트를 처리합니다.
 요청은 게이트웨이(정적 파일 / 항공편 API / 프록시 라우트 / 미니 CDN)로 분기됩니다.
 
+### 전체 아키텍처
+
+```mermaid
+flowchart TD
+    C[client] -->|TCP| L[listen fd 공유]
+    L --> W0[worker 0]
+    L --> W1[worker 1]
+    L --> W2[worker 2]
+    L --> W3[worker 3]
+    W0 --> CONN[connection feed/flush]
+    W1 --> CONN
+    W2 --> CONN
+    W3 --> CONN
+    CONN --> P[http_parser]
+    P --> R{route}
+    R -->|정적| S[static_handler]
+    R -->|/api| F[flight_api]
+    R -->|프록시| Q[proxy 큐]
+    F --> FS[flight_store 뮤텍스]
+    S --> CDN[cdn TTL 캐시]
+    Q --> PT[프록시 전용 스레드]
+    PT -->|HTTP| B[별도 백엔드 프로세스]
+    S --> RES[http_response]
+    F --> RES
+    CDN --> RES
+    RES -->|TCP| C
+```
+
 ### 데이터 흐름 (Data Flow)
 
 ```text

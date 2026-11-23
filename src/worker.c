@@ -1,8 +1,8 @@
 /*
  * worker.c — 워커 스레드별 이벤트 루프 (STEP5 구현).
  *
- * 프로세스 1개 + 워커 N개. 각 워커가 자기 poll 인스턴스를 스레드 시작 후에 만들고,
- * 공유 listen fd를 nonblocking accept한다. 자기가 accept한 연결은 끝까지 소유한다.
+ * 프로세스 1개 + 워커 N개. 각 워커가 자기 iomux 인스턴스(epoll/kqueue/poll)를
+ * 스레드 시작 후에 만들고, 공유 listen fd를 nonblocking accept한다. 자기가 accept한 연결은 끝까지 소유한다.
  * 워커 간 fd 핸드오프도 큐도 없다. 공유 상태(항공편 좌석)만 pthread_mutex로 보호한다.
  */
 #include "worker.h"

@@ -8,6 +8,7 @@
  *  4) doc_root 와 결합. doc_root 는 realpath 로 절대경로화.
  *  5) realpath(결합경로) → 경계 포함 검사: resolved==root 또는 root+"/" 시작. 아니면 403.
  *     (단순 prefix 검사는 "/www-evil" 통과 함정 — 경계 "/" 확인 필수. 심볼릭 링크도 realpath 가 푼다.)
+ *     디렉터리에 index.html 을 덧붙일 때도 같은 검사를 한 번 더 한다(심볼릭 링크 재확인).
  *     보안: 파일 경로 검사와 실제 열기 사이의 미세한 틈을 이용한 공격은 이번 단계에선 고려하지 않음.
  *  6) stat/open → errno 매핑: ENOENT→404, EACCES→403, 기타→500.
  *  - "/" → index.html. 디렉터리는 index.html 시도. 목록 노출은 안 함.
@@ -133,6 +134,19 @@ static_file_t static_handler_resolve(const char *uri, size_t uri_len, const char
     if (S_ISDIR(st.st_mode)) {
         int fn = snprintf(final, sizeof(final), "%s/index.html", resolved);
         if (fn < 0 || (size_t)fn >= sizeof(final)) return err(500);
+        /* index.html 을 덧붙인 뒤에는 심볼릭 링크가 다시 doc_root 밖을 가리킬 수 있다.
+         * 디렉터리 경계 검사는 이미 통과했으므로 여기서 realpath/경계 검사를 한 번 더 한다.
+         * 이게 없으면 www/sub/index.html 이 외부를 가리킬 때 GET /sub 가 그것을 읽는다. */
+        char resolved_index[PATH_MAX];
+        if (!realpath(final, resolved_index)) {
+            return err(errno == ENOENT ? 404 : errno == EACCES ? 403 : 500);
+        }
+        if (!(strcmp(resolved_index, root) == 0 ||
+              (strncmp(resolved_index, root, rootlen) == 0 &&
+               resolved_index[rootlen] == '/'))) {
+            return err(403);
+        }
+        strcpy(final, resolved_index);
         if (stat(final, &st) < 0) {
             return err(errno == EACCES ? 403 : errno == ENOENT ? 404 : 500);
         }

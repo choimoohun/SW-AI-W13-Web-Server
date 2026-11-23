@@ -9,6 +9,8 @@ PORT = int(sys.argv[1])
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if "/hang" in self.path:
+            time.sleep(8)
         if "/slow" in self.path:
             time.sleep(2)
         body = json.dumps({

@@ -77,6 +77,11 @@ else
 fi
 rm -f /tmp/jg_slow_$$.txt
 
+echo '--- 백엔드 응답 지연 -> 504 ---'
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "$BASE/api/orders/hang")
+if [ "$code" = "504" ]; then echo "PASS  백엔드 지연 -> 504"
+else echo "FAIL  백엔드 지연 -> $code"; fail=1; fi
+
 echo '--- NFR-04 접근 로그 ---'
 sleep 0.3
 if grep -Eq '\[w[0-9]+\]' "$LOG"; then echo "PASS  워커 ID 포함"

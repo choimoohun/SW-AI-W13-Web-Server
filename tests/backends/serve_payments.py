@@ -1,6 +1,6 @@
 """별도 프로세스로 동작하는 결제 서비스 (표준 라이브러리만 사용).
 
-- 자기自己的 파일 DB(PAYMENT_DATA_FILE)를 가진다.
+- 자기 파일 DB(PAYMENT_DATA_FILE)를 가진다.
 - Idempotency-Key 또는 body의 idempotency_key로 중복 충전을 막는다.
 - 게이트웨이는 /api/payments/ prefix를 / 로 바꿔서 이 서버로 보낸다.
 """

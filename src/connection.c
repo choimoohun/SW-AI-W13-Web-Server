@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>      /* malloc, realloc, free */
 #include <string.h>      /* memcpy, memmove, memcmp */
 #include <sys/socket.h>  /* send */
 #include <unistd.h>      /* read, close */
@@ -76,6 +77,8 @@ void connection_init(connection_t *c, int fd, const server_config_t *cfg,
     c->worker_id = worker_id;
     (void)clock_gettime(CLOCK_MONOTONIC, &c->req_start);
     c->peer_ip[0] = '\0';
+    c->recv_buf = malloc(CONN_RECV_CAP);
+    c->recv_cap = (c->recv_buf != NULL) ? CONN_RECV_CAP : 0;
     if (getpeername(fd, (struct sockaddr *)&addr, &alen) == 0) {
         if (addr.ss_family == AF_INET) {
             struct sockaddr_in *in = (struct sockaddr_in *)&addr;
@@ -94,15 +97,45 @@ void connection_destroy(connection_t *c)
         close(c->fd);
         c->fd = -1;
     }
+    free(c->recv_buf);
+    c->recv_buf = NULL;
+    c->recv_cap = 0;
+    c->recv_len = 0;
 }
 
 int connection_feed(connection_t *c, const char *data, size_t len)
 {
-    if (len > sizeof(c->recv_buf) - c->recv_len) {
-        queue_error(c, 431, 0);
+    if (c->recv_buf == NULL) {          /* 초기 할당 실패 */
+        queue_error(c, 500, 0);
         c->closing = 1;
-        c->recv_len = 0;
         return 0;
+    }
+    /* 받은 바이트를 누적한다. 초기 버퍼(8KB)로 부족하면 여기서 키운다.
+     * 이전에는 8KB를 넘는 순간 431을 보냈기 때문에, 헤더는 작고 본문만 큰
+     * 정상 요청(예: 8KB JSON)이 실패했다. 상한은 헤더+본문(약 1MiB)까지. */
+    if (len > c->recv_cap - c->recv_len) {
+        size_t need = c->recv_len + len;
+        size_t new_cap;
+        char *nb;
+
+        if (need > (size_t)CONN_RECV_MAX) {
+            queue_error(c, 431, 0);
+            c->closing = 1;
+            c->recv_len = 0;
+            return 0;
+        }
+        new_cap = c->recv_cap * 2;
+        while (new_cap < need) new_cap *= 2;
+        if (new_cap > (size_t)CONN_RECV_MAX) new_cap = (size_t)CONN_RECV_MAX;
+        nb = realloc(c->recv_buf, new_cap);
+        if (nb == NULL) {
+            queue_error(c, 500, 0);
+            c->closing = 1;
+            c->recv_len = 0;
+            return 0;
+        }
+        c->recv_buf = nb;
+        c->recv_cap = new_cap;
     }
     if (len > 0) {
         memcpy(c->recv_buf + c->recv_len, data, len);

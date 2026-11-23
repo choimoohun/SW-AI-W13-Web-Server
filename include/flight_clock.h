@@ -1,5 +1,5 @@
 /*
- * flight_clock.h — 출발/도착 추적용 시간源.
+ * flight_clock.h — 출발/도착 추적용 시간 모듈.
  *
  * real 모드: POSIX CLOCK_REALTIME.
  * sim  모드: 가상 시각 = 앵커 + (경과 실표초 × 배속). 출발 10분 전에서 시작하므로
