@@ -412,7 +412,7 @@ Transfer/sec:     23.10MB
 |---|---|---|
 | `/api/cache/*` → rewrite `/` | 8000 | `mini-redis-repo/mini_redis/store.py`의 `Store`를 표준 라이브러리 어댑터로 감쌈 |
 | `/api/stocks/*` → rewrite `/` | 8002 | 같은 `Store`를 TTL 캐시로 쓰는 주식 데모 어댑터 |
-| `/api/orders/*` → rewrite `/` | 8401, 8402 | `mini-dbms/docs/study/WHY_DBMS/why_dbms_demo/app.py`를 역할만 바꿔 2개 프로세스로 실행 |
+| `/api/orders/*` → rewrite `/` | 8401, 8402 | `mini-dbms/docs/docs/notes/WHY_DBMS/why_dbms_demo/app.py`를 역할만 바꿔 2개 프로세스로 실행 |
 
 Flask가 설치돼 있지 않아 mini-redis의 Flask 앱 대신 `Store`를 직접 import하는
 `http.server` 어댑터를 사용했습니다. mini-dbms 데모 앱은 표준 라이브러리라 그대로 실행했습니다.
