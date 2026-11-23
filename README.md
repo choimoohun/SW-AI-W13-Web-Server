@@ -35,6 +35,9 @@ CTest는 연결되어 있지만 아직 등록된 테스트는 없습니다. Dock
 ## 설계 문서
 
 - TCP 소켓 서버(CS:APP 11.4 에코 서버): [설계](docs/tcp-socket-server/design.md), [함수 명세](docs/tcp-socket-server/functions.md), [테스트 케이스](docs/tcp-socket-server/test-cases.md)
+- HTTP 요청 파싱(CS:APP 11.5.3): [설계](docs/http-request-parsing/design.md), [함수 명세](docs/http-request-parsing/functions.md), [테스트 케이스](docs/http-request-parsing/test-cases.md)
+- HTTP 응답 생성(CS:APP 11.5.3): [설계](docs/http-response/design.md), [함수 명세](docs/http-response/functions.md), [테스트 케이스](docs/http-response/test-cases.md)
+- 정적 파일 서빙(CS:APP 11.5.2): [설계](docs/static-file-serving/design.md), [함수 명세](docs/static-file-serving/functions.md), [테스트 케이스](docs/static-file-serving/test-cases.md)
 
 ## 구현 단계에서 지킬 범위
 

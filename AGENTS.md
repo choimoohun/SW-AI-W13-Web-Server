@@ -1,6 +1,6 @@
 # AGENTS.md
 
-C17/POSIX 웹 서버 과제입니다. 요구사항은 `docs/웹 서버 만들기.md`, 단계별 설계는 `docs/<단계>/`(현재 `tcp-socket-server/`)에 있습니다. 구현은 해당 설계 문서를 따릅니다.
+C17/POSIX 웹 서버 과제입니다. 요구사항은 `docs/웹 서버 만들기.md`, 단계별 설계는 `docs/<단계>/`(`tcp-socket-server/`, `http-request-parsing/`, `http-response/`, `static-file-serving/`)에 있습니다. 구현은 해당 설계 문서를 따릅니다.
 
 ## 빌드·테스트
 
