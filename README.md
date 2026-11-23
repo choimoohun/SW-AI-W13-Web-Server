@@ -32,6 +32,10 @@ cmake --build build
 
 CTest는 연결되어 있지만 아직 등록된 테스트는 없습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
 
+## 설계 문서
+
+- TCP 소켓 서버(CS:APP 11.4 에코 서버): [설계](docs/tcp-socket-server/design.md), [함수 명세](docs/tcp-socket-server/functions.md), [테스트 케이스](docs/tcp-socket-server/test-cases.md)
+
 ## 구현 단계에서 지킬 범위
 
 - 표준 C와 POSIX API로 TCP 연결 수락 및 송수신, HTTP 요청 파싱(`GET`, `POST`, 헤더, 본문), 응답 생성을 직접 구현합니다. 외부 HTTP·이벤트 루프 라이브러리는 사용하지 않습니다.
