@@ -369,7 +369,7 @@ www/       flights.html/js, ops.html/js, 정적 자산
 conf/      tcpserver.conf (포트·워커·라우트·TTL)
 tests/     unit/, integration/, integration/fixtures/
 verify/     VERIFICATION_MATRIX.md, VERIFICATION_LOG.md, AUTO_FINDINGS.md, design_reviews/
-docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, iterations/, agent/, why_webserver.md
+docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, why_webserver.md
 ```
 
 ## 모듈 책임 (현재)
