@@ -11,31 +11,7 @@
 
 ### 전체 아키텍처
 
-```mermaid
-flowchart TD
-    C[client] -->|TCP| L[listen fd 공유]
-    L --> W0[worker 0]
-    L --> W1[worker 1]
-    L --> W2[worker 2]
-    L --> W3[worker 3]
-    W0 --> CONN[connection feed/flush]
-    W1 --> CONN
-    W2 --> CONN
-    W3 --> CONN
-    CONN --> P[http_parser]
-    P --> R{route}
-    R -->|정적| S[static_handler]
-    R -->|/api| F[flight_api]
-    R -->|프록시| Q[proxy 큐]
-    F --> FS[flight_store 뮤텍스]
-    S --> CDN[cdn TTL 캐시]
-    Q --> PT[프록시 전용 스레드]
-    PT -->|HTTP| B[별도 백엔드 프로세스]
-    S --> RES[http_response]
-    F --> RES
-    CDN --> RES
-    RES -->|TCP| C
-```
+![전체 아키텍처 — 요청이 지나는 경로](img/design_image1.png)
 
 ### 데이터 흐름 (Data Flow)
 
@@ -53,32 +29,30 @@ flowchart TD
 
 ### 이벤트 루프 동작 원리
 
-워커는 `기다림 → 준비된 fd 처리 → 정리`를 반복합니다.
+워커 풀(고정 4개) → 각 워커가 이벤트 루프를 돌림 → 루프가 멀티플렉싱(`iomux`)으로 커널 관심 집합을 감시합니다.
 
-```mermaid
-sequenceDiagram
-    participant C as client
-    participant K as kernel
-    participant W as worker
-    C->>K: connect()
-    K-->>W: listen fd 준비(epoll)
-    W->>K: accept()
-    K-->>W: conn fd
-    W->>W: iomux_add(conn, READ)
-    C->>K: write(요청)
-    K-->>W: conn READ 준비
-    W->>W: read() → 파서
-    W->>K: write(응답)
-    K-->>C: 응답
-    W->>W: 유휴 5초 후 close
-```
+![워커 풀 + 이벤트 루프 + 멀티플렉싱](img/design_image2.png)
 
-- 큐: 연결은 커널의 `listen` 대기열에 쌓이고 `accept()`가 꺼냅니다. 요청 바이트는 소켓 수신 버퍼에 쌓입니다. `epoll` 준비 목록은 이번 턴에 처리할 fd입니다.
-- `accept()`는 별도 스레드가 아니라 워커 안에서 실행됩니다. 큐는 우리 앱이 아니라 커널에 있고, 이벤트당 한 번씩만 꺼냅니다(D10). 한 번에 여러 개를 꺼내면 한 워커가 독점하게 됩니다.
-- 느린 연결은 `READ`가 늦게 준비될 뿐, 다른 fd 처리를 막지 않습니다. 유휴 5초로 정리합니다.
+- `on_readable()`: `recv()` → `connection_feed()` → `http_parser_parse()`. `COMPLETE`면 응답을 `send_buf`에 넣고 `iomux_mod(WRITE)`으로 쓰기 관심 전환. `NEED_MORE`면 다음 `READ`를 기다림.
+- `on_writable()`: `send()`로 남은 응답을 보냄. 다 보내면 연결 상태 정리.
+- `cleanup_idle()`: 유휴 5초가 넘은 연결을 닫고, keep-alive 최대 100회도 여기서 확인.
+- 200ms 타임아웃은 준비된 이벤트가 없어도 유휴 정리와 종료 플래그를 확인하기 위함.
+
+큐의 위치:
+
+| 큐/버퍼 | 위치 | 담기는 것 | 누가 넣고 누가 꺼내나 |
+|---|---|---|---|
+| `listen` 대기열 | 서버 커널 | 완성된 연결 | 커널이 넣고, `accept()`가 꺼냄 |
+| 소켓 수신 버퍼 | 양쪽 커널 | 바이트 | 상대가 `write()`, 내가 `read()` |
+| `epoll` 준비 목록 | 서버 커널 | 준비된 fd | 커널이 넣고, `iomux_wait()`가 꺼냄 |
+| `worker_ctx.conns[]` | 서버 앱 | 연결 슬롯 | `accept_ready()`가 넣고, `close_conn()`이 뺌 |
+| 프록시 작업 큐 | 서버 앱 | `/api` 작업 | 워커가 넣고, 프록시 스레드가 꺼냄 |
+
+- `accept()`는 별도 스레드가 아니라 워커 안에서 실행되고, 이벤트당 한 번씩만 꺼냅니다(D10). 한 번에 여러 개를 꺼내면 한 워커가 독점하게 됩니다.
+- 느린 연결은 `READ`가 늦게 준비될 뿐, 다른 fd 처리를 막지 않습니다.
 - `/api/...`는 워커가 프록시 큐에 넣고, 전용 스레드가 백엔드와 통신합니다.
-
-![이벤트 루프 내부 구조](notes/event-loop-diagram.png)
+- 워커 4개가 각자 `iomux` 인스턴스를 가지고 `listen fd`는 공유합니다. conn fd는 accept한 워커가 끝까지 소유합니다(D5).
+- 클라이언트에게는 연결 큐가 없습니다. 클라이언트는 `listen()`을 하지 않고 소켓마다 송신/수신 버퍼만 있습니다.
 
 ## 핵심 모듈 설계 (Module Responsibility)
 
@@ -206,3 +180,43 @@ A가 B의 헤더/타입/함수를 필요로 하면 A는 B에 의존합니다.
 - 접근 로그는 `worker.c` 안에 있습니다. `logger.c`로 빼면 포맷 변경이 쉬워집니다.
 
 즉 "파일 단위 분리"는 대부분 끝났고, "책임 단위 분리"는 위 세 곳이 남았습니다.
+
+---
+
+## 현행 구조 메모 (as-built)
+
+코드가 지금 어떻게 도는지 설명하는 절입니다. 제약에 맞지 않거나 코드가 바뀌면 여기를 먼저 고칩니다.
+
+### 요청 처리 흐름 (`connection.c`)
+
+1. `recv` → `connection_feed()`：`http_parser`로 요청 경계 확정(`consumed`).
+2. `config_match_route()`로 프록시 라우트를 먼저 확인.
+   - 매칭되면 `proxy_handle()`가 백엔드로 전달하고 직접 소켓에 응답 후 연결 종료.
+3. 내장 엔드포인트 `/health`, `/echo` 확인.
+4. `/api/...`이면 `flight_api_build()` → `flight_store` 조회/변경.
+5. 그 외는 `static_handler_resolve()` → 경로 보안(`realpath`) → CDN 조회 → 파일/캐시 응답.
+6. 접근 로그: `[wN] [client_ip] "METHOD URI" status bytes ms`.
+
+### 미니 CDN(로컬 TTL 캐시)을 둔 이유
+
+`src/cdn.c`는 정적 자산 응답에 TTL·hit/miss·무효화·`X-Cache` 헤더를 적용하는 서버 내부 캐시다. 실제 엣지 네트워크가 아니라, 캐시 정책과 헤더 동작을 로컬 실행으로 검증하기 위한 계층이다.
+
+### 현행 구조에서 잘 붙은 부분
+
+- 단일 프로세스 + 워커 N개, 각자 iomux 인스턴스 소유(`epoll`/`kqueue`/`poll`) → fd 핸드오프 큐 없음.
+- 이벤트당 accept 1건 덕분에 100동시 요청에서 좌석 경쟁이 실제로 재현됨.
+- before(의도적 레이스)/after(뮤텍스) 분리, UI에는 데모 컨트롤 없음.
+- 영속 저장은 임시 파일 → `rename` 원자적 교체.
+- 구조 관련 확정 사항과 남은 작업은 [agent/DAILY_SCOPE.md](agent/DAILY_SCOPE.md)의 "아키텍처 완료·남은 일" 절을 본다.
+
+### 실제 동작 원리 (커널·소켓)
+
+HTTP 스펙이 아니라 이 서버에서 실제로 일어나는 일을 적는다.
+
+1. **TCP 소켓은 IP+포트만으로 식별되지 않는다** — 실제로는 `<src IP, src port, dst IP, dst port>` 4튜플로 구분한다. 그래서 같은 서버 `IP:포트`를 쓰는 여러 `conn fd`를 커널이 구분할 수 있다. (`src/tcpserver.c`, `src/worker.c`)
+2. **커널 수신은 2단계** — Wait for Data(도착까지 기다림) → Copy Data(커널 수신 버퍼 → 유저 버퍼로 복사).
+3. **`listen fd`와 `conn fd`는 다르다** — `listen fd`는 연결 요청을 받는 지점, `conn fd`는 성립된 연결 위의 데이터 경로.
+4. **레벨 트리거(LT) / 엣지 트리거(ET)** — LT는 "읽을 데이터가 있다" 상태가 유지되는 동안 계속 통지하고, ET는 0에서 양수로 변하는 시점만 통지한다. 우리는 `EPOLLET` 없이 LT를 쓴다.
+5. **accept 분산** — 워커가 `listen fd`를 공유하고 `iomux_wait`가 깨우면 한 번만 `accept()`하고, 나머지는 `EAGAIN`으로 스킵한다(D10).
+6. **`dup()`로 소유권 이전** — 프록시 전용 스레드가 연결을 처리할 때 `dup()`으로 소켓을 복제해 워커 루프가 백엔드를 기다리지 않게 한다.
+7. **유휴 연결 정리** — 마지막 활동 후 5초가 넘으면 닫는다. keep-alive 최대 100회도 여기서 확인한다.

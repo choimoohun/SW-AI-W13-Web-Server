@@ -1,12 +1,23 @@
 # C POSIX 웹서버 — 오늘 작업 문서
 
+## MOTO
+
+실제 구현 및 동작 원리를 알자, 주위의 불편을 개선하자 
+
 ## 현재 작업 상태
 
-오늘 작업 범위와 다음 단계는 [DAILY_SCOPE.md](./docs/agent/DAILY_SCOPE.md)에 있습니다.
+오늘 작업 범위와 다음 단계는 [DAILY_SCOPE.md](docs/agent/DAILY_SCOPE.md)에 있습니다.
 
 ## 핵심 문제
 
-TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 원합니다. 이 차이를 안전하게 메우고, 여러 클라이언트가 동시에 써도 상태가 깨지지 않게 만드는 것이 이 프로젝트의 출발점입니다. 자세한 문제 정의는 [docs/why_webserver.md](./docs/why_webserver.md)에 있습니다.
+TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 원합니다. 이 차이를 안전하게 메우고, 여러 클라이언트가 동시에 써도 상태가 깨지지 않게 만드는 것이 이 프로젝트의 출발점입니다. 자세한 문제 정의는 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)에 있습니다.
+
+동시성은 **두 축을 따로 고릅니다**.
+
+- **일하는 주체** — 워커 스레드 4개. 좌석 같은 공유 데이터를 `fork`로 나누면 워커마다 사본이 생겨 공유 메모리·IPC가 필요해지므로 스레드를 골랐습니다.
+- **I/O를 기다리는 방식** — 멀티플렉싱(Linux `epoll`, macOS `kqueue`, 그 외 `poll`). 연결은 많은데 대부분 유휴라서, 블로킹처럼 한 연결씩 붙잡고 있지 않고 **준비된 연결만** 받습니다.
+
+그래서 각 스레드는 한 연결을 끝까지 도맡지 않고, 여러 연결을 돌아가며 처리합니다. 세 가지 방식을 비교한 근거는 [notes/iomux.md](docs/notes/iomux.md)와 [DECISIONS.md](docs/DECISIONS.md)에 있습니다.
 
 ## 문서 범위
 
@@ -14,22 +25,21 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 
 | 문서 | 범위 |
 |---|---|
-| [STEP01_TCP_SERVER.md](./docs/iterations/STEP01_TCP_SERVER.md) | TCP 소켓 서버 |
-| [STEP02_HTTP_PARSER.md](./docs/iterations/STEP02_HTTP_PARSER.md) | HTTP 요청 파싱 |
-| [STEP03_HTTP_RESPONSE.md](./docs/iterations/STEP03_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
-| [STEP04_STATIC_FILE.md](./docs/iterations/STEP04_STATIC_FILE.md) | 정적 파일 서빙 |
-| [STEP05_CONCURRENCY.md](./docs/iterations/STEP05_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
-| [STEP06_FLIGHT_DEMO.md](./docs/iterations/STEP06_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
-| [EXT01_DOMAIN_COMPLETION.md](./docs/iterations/EXT01_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 (확장) |
-| [EXT02_REQUIREMENTS_WRAPUP.md](./docs/iterations/EXT02_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 (확장) |
-| [EXT03_BACKEND_SERVICES.md](./docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장) |
-| [EXT04_PAYMENT_SERVICE.md](./docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
-| [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
-| [notes/iomux.md](./docs/notes/iomux.md) | I/O 멀티플렉싱 기술 선택 이유(`epoll`/`kqueue`/`poll`) |
-| [notes/operation.md](./docs/notes/operation.md) | 이 서버에서 실제로 일어나는 동작 원리 |
-| [notes/multiplexing-rationale.md](./docs/notes/multiplexing-rationale.md) | 이 프로젝트에서 I/O 멀티플렉싱을 고른 이유 |
-| [notes/event-loop.md](./docs/notes/event-loop.md) | 이벤트 루프 동작 순서와 큐 위치 |
-| [TEAM_RULES.md](./docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
+| [STEP01_TCP_SERVER.md](docs/iterations/STEP01_TCP_SERVER.md) | TCP 소켓 서버 |
+| [STEP02_HTTP_PARSER.md](docs/iterations/STEP02_HTTP_PARSER.md) | HTTP 요청 파싱 |
+| [STEP03_HTTP_RESPONSE.md](docs/iterations/STEP03_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
+| [STEP04_STATIC_FILE.md](docs/iterations/STEP04_STATIC_FILE.md) | 정적 파일 서빙 |
+| [STEP05_CONCURRENCY.md](docs/iterations/STEP05_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
+| [STEP06_FLIGHT_DEMO.md](docs/iterations/STEP06_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
+| [EXT01_DOMAIN_COMPLETION.md](docs/iterations/EXT01_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 (확장) |
+| [EXT02_REQUIREMENTS_WRAPUP.md](docs/iterations/EXT02_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 (확장) |
+| [EXT03_BACKEND_SERVICES.md](docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장) |
+| [EXT04_PAYMENT_SERVICE.md](docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
+| [DECISIONS.md](docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [notes/iomux.md](docs/notes/iomux.md) | I/O 멀티플렉싱·이벤트 루프를 고른 이유와 대안 비교(`epoll`/`kqueue`/`poll`) |
+| [notes/http-network-concepts.md](docs/notes/http-network-concepts.md) | HTTP/네트워크 개념 메모 |
+| [DESIGN.md](docs/DESIGN.md) | 아키텍처, 이벤트 루프 동작 순서, 실제 동작 원리 |
+| [TEAM_RULES.md](docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
 
 각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
 
@@ -59,36 +69,15 @@ make
 
 ## 전체 아키텍처 한눈에 보기
 
-```mermaid
-flowchart TB
-    C["브라우저 / curl"] --> L["단일 listen fd (nonblocking)"]
-    L --> W["워커 N개 (기본 4)<br/>iomux: epoll(Linux) / kqueue(macOS) / poll<br/>이벤트당 accept 1건"]
+![워커 풀 + 이벤트 루프 + 멀티플렉싱](docs/img/design_image2.png)
 
-    W --> CF["connection_feed()<br/>HTTP 파서 + keep-alive 상태 머신"]
+### 요청이 지나는 경로
 
-    CF --> RT{"config_match_route()"}
-    RT -->|매칭| Q["프록시 큐"]
-    Q --> PT["proxy thread (전용 스레드)"]
-    PT --> BE["백엔드 8401 / 8402<br/>Round-Robin + X-Forwarded-For"]
-    PT -.->|응답 직접 전송| C
+![전체 아키텍처 — 요청이 지나는 경로](docs/img/design_image1.png)
 
-    RT -->|없음| BI{"flight_api_builtin()"}
-    BI -->|/health, /echo| J["http_response_build_json()<br/>Date · Server"]
-    BI -->|/api/...| API["flight_api_build()"]
-    API --> ST["flight_store<br/>항공편별 락 + 메타 락"]
-    ST --> SNAP["snapshot_and_save()"] --> DISK[("data/flights.txt")]
-    ST --> CLK["flight_store_tick()<br/>worker 0 전용"]
+프록시 경로는 전용 `proxy thread`가 큐에서 꺼낸 작업을 처리하고, 백엔드 응답을 클라이언트에 직접 보냅니다. 그래서 느린 백엔드가 있어도 `/health`는 막히지 않습니다.
 
-    BI -->|정적 파일| SH["static_handler()<br/>경로 검증 + MIME"]
-    SH --> CDN["cdn_lookup() / cdn_store()<br/>TTL 캐시 · X-Cache HIT/MISS"]
-    CDN --> RESP["http_response_build_file()<br/>Cache-Control · ETag"]
-
-    J --> OUT["connection_flush() → client"]
-    RESP --> OUT
-```
-
-상세한 계층 설명과 리스크 메모는 [`ARCHITECTURE_REVIEW.md`](./docs/design_reviews/ARCHITECTURE_REVIEW.md)에 있습니다.
-AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_FINDINGS.md`](./docs/design_reviews/AI_FINDINGS.md)에 있습니다.
+현행 구조와 그 근거는 [`DESIGN.md`](docs/DESIGN.md), AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_QA_LOG.md`](docs/agent/AI_QA_LOG.md)에 있습니다.
 
 ## 기술 영역 및 학습 목표
 
@@ -132,7 +121,7 @@ AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_FINDINGS.md`]
 - 8(요구사항 마무리): Date/Server·`/health`·`/echo`·`-p/-r/-c`, 게이트웨이 RR/XFF/502, 접근 로그, `X-Cache` HIT.
 - 9~10(별도 백엔드·결제): `ulimit` 자원 제한 차등, 백엔드 종료 시 200/502 혼재 후 재시작 복구, 결제 충전·중복 방지 키·환불·독립 재시작.
 
-실행 명령은 아래 "로컬에서 돌려보는 방법"에 모아 두었고, 상세 기록은 [records/VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md)에 있습니다.
+실행 명령은 아래 "로컬에서 돌려보는 방법"에 모아 두었고, 상세 기록은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
 
 ## 로컬에서 돌려보는 방법
 
@@ -246,7 +235,7 @@ www/       flights.html/js, ops.html/js, 정적 자산
 conf/      tcpserver.conf (포트·워커·라우트·TTL)
 tests/     unit/, integration/, integration/fixtures/
 verify/     VERIFICATION_MATRIX.md, TRACEABILITY.md, AUTO_FINDINGS.md, design_reviews/
-docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, records/, why_webserver.md
+docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, records/, notes/, design_reviews/
 ```
 
 ## 모듈 책임 (현재)
@@ -276,4 +265,4 @@ docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, a
 - 합의하지 않은 설계를 확정된 결정으로 기록하지 않습니다.
 - 새로 결정한 내용은 `DECISIONS.md`에 근거와 함께 기록합니다.
 
-참고 문서: [REQUIREMENTS.md](./docs/REQUIREMENTS.md) · [DESIGN.md](./docs/DESIGN.md) · [TEST_MATRIX.md](./docs/verify/VERIFICATION_MATRIX.md) · [VERIFICATION_LOG.md](./docs/records/VERIFICATION_LOG.md) · [ARCHITECTURE_REVIEW.md](./docs/design_reviews/ARCHITECTURE_REVIEW.md)
+참고 문서: [REQUIREMENTS.md](docs/REQUIREMENTS.md) · [DESIGN.md](docs/DESIGN.md) · [TEST_MATRIX.md](docs/verify/VERIFICATION_MATRIX.md) · [VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)
