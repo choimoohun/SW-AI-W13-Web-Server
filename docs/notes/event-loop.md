@@ -2,6 +2,8 @@
 
 우리 서버는 워커 스레드 N개(기본 4)가 각자 `iomux`(epoll/kqueue/poll) 루프를 돌리는 구조입니다.
 
+![이벤트 루프 내부 구조](event-loop-diagram.png)
+
 ## 용어부터
 
 - 멀티플렉싱: 한 스레드가 여러 fd를 동시에 감시하는 방식. `select`/`poll`/`epoll`이 있음.

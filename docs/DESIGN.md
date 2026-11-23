@@ -50,6 +50,8 @@ sequenceDiagram
 - 느린 연결은 `READ`가 늦게 준비될 뿐, 다른 fd 처리를 막지 않습니다. 유휴 5초로 정리합니다.
 - `/api/...`는 워커가 프록시 큐에 넣고, 전용 스레드가 백엔드와 통신합니다.
 
+![이벤트 루프 내부 구조](notes/event-loop-diagram.png)
+
 ## 핵심 모듈 설계 (Module Responsibility)
 
 | 모듈 | 책임 | 주요 의존 |
