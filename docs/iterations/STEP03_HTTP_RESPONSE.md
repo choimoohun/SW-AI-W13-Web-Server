@@ -46,4 +46,4 @@ Connection: close
 - [x] 전송 실패 처리
 
 ## 관련 결정
-- D4 (Keep-Alive 미지원, Connection: close)
+- D4, D24, D26 — [STEP03 결정](../decisions/STEP03_HTTP_RESPONSE_DECISIONS.md)

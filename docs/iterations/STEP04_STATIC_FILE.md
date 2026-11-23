@@ -36,4 +36,4 @@
 - [x] 바이너리 원본 일치
 
 ## 관련 결정
-- D2 (정적 POST 405), D6 (경로 탈출 방어)
+- D2, D17 — [STEP04 결정](../decisions/STEP04_STATIC_FILE_DECISIONS.md)

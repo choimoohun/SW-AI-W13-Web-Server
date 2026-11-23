@@ -197,6 +197,9 @@ seq 1 100 | xargs -P 100 -I{} curl -s -o /dev/null -w '%{http_code}\n' \
   - after: 0건
 - STEP5 워커 풀 완성으로 임시 `FLIGHT_DEMO_MT` 경로 제거. keep-alive/슬로우 클라이언트 검증 추가.
 
+## 관련 결정
+- D6~D28 가운데 도메인 관련 결정 — [STEP06 결정](../decisions/STEP06_FLIGHT_DEMO_DECISIONS.md)
+
 ## 기록 원칙
 
 - 구현하지 않은 기능을 완료로 기록하지 않는다. 검증은 실행 결과(상태코드 집계, 테스트 출력)로만 남긴다.

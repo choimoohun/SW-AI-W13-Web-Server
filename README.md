@@ -20,10 +20,10 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | [STEP04_STATIC_FILE.md](./docs/iterations/STEP04_STATIC_FILE.md) | 정적 파일 서빙 |
 | [STEP05_CONCURRENCY.md](./docs/iterations/STEP05_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
 | [STEP06_FLIGHT_DEMO.md](./docs/iterations/STEP06_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
-| [STEP07_DOMAIN_COMPLETION.md](./docs/iterations/STEP07_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 |
-| [STEP08_REQUIREMENTS_WRAPUP.md](./docs/iterations/STEP08_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 |
-| [STEP09_BACKEND_SERVICES.md](./docs/iterations/STEP09_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 |
-| [STEP10_PAYMENT_SERVICE.md](./docs/iterations/STEP10_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 |
+| [EXT01_DOMAIN_COMPLETION.md](./docs/iterations/EXT01_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 (확장) |
+| [EXT02_REQUIREMENTS_WRAPUP.md](./docs/iterations/EXT02_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 (확장) |
+| [EXT03_BACKEND_SERVICES.md](./docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장) |
+| [EXT04_PAYMENT_SERVICE.md](./docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
 | [DECISIONS.md](./docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 | [TEAM_RULES.md](./docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
 

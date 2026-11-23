@@ -45,5 +45,8 @@
 - `make tsan`: after 경고 0건, before `WARNING: ThreadSanitizer: data race` 1건(`flight_store.c:420`).
 - 종료: SIGTERM → 워커 join → listen fd close, 잔여 프로세스 없음.
 
+## 관련 결정
+- D5, D9, D10, D20, D21, D22, D25 — [STEP05 결정](../decisions/STEP05_CONCURRENCY_DECISIONS.md)
+
 ## 기록 원칙
 - 구현하지 않은 기능을 완료로 기록하지 않는다. 검증은 실행 결과로만 남긴다.

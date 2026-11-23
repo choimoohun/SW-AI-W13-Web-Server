@@ -49,4 +49,4 @@ http_parser는 버퍼+길이만 받고 소켓을 직접 읽지 않는다.
 - [x] 잘못된 형식/크기 초과 구분
 
 ## 관련 결정
-- D3 (chunked 미지원 501)
+- D3 — [STEP02 결정](../decisions/STEP02_HTTP_PARSER_DECISIONS.md)

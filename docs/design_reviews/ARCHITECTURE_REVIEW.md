@@ -116,9 +116,9 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
 
 ---
 
-## 다음 우선순위 (현재 상태 반영)
+## 완료한 일
 
-아래 1~5번은 모두 완료했습니다. 예전 문서에서 "다음 우선순위"로 적혀 있던 항목입니다.
+아래 1~5번은 완료했다.
 
 1. `make leak` valgrind 재검증 — 완료. in use 0 bytes, ERROR SUMMARY 0.
 2. `iomux` 백엔드 분리 — 완료. Linux epoll / macOS kqueue / poll 폴백,
@@ -129,7 +129,7 @@ epoll/kqueue 백엔드와 새 코드에 대한 Linux valgrind 재검증이다.
    목적은 외부 연동이 아니라 로컬 캐시 정책 검증임.
 5. 전역 락 경합 — 완료. 항공편별 락 + 메타 락, 파일 저장은 스냅샷 후 락 밖에서 수행.
 
-지금 남은 우선순위는 다음입니다.
+남은 일:
 
 1. `flight_api.c` / `proxy.c`의 책임 단위 분리(JSON·라우터·핸들러, 라우터·백엔드풀·스레드).
 2. 정적 파일 I/O의 진짜 비동기화(Linux `io_uring`, POSIX AIO) — 이식성과 트레이드오프 검토 필요.

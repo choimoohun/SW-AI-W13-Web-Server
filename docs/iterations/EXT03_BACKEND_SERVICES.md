@@ -1,4 +1,4 @@
-# STEP9 — 별도 백엔드 프로세스 연결
+# EXT03 — 별도 백엔드 프로세스 연결
 
 기존에 따로 있던 레포 코드를 C 게이트웨이 뒤에 실제로 연결한 단계입니다.
 "같은 바이너리에 다 넣기"와 "별도 프로세스로 두기"의 차이를 시연합니다.
@@ -10,7 +10,7 @@
 | `/api/cache/*` → `/` | 8000 | `mini-redis-repo/mini_redis/store.py` |
 | `/api/stocks/*` → `/` | 8002 | 같은 `Store`를 TTL 캐시로 쓰는 어댑터 |
 | `/api/orders/*` → `/` | 8401, 8402 | `why_dbms_demo/app.py`, 역할만 다르게 실행 |
-| `/api/payments/*` → `/` | 8500 | STEP10의 결제 서비스 |
+| `/api/payments/*` → `/` | 8500 | EXT04의 결제 서비스 |
 
 `conf/backends.conf`의 `route = prefix|backend...|rewrite` 형식으로 설정합니다.
 rewrite는 외부 경로와 백엔드 내부 경로를 분리합니다.

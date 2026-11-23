@@ -44,4 +44,4 @@ main.c → tcpserver.c → connection.c
 - [x] 종료 시 소켓 정리
 
 ## 관련 결정
-- D1 (단일 스레드 블로킹, 동시성 모델 미확정)
+- D1 — [STEP01 결정](../decisions/STEP01_TCP_SERVER_DECISIONS.md)

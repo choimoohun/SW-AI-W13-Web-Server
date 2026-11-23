@@ -1,40 +1,17 @@
 # Architectural Decisions (ADR)
 
-이 문서는 프로젝트 개발 과정에서 발생한 핵심 기술 결정사항과 그에 따른 트레이드오프를 기록합니다.
+프로젝트 개발 과정에서 확정한 기술 결정과 트레이드오프를 STEP1~6으로 나누어 기록합니다. 각 단계를 열면 세부 결정이 나옵니다.
 
-## 결정 내역 (Decision Log)
+| 단계 | 문서 | 결정 수 |
+|---|---|---|
+| STEP1 — TCP 소켓 서버 | [STEP01_TCP_SERVER_DECISIONS.md](decisions/STEP01_TCP_SERVER_DECISIONS.md) | 1 |
+| STEP2 — HTTP 요청 파싱 | [STEP02_HTTP_PARSER_DECISIONS.md](decisions/STEP02_HTTP_PARSER_DECISIONS.md) | 1 |
+| STEP3 — HTTP 응답과 연결 수명 | [STEP03_HTTP_RESPONSE_DECISIONS.md](decisions/STEP03_HTTP_RESPONSE_DECISIONS.md) | 3 |
+| STEP4 — 정적 파일 서빙 | [STEP04_STATIC_FILE_DECISIONS.md](decisions/STEP04_STATIC_FILE_DECISIONS.md) | 2 |
+| STEP5 — 동시 요청 처리 | [STEP05_CONCURRENCY_DECISIONS.md](decisions/STEP05_CONCURRENCY_DECISIONS.md) | 7 |
+| STEP6 — 항공편 예약 데모 | [STEP06_FLIGHT_DEMO_DECISIONS.md](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md) | 14 |
 
-| ID | 결정 사항 | 배경 및 사유 | 트레이드오프 |
-|---|---|---|---|
-| D1 | 단일 프로세스/스레드 기반 블로킹 IO | 정적 파일 서빙 기능의 우선 완성을 목표로 설정함 | 구현 복잡도는 낮으나 대량의 동시 접속 처리에는 한계가 있음. 향후 Event Loop로 확장 가능성을 열어둠 |
-| D2 | 정적 리소스에 대한 POST 요청 거부 (405) | HTTP/1.1 규격 상 정적 파일 읽기는 GET/HEAD 의미론에 한정됨 | 서버의 명확한 정책을 통해 오동작 및 오용 가능성을 차단함 |
-| D3 | Content-Length 기반 본문 파싱 (Chunked 미지원) | 구현 및 검증 범위(Static Serving) 내에서 불필요한 복잡성 제거 | 동적 데이터 전송에는 제약이 있으나, 정적 파일 서빙에는 충분하며 파서 로직이 단순해짐 |
-| D4 | (폐기) Short-Lived Connection → HTTP/1.1 keep-alive 최대 100회 | 초기 안정화 후 연결 재사용 추가. `Connection: keep-alive`, 유휴 5초, 요청 경계는 `req.consumed`로 확정 | 폐기 이유: 매 요청마다 연결을 닫는 방식은 기본 동작을 먼저 검증하기 위한 단계였고, 안정화 후 재사용을 추가했다. 연결 상태를 워커가 끝까지 소유해야 하며 느린 클라이언트는 타임아웃으로 정리 |
-| D5 | Envoy식 multi-reactor: 워커 스레드 N개, 각자 iomux(poll/epoll/kqueue) 이벤트 루프 (단일 프로세스) | shared-nothing 워커 + 코어 어피니티 원칙과, 항공편 예약 데모의 공유 상태(좌석) 요구를 동시에 만족. 스레드라 shm/좀비/재기동 코드 불필요, accept한 워커가 연결을 끝까지 소유해 fd 핸드오프 불필요 | 단일 루프+큐+스레드풀 안 대비 루프 코드가 워커별이지만 소유권 규칙이 단순해짐. 멀티프로세스 안 대비 크래시 격리는 없음. 어피니티는 Linux 전용(#ifdef), accept 분산은 공유 listen fd 기본안(macOS 이식성), SO_REUSEPORT/EPOLLEXCLUSIVE는 Linux 선택 최적화 |
-| D6 | 항공편별 락 + 메타 락으로 좌석 보호 | 워커 스레드가 같은 주소공간을 공유하므로 IPC 없이 뮤텍스만으로 정확성 확보. 좌석/상태는 `flight_t.mu`, 예약 목록·모드는 `g_store.mu`가 보호 | 락 순서(flight→meta) 규칙 준수 필요. 여전히 단일 프로세스라 다중 서버 확장에는 DB 트랜잭션 필요 |
-| D7 | `before` 모드는 의도적 데이터 레이스(기본 OFF) | 초과 예약 재현이 데모 핵심. `seat_left > 0` 확인 → `seat_left--` 사이 `nanosleep(20000µs)`으로 창을 넓힘 | 실제 UB, TSan 경고. 운영 금지, 데모 후 즉시 after 복귀 |
-| D8 | JSON은 외부 라이브러리 없이 최소 구현 | C11/POSIX 제약. 필요한 필드만 파싱하고 문자열 직접 이스케이프 | 범용 JSON(중첩/유니코드 이스케이프) 미지원 |
-| D9 | epoll(Linux)/kqueue(macOS) 백엔드 + poll 폴백 | 준비된 fd만 커널이 통지 → O(ready) 스캔. 같은 `iomux` 인터페이스라 워커 코드는 불변 | 플랫폼별 `#ifdef` 분기 증가 |
-| D10 | keep-alive + 단일 워커 accept 1건 정책 | 이벤트 루프에서 요청 겹침을 보장하려면 accept를 여러 워커에 분산해야 함. 한 번에 다 accept하면 첫 워커가 독점해 경쟁이 사라짐 | accept 시스템콜 수 증가. 데모 규모에서는 허용 |
-| D11 | (폐기) `FLIGHT_DEMO_MT` 임시 스레드 경로 → 실제 워커 풀로 대체 | 스캐폴딩 시점 데모 장치였으나 STEP5 완성으로 제거 | `WEB_WORKERS`로 워커 수만 조정 |
-| D12 | 예약 데이터는 파일 기반 영속 저장 (`data/flights.txt`) | 외부 라이브러리 금지 제약 하에서도 재시작 후 예약 유지 가능. 임시 파일 + rename으로 원자적 기록 | 스냅샷을 만든 뒤 락 밖에서 기록해 디스크 I/O가 다른 요청을 막지 않음. 대용량/복잡 질의에는 부적합 |
-| D13 | 사용자 식별은 브라우저 localStorage client id | 인증 시스템 없이도 '내 예약' 목록과 취소 소유자 확인을 구현 | 실제 인증 아님. 브라우저 조작으로 위조 가능 |
-| D14 | 데모 컨트롤을 앱 UI에서 제거 | 실제 서비스 화면과 내부 동시성 시연을 분리. before/after는 터미널·TSan으로만 확인 | UI에서 동시성 재현 버튼 없음(의도) |
-| D15 | 시계는 real/sim 모드로 추상화 | 실서비스는 실제 시계, 데모·검증은 배속 가상 시계로 같은 코드를 재사용 | sim 모드의 앵커는 시드 출발 시각에 고정이라 다른 데이터셋에는 조정 필요 |
-| D16 | 자동 상태 전이는 워커 0번에서만 구동 | 4개 워커가 모두 tick하면 이벤트가 중복 기록됨. 단일 구동자로 멱등성 확보 | 워커 0이 오래 멈추면 다른 워커가 대체하지 못함(데모 규모에서는 허용) |
-| D17 | 서버 내부 미니 CDN(TTL 캐시) 구현 | 정적 자산 응답에 TTL·hit/miss·무효화·`X-Cache`를 재현해 캐시 계층을 로컬에서 검증하기 위해 `src/cdn.c`를 둠 | 지리적 엣지 네트워크는 아니며, 엣지 가속/오프로드는 이 프로젝트 범위 밖 |
-| D18 | 게이트웨이와 로드밸런서를 별도 프로세스가 아니라 프록시 모듈 하나로 통합 | `route = prefix|backend1,backend2` 한 줄로 경로 기반 라우팅과 Round-Robin을 동시에 표현. 외부 라이브러리 금지 제약 유지 | 전용 게이트웨이의 고급 기능(인증/레이트리밋/서킷브레이커)은 없음 |
-| D19 | 프록시 실패는 502, 백엔드 응답 지연은 504로 구분 | 클라이언트가 장애 위치를 구분할 수 있어야 함 | 타임아웃은 `backend_timeout` 단일 값 |
-| D20 | 부하 테스트는 전용 도구 없이 curl 병렬 방식까지 허용 | `hey`/`wrk` 미설치 환경에서도 실행 가능해야 함 | 정교한 percentile 측정은 불가. RPS는 근사값 |
-| D21 | iomux에 epoll(Linux)/kqueue(macOS) 백엔드 추가, poll은 폴백 | 준비된 fd만 커널이 통지 → O(ready) 스캔. 같은 인터페이스라 워커 코드는 불변 | 플랫폼 분기 `#ifdef` 증가 |
-| D22 | 프록시를 전용 스레드 + 큐로 분리 | 느린 백엔드가 워커 이벤트 루프 전체를 멈춤. `dup()` fd로 소유권 이전 후 워커는 즉시 복귀 | 컨텍스트 복사 비용, 스레드 1개 추가 |
-| D23 | 항공편별 락 + 메타 락, 파일 저장은 스냅샷 후 락 밖에서 | 항공편 간 경합 제거, 디스크 I/O로 다른 요청을 막지 않음 | 락 순서(flight→meta) 규칙 준수 필요 |
-| D24 | 정적 응답에 `Cache-Control`/약한 `ETag` 추가 | 로컬 TTL 캐시의 hit/miss 정책을 헤더로 검증하기 위해 필요 | ETag는 URI+크기 해시라 내용 변경 감지는 TTL에 의존 |
-| D25 | Makefile에 `-MMD -MP` 헤더 의존성 추가 | `flight_t`에 뮤텍스 추가 후 헤더 포함 객체가 재컴파일되지 않아 구조체 레이아웃 불일치 버그 발생 | `.d` 파일 생성(.gitignore 처리) |
-| D26 | HTTP/2는 C 서버에 직접 구현하지 않고 앞단 게이트웨이에서 종료 | 브라우저가 쓰는 h2는 TLS+ALPN 필요. HPACK·프레임·스트림 상태 머신을 C11/POSIX 제약 안에서 구현하면 파서 전체를 다시 만들어야 함. nginx/Envoy에서 h2·TLS를 종료하고 백엔드에는 HTTP/1.1 평문으로 전달하면 C 코드는 그대로 두고 이득만 받음 | 게이트웨이 배포가 별도 과제. 로컬 데모에서는 h2 이득 없음. TCP HOL은 그대로 남아 HTTP/3은 별도 검토 |
-| D27 | 서비스 경계: 항공편 예약/추적은 C 서버 내부에 두고, mini-redis·mini-dbms·mini-react는 별도 백엔드로 연결 | 예약·좌석·운항 추적은 같은 도메인이라 한 서비스에 두는 게 자연스러움. 이걸 쪼개면 `flight_t.mu`가 프로세스 경계를 못 넘어 DB 트랜잭션/IPC로 재설계해야 하고 before/after 데모가 흐려짐. 캐시·DB·프론트는 원래 별도 프로세스/산출물이라 게이트웨이 뒤에 두는 게 실제 배포 형태에 가까움 | mini-redis(8000), Flask stocks(8002), DBMS 데모(8401/8402)를 별도로 띄워야 함. mini-react는 빌드 산출물을 `www/`에 복사. mini-redis(8000), stocks(8002), mini-dbms(8401/8402), 결제(8500) 실제 연동 완료 |
-
-| D28 | 결제를 별도 프로세스·자기 파일 DB로 분리, 중복 방지 키를 본문에 포함 | 결제는 승인·환불·재시도 정책이 예약과 다르고 독립 배포/재시작이 필요함. 프록시가 임의 헤더를 전달하지 않으므로 `idempotency_key`는 본문에도 둠 | 인증 없음. `client id` 위조 문제는 별도 과제 |
+중복 기록은 대표 단계에 두고, 같은 내용이면 원본 ID를 함께 적었습니다(D9/D21, D6/D23).
 
 ## 보안 정책
 - 경로 검증: 모든 파일 요청은 `realpath`를 통해 해석된 뒤, 서버 루트 하위에 있는 경우에만 처리됩니다. (Path Traversal 방지)
