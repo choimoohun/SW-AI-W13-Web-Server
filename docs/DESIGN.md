@@ -23,6 +23,33 @@
    -> [Network]
 ```
 
+### 이벤트 루프 동작 원리
+
+워커는 `기다림 → 준비된 fd 처리 → 정리`를 반복합니다.
+
+```mermaid
+sequenceDiagram
+    participant C as client
+    participant K as kernel
+    participant W as worker
+    C->>K: connect()
+    K-->>W: listen fd 준비(epoll)
+    W->>K: accept()
+    K-->>W: conn fd
+    W->>W: iomux_add(conn, READ)
+    C->>K: write(요청)
+    K-->>W: conn READ 준비
+    W->>W: read() → 파서
+    W->>K: write(응답)
+    K-->>C: 응답
+    W->>W: 유휴 5초 후 close
+```
+
+- 큐: 연결은 커널의 `listen` 대기열에 쌓이고 `accept()`가 꺼냅니다. 요청 바이트는 소켓 수신 버퍼에 쌓입니다. `epoll` 준비 목록은 이번 턴에 처리할 fd입니다.
+- `accept()`는 별도 스레드가 아니라 워커 안에서 실행됩니다. 큐는 우리 앱이 아니라 커널에 있고, 이벤트당 한 번씩만 꺼냅니다(D10). 한 번에 여러 개를 꺼내면 한 워커가 독점하게 됩니다.
+- 느린 연결은 `READ`가 늦게 준비될 뿐, 다른 fd 처리를 막지 않습니다. 유휴 5초로 정리합니다.
+- `/api/...`는 워커가 프록시 큐에 넣고, 전용 스레드가 백엔드와 통신합니다.
+
 ## 핵심 모듈 설계 (Module Responsibility)
 
 | 모듈 | 책임 | 주요 의존 |

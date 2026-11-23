@@ -16,6 +16,23 @@
 | `include/worker.h` / `src/worker.c` | 워커 풀/루프. `worker_pool_start()`, `worker_pool_join()`, `accept_ready()`, `on_readable()`, `on_writable()` |
 | `src/main.c` / `src/connection.c` | 수정하지 않음. `connection_feed()`, `connection_flush()`만 연결 상태 담당 |
 
+## 동작 원리
+
+- 워커가 `iomux_wait()`로 준비된 fd만 받습니다. `poll`은 매번 전체를 스캔하고, `epoll`은 준비된 것만 돌려줍니다.
+- `READ` 준비 → `read()` → 파서. 완성이면 응답을 만들어 `WRITE` 관심으로 전환.
+- `WRITE` 준비 → 남은 응답 `send()`.
+- 유휴 5초가 지난 연결은 정리. `listen fd`는 워커가 공유하고 `accept()`는 한 번만.
+- 프록시 요청은 워커가 큐에 넣고 전용 스레드가 백엔드와 통신.
+
+```mermaid
+graph LR
+  L[listen fd] --> W[worker iomux]
+  W --> R[READ: read + parse]
+  R --> P[응답 send_buf]
+  P --> W2[WRITE: send]
+  W2 --> C[client]
+```
+
 ## 작업 순서 (Todo)
 1. [x] `iomux` poll 백엔드 완성: `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`. macOS에서 동작 확인.
 2. [x] `connection` 상태 머신 개조: 연결 컨텍스트 + `connection_feed()` / `connection_flush()` 분리, keep-alive 지원.
