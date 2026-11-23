@@ -12,9 +12,9 @@
 
 | 파일 | 책임 |
 |---|---|
-| `include/iomux.h` / `src/iomux.c` | 멀티플렉싱 추상화. `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`. poll 기본, `#ifdef`로 epoll(Linux)/kqueue(macOS) |
+| `include/iomux.h` / `src/iomux.c` | 멀티플렉싱 추상화. `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`. Linux는 epoll, macOS/BSD는 kqueue, 그 외 플랫폼은 poll 폴백 |
 | `include/worker.h` / `src/worker.c` | 워커 풀/루프. `worker_pool_start()`, `worker_pool_join()`, `accept_ready()`, `on_readable()`, `on_writable()` |
-| `src/main.c` / `src/connection.c` | 수정하지 않음. `connection_feed()`, `connection_flush()`만 연결 상태 담당 |
+| `src/main.c` / `src/connection.c` | 수정함. `main.c`는 설정 로드와 `worker_pool_start()`/`worker_pool_join()` 호출, `connection.c`는 `connection_feed()`/`connection_flush()` 상태 머신 |
 
 ## 동작 원리
 
