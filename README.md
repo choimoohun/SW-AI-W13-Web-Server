@@ -75,6 +75,27 @@ make
 
 ![전체 아키텍처 — 요청이 지나는 경로](docs/img/design_image1.png)
 
+### 멀티플렉싱 동작 순서
+
+```mermaid
+flowchart LR
+    subgraph APP["워커 스레드"]
+        A["iomux_add / iomux_mod<br/>conn fd 등록·수정"]
+        B["iomux_wait<br/>200ms 대기"]
+        C{"준비된 fd?"}
+        D["READ: on_readable<br/>recv → connection_feed → parser"]
+        E["WRITE: on_writable<br/>send 남은 응답"]
+        F["없음: cleanup_idle<br/>유휴 5초 정리"]
+        A --> B --> C
+        C -->|READ| D --> A
+        C -->|WRITE| E --> A
+        C -->|timeout| F --> A
+    end
+    K[("커널 관심 집합<br/>epoll · kqueue · poll")]
+    A -. 등록 .-> K
+    K -. 준비된 fd 통지 .-> B
+```
+
 프록시 경로는 전용 `proxy thread`가 큐에서 꺼낸 작업을 처리하고, 백엔드 응답을 클라이언트에 직접 보냅니다. 그래서 느린 백엔드가 있어도 `/health`는 막히지 않습니다.
 
 현행 구조와 그 근거는 [`DESIGN.md`](docs/DESIGN.md), AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_QA_LOG.md`](docs/agent/AI_QA_LOG.md)에 있습니다.
