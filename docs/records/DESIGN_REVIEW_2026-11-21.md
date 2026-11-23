@@ -1,6 +1,5 @@
-# 설계 검증 보고서 — 오늘 구현 범위
-
-> 이 문서는 초기 설계 시점(2026-11-21)의 검토 기록입니다. 현재 상태는 `docs/DESIGN.md`와 `docs/design_reviews/ARCHITECTURE_REVIEW.md`를 기준으로 보세요.
+# 설계 검증 보고서  
+> 이 문서는 초기 설계 시점(2026-11-21)의 검토 기록입니다. 현재 구조는 `docs/DESIGN.md`의 "현행 구조 메모" 절을 기준으로 보세요.
 
 - 검토 기준: `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/iterations/STEP1~4`, `docs/DECISIONS.md`, `include/`·`src/` 스텁, 빌드/설정 파일 (2026-11-21 세션)
 - 포함 범위: TCP 연결 수락 → HTTP 요청 읽기·파싱 → 정적 파일 찾기 → HTTP 응답 전송 → 연결 정리

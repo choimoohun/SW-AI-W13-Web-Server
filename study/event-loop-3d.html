@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>event loop 3d</title>
+<style>
+  html,body{margin:0;padding:0;background:#ffffff;}
+  svg{display:block;}
+  text{font-family:"Apple SD Gothic Neo","Malgun Gothic","PingFang SD",sans-serif;}
+</style>
+</head>
+<body>
+<svg width="1500" height="1080" viewBox="0 0 1500 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#047857"/>
+    </marker>
+    <linearGradient id="appbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef4ff"/><stop offset="1" stop-color="#e2ebfb"/>
+    </linearGradient>
+    <linearGradient id="kernbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#1f2937"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="1080" fill="#ffffff"/>
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#111827">이벤트 루프 + 워커 풀 내부 구조</text>
+  <text x="40" y="72" font-size="15" fill="#6b7280">앱(위)과 커널(아래)을 나누고, 워커 4개가 하나의 listen fd를 공유하는 모습</text>
+
+  <!-- ============ 클라이언트 ============ -->
+  <rect x="40" y="110" width="280" height="450" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="60" y="142" font-size="18" font-weight="700" fill="#0f172a">클라이언트</text>
+
+  <!-- client app box -->
+  <g>
+    <polygon points="70,170 86,158 306,158 290,170" fill="#e2e8f0"/>
+    <polygon points="290,170 306,158 306,248 290,260" fill="#cbd5e1"/>
+    <rect x="70" y="170" width="220" height="90" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="180" y="205" font-size="17" font-weight="700" fill="#0f172a" text-anchor="middle">클라이언트 앱</text>
+    <text x="180" y="230" font-size="14" fill="#475569" text-anchor="middle">browser / curl</text>
+  </g>
+  <!-- client kernel box -->
+  <g>
+    <polygon points="70,300 86,288 306,288 290,300" fill="#e2e8f0"/>
+    <polygon points="290,300 306,288 306,418 290,430" fill="#cbd5e1"/>
+    <rect x="70" y="300" width="220" height="130" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="180" y="332" font-size="17" font-weight="700" fill="#0f172a" text-anchor="middle">클라이언트 커널</text>
+    <text x="180" y="356" font-size="13" fill="#475569" text-anchor="middle">client fd 1개 — socket()</text>
+    <text x="180" y="378" font-size="13" fill="#475569" text-anchor="middle">송신 버퍼 / 수신 버퍼</text>
+    <text x="180" y="400" font-size="13" fill="#475569" text-anchor="middle">connect() → write() → read()</text>
+  </g>
+  <text x="180" y="470" font-size="13" fill="#64748b" text-anchor="middle">한 연결 = client fd ↔ server conn fd</text>
+  <text x="180" y="492" font-size="13" fill="#64748b" text-anchor="middle">listen() 하지 않음</text>
+
+  <!-- ============ 서버 앱 영역 ============ -->
+  <rect x="360" y="100" width="1120" height="450" rx="12" fill="url(#appbg)" stroke="#c7d7f5" stroke-width="1.5"/>
+  <text x="384" y="134" font-size="18" font-weight="700" fill="#1e3a8a">서버 앱 (user space)</text>
+
+  <!-- listen fd box (3d) -->
+  <g>
+    <polygon points="740,170 758,156 1222,156 1204,170" fill="#fde68a"/>
+    <polygon points="1204,170 1222,156 1222,238 1204,252" fill="#f59e0b"/>
+    <rect x="740" y="170" width="464" height="82" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+    <text x="972" y="205" font-size="19" font-weight="700" fill="#7c2d12" text-anchor="middle">listen fd (O_NONBLOCK)</text>
+    <text x="972" y="230" font-size="14" fill="#92400e" text-anchor="middle">워커 4개가 공유 · 이벤트당 accept 1건</text>
+  </g>
+
+  <!-- workers -->
+  <!-- worker 0 -->
+  <g>
+    <polygon points="390,320 404,308 636,308 622,320" fill="#bfdbfe"/>
+    <polygon points="622,320 636,308 636,428 622,440" fill="#60a5fa"/>
+    <rect x="390" y="320" width="232" height="120" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="506" y="352" font-size="17" font-weight="700" fill="#1e3a8a" text-anchor="middle">worker 0</text>
+    <text x="506" y="376" font-size="13" fill="#1e40af" text-anchor="middle">iomux (자기 epoll/kqueue)</text>
+    <text x="506" y="398" font-size="13" fill="#1e40af" text-anchor="middle">while: wait → 처리</text>
+    <text x="506" y="420" font-size="12" fill="#3b82f6" text-anchor="middle">conn fd 소유</text>
+  </g>
+  <!-- worker 1 -->
+  <g>
+    <polygon points="660,320 674,308 906,308 892,320" fill="#bfdbfe"/>
+    <polygon points="892,320 906,308 906,428 892,440" fill="#60a5fa"/>
+    <rect x="660" y="320" width="232" height="120" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="776" y="352" font-size="17" font-weight="700" fill="#1e3a8a" text-anchor="middle">worker 1</text>
+    <text x="776" y="376" font-size="13" fill="#1e40af" text-anchor="middle">iomux (자기 epoll/kqueue)</text>
+    <text x="776" y="398" font-size="13" fill="#1e40af" text-anchor="middle">while: wait → 처리</text>
+    <text x="776" y="420" font-size="12" fill="#3b82f6" text-anchor="middle">conn fd 소유</text>
+  </g>
+  <!-- worker 2 -->
+  <g>
+    <polygon points="930,320 944,308 1176,308 1162,320" fill="#bfdbfe"/>
+    <polygon points="1162,320 1176,308 1176,428 1162,440" fill="#60a5fa"/>
+    <rect x="930" y="320" width="232" height="120" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="1046" y="352" font-size="17" font-weight="700" fill="#1e3a8a" text-anchor="middle">worker 2</text>
+    <text x="1046" y="376" font-size="13" fill="#1e40af" text-anchor="middle">iomux (자기 epoll/kqueue)</text>
+    <text x="1046" y="398" font-size="13" fill="#1e40af" text-anchor="middle">while: wait → 처리</text>
+    <text x="1046" y="420" font-size="12" fill="#3b82f6" text-anchor="middle">conn fd 소유</text>
+  </g>
+  <!-- worker 3 -->
+  <g>
+    <polygon points="1200,320 1214,308 1446,308 1432,320" fill="#bfdbfe"/>
+    <polygon points="1432,320 1446,308 1446,428 1432,440" fill="#60a5fa"/>
+    <rect x="1200" y="320" width="232" height="120" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="1316" y="352" font-size="17" font-weight="700" fill="#1e3a8a" text-anchor="middle">worker 3</text>
+    <text x="1316" y="376" font-size="13" fill="#1e40af" text-anchor="middle">iomux (자기 epoll/kqueue)</text>
+    <text x="1316" y="398" font-size="13" fill="#1e40af" text-anchor="middle">while: wait → 처리</text>
+    <text x="1316" y="420" font-size="12" fill="#3b82f6" text-anchor="middle">conn fd 소유</text>
+  </g>
+
+  <!-- worker -> listen fd (등록, 점선) -->
+  <g stroke="#2563eb" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#arrB)">
+    <path d="M506,320 C506,280 830,268 880,254"/>
+    <path d="M776,320 C776,286 900,270 930,254"/>
+    <path d="M1046,320 C1046,286 1030,270 1010,254"/>
+    <path d="M1316,320 C1316,280 1090,268 1060,254"/>
+  </g>
+  <text x="972" y="290" font-size="13" fill="#1d4ed8" text-anchor="middle">iomux_add(listen fd, READ) — 4개 워커가 각자 등록</text>
+
+  <!-- ============ 시스템 콜 경계 ============ -->
+  <rect x="360" y="560" width="1120" height="52" rx="8" fill="#334155"/>
+  <text x="920" y="592" font-size="17" font-weight="700" fill="#f8fafc" text-anchor="middle">시스템 콜 경계 · epoll_wait() / accept() / read() / write()</text>
+
+  <!-- ============ 서버 커널 영역 ============ -->
+  <rect x="360" y="622" width="1120" height="440" rx="12" fill="url(#kernbg)"/>
+  <text x="384" y="656" font-size="18" font-weight="700" fill="#e5e7eb">서버 커널 (kernel space)</text>
+
+  <!-- listen 대기열 -->
+  <g>
+    <polygon points="700,700 716,688 996,688 980,700" fill="#a78bfa"/>
+    <polygon points="980,700 996,688 996,778 980,790" fill="#7c3aed"/>
+    <rect x="700" y="700" width="280" height="90" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+    <text x="840" y="734" font-size="17" font-weight="700" fill="#4c1d95" text-anchor="middle">listen 대기열</text>
+    <text x="840" y="758" font-size="13" fill="#5b21b6" text-anchor="middle">backlog 128</text>
+    <text x="840" y="778" font-size="12" fill="#6d28d9" text-anchor="middle">완성된 연결이 쌓임</text>
+  </g>
+
+  <!-- epoll 준비 목록 -->
+  <g>
+    <polygon points="1060,700 1076,688 1356,688 1340,700" fill="#a78bfa"/>
+    <polygon points="1340,700 1356,688 1356,778 1340,790" fill="#7c3aed"/>
+    <rect x="1060" y="700" width="280" height="90" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+    <text x="1200" y="734" font-size="17" font-weight="700" fill="#4c1d95" text-anchor="middle">epoll 준비 목록</text>
+    <text x="1200" y="758" font-size="13" fill="#5b21b6" text-anchor="middle">커널이 관리</text>
+    <text x="1200" y="778" font-size="12" fill="#6d28d9" text-anchor="middle">준비된 fd만 반환</text>
+  </g>
+
+  <!-- conn fd blocks -->
+  <!-- conn 1 -->
+  <g>
+    <polygon points="420,880 434,868 706,868 692,880" fill="#6ee7b7"/>
+    <polygon points="692,880 706,868 706,1018 692,1030" fill="#059669"/>
+    <rect x="420" y="880" width="272" height="150" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="556" y="908" font-size="16" font-weight="700" fill="#065f46" text-anchor="middle">conn fd 1</text>
+    <rect x="436" y="920" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="556" y="946" font-size="13" fill="#065f46" text-anchor="middle">수신 버퍼 (recv)</text>
+    <rect x="436" y="970" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="556" y="996" font-size="13" fill="#065f46" text-anchor="middle">송신 버퍼 (send)</text>
+  </g>
+  <!-- conn 2 -->
+  <g>
+    <polygon points="770,880 784,868 1056,868 1042,880" fill="#6ee7b7"/>
+    <polygon points="1042,880 1056,868 1056,1018 1042,1030" fill="#059669"/>
+    <rect x="770" y="880" width="272" height="150" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="906" y="908" font-size="16" font-weight="700" fill="#065f46" text-anchor="middle">conn fd 2</text>
+    <rect x="786" y="920" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="906" y="946" font-size="13" fill="#065f46" text-anchor="middle">수신 버퍼 (recv)</text>
+    <rect x="786" y="970" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="906" y="996" font-size="13" fill="#065f46" text-anchor="middle">송신 버퍼 (send)</text>
+  </g>
+  <!-- conn 3 -->
+  <g>
+    <polygon points="1120,880 1134,868 1406,868 1392,880" fill="#6ee7b7"/>
+    <polygon points="1392,880 1406,868 1406,1018 1392,1030" fill="#059669"/>
+    <rect x="1120" y="880" width="272" height="150" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="1256" y="908" font-size="16" font-weight="700" fill="#065f46" text-anchor="middle">conn fd 3</text>
+    <rect x="1136" y="920" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="1256" y="946" font-size="13" fill="#065f46" text-anchor="middle">수신 버퍼 (recv)</text>
+    <rect x="1136" y="970" width="240" height="42" rx="6" fill="#d1fae5" stroke="#34d399"/>
+    <text x="1256" y="996" font-size="13" fill="#065f46" text-anchor="middle">송신 버퍼 (send)</text>
+  </g>
+
+  <!-- ============ 화살표 ============ -->
+  <!-- client -> listen 대기열 -->
+  <path d="M320,355 C520,355 620,690 760,700" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="470" y="470" font-size="13" fill="#374151">connect() · 3방 핸드셰이크</text>
+
+  <!-- listen fd <-> listen 대기열 -->
+  <path d="M972,252 L972,688" stroke="#d97706" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="985" y="470" font-size="13" fill="#b45309">accept() → conn fd</text>
+
+  <!-- listen 대기열 -> conn blocks -->
+  <g stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <path d="M980,760 C1080,820 620,850 556,880"/>
+    <path d="M980,760 C1060,830 960,850 906,880"/>
+    <path d="M980,760 C1100,830 1250,850 1256,880"/>
+  </g>
+  <text x="1010" y="820" font-size="13" fill="#6d28d9">커널이 만든 연결 소켓</text>
+
+  <!-- epoll 준비 목록 -> workers -->
+  <g stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#arrB)">
+    <path d="M1200,700 C1200,640 1200,600 1000,560"/>
+    <path d="M1200,700 C1200,640 1200,600 1180,560"/>
+  </g>
+  <text x="1215" y="640" font-size="13" fill="#93c5fd">epoll_wait() → 준비된 fd 목록</text>
+
+  <!-- conn recv -> worker -->
+  <path d="M556,920 C556,700 506,560 506,470" stroke="#047857" stroke-width="2" fill="none" marker-end="url(#arrG)"/>
+  <text x="400" y="700" font-size="13" fill="#047857">read() → 파서</text>
+
+  <!-- worker -> conn send -->
+  <path d="M1046,470 C1046,700 906,800 906,880" stroke="#047857" stroke-width="2" fill="none" marker-end="url(#arrG)"/>
+  <text x="1070" y="700" font-size="13" fill="#047857">send() → 응답</text>
+
+  <!-- 범례 -->
+  <rect x="40" y="600" width="280" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="60" y="630" font-size="16" font-weight="700" fill="#0f172a">범례</text>
+  <rect x="60" y="646" width="26" height="16" fill="#fef3c7" stroke="#d97706"/>
+  <text x="96" y="659" font-size="13" fill="#334155">listen fd (공유)</text>
+  <rect x="60" y="672" width="26" height="16" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="96" y="685" font-size="13" fill="#334155">워커 + 이벤트 루프</text>
+  <rect x="60" y="698" width="26" height="16" fill="#ede9fe" stroke="#8b5cf6"/>
+  <text x="96" y="711" font-size="13" fill="#334155">커널 큐</text>
+  <rect x="60" y="724" width="26" height="16" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="96" y="737" font-size="13" fill="#334155">conn fd + 버퍼 2개</text>
+  <text x="60" y="770" font-size="12" fill="#64748b">점선: 관심 등록</text>
+  <text x="60" y="790" font-size="12" fill="#64748b">실선: 데이터/호출 흐름</text>
+
+  <text x="40" y="1060" font-size="13" fill="#9ca3af">코드: src/worker.c · src/iomux.c · src/connection.c</text>
+</svg>
+</body>
+</html>
