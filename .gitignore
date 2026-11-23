@@ -54,3 +54,6 @@ src/*.d
 /.hermes-rate-limits.sqlite3
 /.cache/
 /.static_test_*/
+
+# Study materials (not part of the project docs)
+/study/
