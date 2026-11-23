@@ -10,8 +10,9 @@
 | --- | --- | --- |
 | R01 | `http_format_head(buf, MAXLINE, 200, "text/html", 13)` | 반환값이 `buf`의 바이트 수와 같고, `buf`가 `"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 13\r\nConnection: close\r\n\r\n"`와 같음 |
 | R02 | `http_format_head(buf, MAXLINE, 302, "text/html", 0)` | -1. 표에 없는 상태 코드 |
-| R03 | `http_format_head(buf, 10, 200, "text/html", 13)` | -1. 버퍼가 작아 잘림 |
+| R03 | `http_format_head(buf, 10, 200, "text/html", 13)`. 경계로 R01 헤더 길이 + 1과 R01 헤더 길이를 `size`로 넘김 | -1. 버퍼가 작아 잘림. 경계는 각각 R01 헤더 길이와 -1 |
 | R04 | `pipe()`로 만든 쓰기 끝에 `http_send_error(fd, 404)` 후 읽기 끝에서 전부 읽음 | 반환 0. 받은 바이트가 R01 형식의 404 헤더(`Content-Length: 49`)와 49바이트 본문 `<html><body><h1>404 Not found</h1></body></html>\n`의 연결과 같음 |
+| R08 | `pipe()`로 만든 쓰기 끝에 `http_send_error(fd, 302)` 후 읽기 끝에서 읽음 | -1. 읽기 끝은 바로 EOF(보낸 바이트 없음) |
 
 R04는 소켓 대신 파이프를 씁니다. `http_send_error()`는 디스크립터에 쓰기만 하므로 파이프로도 송신 바이트를 그대로 확인할 수 있습니다. 응답은 파이프 버퍼(Linux 기본 64KiB)보다 작아 읽기 전에 써도 막히지 않습니다.
 

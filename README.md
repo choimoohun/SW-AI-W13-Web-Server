@@ -30,7 +30,7 @@ cmake --build build
 (cd build && ctest --output-on-failure)
 ```
 
-CTest에는 HTTP 요청 파싱 단위 테스트 `test_http_request`가 등록되어 있습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
+CTest에는 HTTP 요청 파싱 단위 테스트 `test_http_request`와 HTTP 응답 생성 단위 테스트 `test_http_response`가 등록되어 있습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
 
 ## 설계 문서
 

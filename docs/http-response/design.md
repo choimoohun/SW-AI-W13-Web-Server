@@ -58,16 +58,17 @@ Connection: close\r\n
 flowchart TD
     A["정상 응답"] --> B["http_send_head(fd, 200, type, size)"]
     B --> C["http_format_head로 버퍼 작성"]
-    C -->|"-1"| X["-1 반환, 연결 닫기"]
+    C -->|"-1"| X["-1 반환, 호출자가 연결 닫기"]
     C -->|"n"| D["rio_writen(fd, buf, n)"]
     D -->|"-1"| X
     D -->|"n"| E["0 반환, 본문은 정적 파일 모듈이 송신"]
     F["오류 응답"] --> G["http_send_error(fd, status)"]
-    G --> H["오류 본문 작성"]
+    G -->|"상태 메시지 없음"| X
+    G -->|"표에 있는 코드"| H["오류 본문 작성"]
     H --> I["http_send_head(fd, status, text/html, 본문 길이)"]
     I -->|"-1"| X
     I -->|"0"| J["rio_writen(fd, body, 본문 길이)"]
-    J --> K["0 또는 -1 반환, 연결 닫기"]
+    J --> K["0 또는 -1 반환, 호출자가 연결 닫기"]
 ```
 
 ## 파일 구성

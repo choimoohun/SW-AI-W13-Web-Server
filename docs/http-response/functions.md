@@ -12,7 +12,7 @@
 | `const char *http_status_text(int status)` | 상태 코드의 상태 메시지를 돌려줍니다. | `status`: [design.md의 상태 코드](./design.md#상태-코드) 표의 코드 | 표에 있으면 상태 메시지 문자열 상수(`"Not found"` 등), 없으면 `NULL` |
 | `int http_format_head(char *buf, size_t size, int status, const char *content_type, size_t content_length)` | 응답 줄, `Content-Type`, `Content-Length`, `Connection: close`, 빈 줄을 `snprintf()` 한 번으로 씁니다. 소켓을 쓰지 않는 순수 함수입니다. | `buf`, `size`: 쓸 버퍼와 크기. `status`, `content_type`, `content_length`: 헤더 값 | 성공하면 NUL을 뺀 바이트 수. 상태 메시지가 없거나 `snprintf()` 결과가 `size` 이상(잘림)이면 -1 |
 | `int http_send_head(int fd, int status, const char *content_type, size_t content_length)` | `MAXLINE` 크기 지역 버퍼에 `http_format_head()`로 쓰고 `rio_writen()`으로 보냅니다. | `fd`: 연결 소켓. 나머지는 `http_format_head()`와 같음 | 성공 0. 형식 실패나 송신 실패(`EPIPE`, `ECONNRESET` 등)면 -1 |
-| `int http_send_error(int fd, int status)` | 아래 [오류 본문](#오류-본문)을 만들고 `http_send_head(fd, status, "text/html", 본문 길이)` 뒤 본문을 `rio_writen()`으로 보냅니다. | `fd`: 연결 소켓. `status`: 4xx 또는 5xx 코드 | 성공 0, 실패 -1. 연결은 닫지 않음 |
+| `int http_send_error(int fd, int status)` | 아래 [오류 본문](#오류-본문)을 만들고 `http_send_head(fd, status, "text/html", 본문 길이)` 뒤 본문을 `rio_writen()`으로 보냅니다. | `fd`: 연결 소켓. `status`: 4xx 또는 5xx 코드 | 성공 0. 상태 메시지가 없으면 아무것도 보내지 않고 -1, 송신 실패도 -1. 연결은 닫지 않음 |
 
 ## 헤더 형식
 
