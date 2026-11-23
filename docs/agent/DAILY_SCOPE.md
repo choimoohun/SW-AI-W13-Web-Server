@@ -23,6 +23,13 @@
 2. 프록시 큐 상한과 `429`/`503`
 3. 로그인/세션
 
+## 계획 (준비만)
+
+- 30초 데모 영상. 앱을 실제로 돌리면서 영어 자막을 얹는 광고 형태.
+  - 화면: `www/flights.html`에서 항공편 검색 → 예약 → 좌석 감소, `www/ops.html`에서 출발/도착 상태 변화.
+  - 자막 예시: `socket() → bind() → listen() → accept()`, `100 concurrent requests, only one seat sold`.
+  - 지금은 계획만 두고 제작하지 않는다.
+
 ## 아직 하지 않은 것
 
 인증/인가, TLS/HTTP2, Forward Proxy, CGI, 물리 링크 장애.
