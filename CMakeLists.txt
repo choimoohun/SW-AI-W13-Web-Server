@@ -19,3 +19,15 @@ if(NOT WEB_SERVER_HAS_POSIX_SOCKET)
 endif()
 
 include(CTest)
+
+find_package(Threads REQUIRED)
+
+add_library(csapp STATIC src/csapp.c)
+target_include_directories(csapp PUBLIC src)
+target_link_libraries(csapp PUBLIC Threads::Threads)
+
+add_executable(echoserveri src/echoserveri.c src/echo.c)
+target_link_libraries(echoserveri PRIVATE csapp)
+
+add_executable(echoclient src/echoclient.c)
+target_link_libraries(echoclient PRIVATE csapp)
