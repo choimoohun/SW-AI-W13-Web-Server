@@ -1,7 +1,6 @@
-# STEP3 — HTTP 응답 생성 및 전송
+# HTTP 응답 생성
 
-## 한 줄
-처리 결과를 HTTP 응답으로 직렬화해 부분 전송과 바이너리 본문을 안전하게 보낸다.
+## STEP3 - 상태 줄·헤더·본문 직렬화와 전송
 
 ## 목표
 처리 결과를 HTTP 응답으로 직렬화해 전송한다.
@@ -31,10 +30,13 @@ Connection: close
 | src/connection.c | 응답 호출, fd 정리 |
 
 ## 구현 기록
-- http_response_send_error(fd, status): 상태 줄+헤더, Content-Length 0.
-- http_response_send_file(fd, mime, file_fd, size): 헤더(Content-Length=size) 후 16KB 청크 read → send_all 반복. 전체 파일을 메모리에 올리지 않는다.
-- send_all: 부분 쓰기/EINTR 반복 처리.
-- Content-Length는 바이트 수. 본문은 포인터+길이로 다뤄 바이너리를 보존한다.
+
+| 위치 | 동작 |
+|---|---|
+| `http_response_send_error(fd, status)` | 상태 줄+헤더, `Content-Length: 0` |
+| `http_response_send_file(fd, mime, file_fd, size)` | 헤더(`Content-Length=size`) 후 16KB 청크 `read` → `send_all` 반복. 전체 파일을 메모리에 올리지 않음 |
+| `send_all` | 부분 쓰기/EINTR 반복 처리 |
+| 본문 처리 | `Content-Length`는 바이트 수. 본문은 포인터+길이로 다뤄 바이너리 보존 |
 
 ## 테스트 기록
 - curl -i: 상태 줄/헤더/빈 줄/본문 순서 확인.

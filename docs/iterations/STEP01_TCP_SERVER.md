@@ -1,7 +1,6 @@
-# STEP1 — TCP 소켓 서버
+# TCP 소켓 서버
 
-## 한 줄
-POSIX 소켓으로 TCP 연결을 수락하고, 시그널로 안전하게 종료하는 서버를 만든다.
+## STEP1 - socket() → bind() → listen() → accept() 표준 흐름 구현
 
 ## 목표
 POSIX 소켓 API로 클라이언트 TCP 연결을 수락하는 서버를 구현한다.
@@ -31,9 +30,12 @@ main.c → tcpserver.c → connection.c
 ```
 
 ## 구현 기록
-- tcpserver_listen(port, backlog): getaddrinfo(AI_PASSIVE) → 후보마다 socket → setsockopt(SO_REUSEADDR) → bind → listen. 성공하면 fd, 모두 실패하면 -1. freeaddrinfo로 후보 목록 해제.
-- tcpserver_accept(listen_fd): accept로 client fd 반환.
-- main: SIGPIPE 무시, SIGINT/SIGTERM은 sigaction(SA_RESTART 끔)으로 종료 플래그만 세움. accept 루프에서 connection_handle 호출. 종료 시 listen fd 닫고 exit 0.
+
+| 위치 | 동작 |
+|---|---|
+| `tcpserver_listen(port, backlog)` | `getaddrinfo(AI_PASSIVE)`로 후보를 만들고 후보마다 `socket` → `setsockopt(SO_REUSEADDR)` → `bind` → `listen`. 성공하면 fd, 전부 실패하면 -1. `freeaddrinfo`로 후보 해제 |
+| `tcpserver_accept(listen_fd)` | `accept`로 client fd 반환 |
+| `main` | SIGPIPE 무시, SIGINT/SIGTERM은 `sigaction`(SA_RESTART 끔)으로 종료 플래그만 세움. accept 루프에서 `connection_handle` 호출. 종료 시 listen fd 닫고 exit 0 |
 
 ## 테스트 기록
 - make → exit 0 (-Wall -Wextra -Werror).

@@ -1,4 +1,4 @@
-# STEP3 — HTTP 응답과 연결 수명 결정
+# HTTP 응답 생성 결정
 
 이 단계에서 확정한 결정과 트레이드오프입니다. 전체 목록은 [DECISIONS.md](../DECISIONS.md)에 있습니다.
 

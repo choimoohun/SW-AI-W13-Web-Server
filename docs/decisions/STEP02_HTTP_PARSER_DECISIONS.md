@@ -1,4 +1,4 @@
-# STEP2 — HTTP 요청 파싱 결정
+# HTTP 요청 파싱 결정
 
 이 단계에서 확정한 결정과 트레이드오프입니다. 전체 목록은 [DECISIONS.md](../DECISIONS.md)에 있습니다.
 

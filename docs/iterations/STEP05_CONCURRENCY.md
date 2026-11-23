@@ -1,7 +1,6 @@
-# STEP5 — 동시성: Envoy식 multi-reactor (D5)
+# 동시 요청 처리
 
-## 한 줄
-워커 스레드가 각자 이벤트 루프를 돌려 동시 요청을 처리한다.
+## STEP5 - 워커 풀과 iomux 이벤트 루프
 
 ## 범위
 - 워커 스레드 N개, 각자 iomux(poll/epoll/kqueue) 이벤트 루프. 단일 프로세스.
@@ -9,11 +8,13 @@
 - 어피니티: Linux 선택(#ifdef), macOS no-op.
 - 정적 서빙 동작은 개조 전후 동일해야 한다(`make integration` 기준).
 
-## 스캐폴딩 파일
-- `include/iomux.h` / `src/iomux.c` — 멀티플렉싱 추상화. `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`.
-  poll을 기본으로 쓰고 `#ifdef`로 epoll(Linux)/kqueue(macOS)를 선택한다.
-- `include/worker.h` / `src/worker.c` — 워커 풀/루프 골격. `worker_pool_start()`, `worker_pool_join()`, `accept_ready()`, `on_readable()`, `on_writable()`. 한국어 주석 + TODO.
-- `src/main.c` / `src/connection.c`는 건드리지 않음(직접 구현 영역). `connection_feed()`, `connection_flush()`만 연결 상태를 담당.
+## 파일 구성
+
+| 파일 | 책임 |
+|---|---|
+| `include/iomux.h` / `src/iomux.c` | 멀티플렉싱 추상화. `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`. poll 기본, `#ifdef`로 epoll(Linux)/kqueue(macOS) |
+| `include/worker.h` / `src/worker.c` | 워커 풀/루프. `worker_pool_start()`, `worker_pool_join()`, `accept_ready()`, `on_readable()`, `on_writable()` |
+| `src/main.c` / `src/connection.c` | 수정하지 않음. `connection_feed()`, `connection_flush()`만 연결 상태 담당 |
 
 ## 작업 순서 (Todo)
 1. [x] `iomux` poll 백엔드 완성: `iomux_create()`, `iomux_add()`, `iomux_mod()`, `iomux_del()`, `iomux_wait()`. macOS에서 동작 확인.

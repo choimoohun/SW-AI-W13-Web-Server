@@ -1,7 +1,6 @@
-# STEP2 — HTTP 요청 파싱
+# HTTP 요청 파싱
 
-## 한 줄
-수신한 바이트를 HTTP/1.1 요청으로 해석하고, 잘못된 요청은 상태 코드로 거부한다.
+## STEP2 - 요청 줄·헤더·본문 파싱
 
 ## 목표
 수신한 바이트를 HTTP 요청으로 해석한다.
@@ -35,9 +34,12 @@ connection.c → http_parser.c
 http_parser는 버퍼+길이만 받고 소켓을 직접 읽지 않는다.
 
 ## 구현 기록
-- http_parser_parse(buf, len, req): \r\n\r\n 탐색 → 요청 줄 분해 → 헤더 순회 → 본문 경계. 반환은 COMPLETE / NEED_MORE / ERROR(err_status).
-- 오류 코드: 400(형식/Host 누락), 405(메서드), 411(POST CL 누락), 413(본문 초과), 414(URI 초과), 431(헤더 초과), 501(chunked), 505(버전).
-- connection: read로 buf 누적, NEED_MORE면 더 읽고 COMPLETE/ERROR에서 분기. 입력 버퍼는 수정하지 않는다.
+
+| 위치 | 동작 |
+|---|---|
+| `http_parser_parse(buf, len, req)` | `\r\n\r\n` 탐색 → 요청 줄 분해 → 헤더 순회 → 본문 경계. `COMPLETE` / `NEED_MORE` / `ERROR(err_status)` 반환 |
+| 오류 코드 | 400(형식/Host 누락), 405(메서드), 411(POST CL 누락), 413(본문 초과), 414(URI 초과), 431(헤더 초과), 501(chunked), 505(버전) |
+| `connection` | read로 buf 누적, `NEED_MORE`면 더 읽고 `COMPLETE`/`ERROR`에서 분기. 입력 버퍼는 수정하지 않음 |
 
 ## 테스트 기록
 - make test → test_parser all passed (오류 코드, short read, 대소문자 무시, 중복 CL 거부).

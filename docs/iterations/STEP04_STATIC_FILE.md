@@ -1,7 +1,6 @@
-# STEP4 — 정적 파일 서빙
+# 정적 파일 서빙
 
-## 한 줄
-요청 URL을 `doc_root` 안의 파일로 한정해 찾고, 확장자에 맞는 MIME으로 응답한다.
+## STEP4 - doc_root 한정 경로 해석과 MIME 응답
 
 ## 목표
 요청 URL에 대응하는 doc_root 하위 파일을 찾아 응답한다.
@@ -22,9 +21,12 @@
 | src/http_response.c | 파일 내용 전송 |
 
 ## 구현 기록
-- static_handler_resolve(uri, len, doc_root): query 제거 → 퍼센트 디코딩 → 컴포넌트 단위 ".." 거부(403) → doc_root 결합 → realpath → 경계 포함 검사(밖이면 403) → stat/open → errno 매핑(ENOENT 404, EACCES 403, 기타 500).
-- "/"·디렉터리는 index.html을 시도. MIME은 확장자 대소문자 무시 매핑.
-- {status, mime, file_fd, size} 반환. file_fd 닫기는 connection이 맡는다.
+
+| 위치 | 동작 |
+|---|---|
+| `static_handler_resolve(uri, len, doc_root)` | query 제거 → 퍼센트 디코딩 → 컴포넌트 단위 `..` 거부(403) → `doc_root` 결합 → `realpath` → 경계 포함 검사(밖이면 403) → `stat/open` → errno 매핑(ENOENT 404, EACCES 403, 기타 500) |
+| `/`·디렉터리 | `index.html` 시도. MIME은 확장자 대소문자 무시 매핑 |
+| 반환 | `{status, mime, file_fd, size}`. `file_fd` 닫기는 `connection`이 맡음 |
 
 ## 테스트 기록
 - make test → test_static all passed (탈출 403, 인코딩 탈출 403, MIME, 404, "/a..b"는 정상 이름).
