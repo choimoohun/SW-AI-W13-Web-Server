@@ -1,3 +1,4 @@
+#하루 작업 범위를 API 리밋에 맞춰 나누고 현재 상태를 확인하는 로컬 스크립트
 #!/usr/bin/env python3
 """Automated local rate-limit watcher and gate for Hermes TUI (Nous, Qwen, etc.)."""
 from __future__ import annotations
@@ -290,7 +291,7 @@ def active_cooldowns(
     rows = db.execute(
         """SELECT provider, model, event_type, occurred_at, retry_after
            FROM events
-           WHERE id IS NOT NULL OR rowid IS NOT NULL
+           WHERE event_key IS NOT NULL OR rowid IS NOT NULL
            ORDER BY occurred_at DESC"""
     ).fetchall()
     seen: set[tuple[str, str]] = set()

@@ -1,6 +1,6 @@
 # 37개 학습 자료 중 이 프로젝트에 적용한 내용
 
-원본: `study/all-37-materials-ultra-detailed.md`
+원본: `docs/notes/all-37-materials-ultra-detailed.md`
 
 이 문서는 그 자료에서 **실제로 SW-AI-W13-Web-Server에 반영된 것**만 골라 정리한 것입니다.
 적용 여부는 세 가지로 나눕니다.
@@ -39,7 +39,7 @@
 | 25 | 두 종류의 소켓 | 적용 | `SOCK_STREAM`(TCP) 선택 |
 | 26 | Progress bars | 미적용 | 범위 밖 |
 | 27 | 조앤 Forward/Reverse Proxy vs LB | 적용 | 개념 구분(게이트웨이/로드밸런서) |
-| 28 | Kanich processes/threads/io multiplexing | 적용 | 결정 D5, `docs/notes/multiplexing-rationale.md` |
+| 28 | Kanich processes/threads/io multiplexing | 적용 | 결정 D5, `docs/notes/iomux.md` |
 | 29 | BJ.5 프로세스/스레드 용어 | 적용 | 용어 정리 |
 | 30 | HTTP/1.1 vs 2 vs 3 | 부분 | HTTP/1.1만 구현. HTTP/2는 앞단 게이트웨이에서 종료(D26) |
 | 31 | API Gateway vs LB vs Proxy | 적용 | 결정 D18 |
