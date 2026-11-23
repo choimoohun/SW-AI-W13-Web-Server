@@ -1,5 +1,8 @@
 # STEP5 — 동시성: Envoy식 multi-reactor (D5)
 
+## 한 줄
+워커 스레드가 각자 이벤트 루프를 돌려 동시 요청을 처리한다.
+
 ## 범위
 - 워커 스레드 N개, 각자 iomux(poll/epoll/kqueue) 이벤트 루프. 단일 프로세스.
 - accept 분산 기본안: 공유 listen fd + nonblocking accept + EAGAIN 무시.
