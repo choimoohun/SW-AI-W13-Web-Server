@@ -8,10 +8,25 @@
 #ifndef HTTP_RESPONSE_H
 #define HTTP_RESPONSE_H
 
+#include <stddef.h>   /* size_t */
+
 /* 오류 응답(빈 본문, Content-Length: 0) 전송. */
 void http_response_send_error(int client_fd, int status);
 
 /* 파일 응답(200): 헤더 + 청크 본문 전송. file_fd 는 닫지 않는다(connection 이 닫음). */
 void http_response_send_file(int client_fd, const char *mime, int file_fd, long size);
+
+/* JSON 응답: Content-Type application/json; charset=utf-8, Content-Length=len.
+ * body는 바이트 길이를 넘긴다(strlen 금지). */
+void http_response_send_json(int client_fd, int status, const char *body, size_t len);
+
+/* 논블로킹 이벤트 루프용 직렬화: 소켓에 쓰지 않고 out에 HTTP 응답 바이트를 만든다.
+ * keep_alive=1이면 Connection: keep-alive 헤더를 넣는다.
+ * 반환=바이트 수, 버퍼 부족/실패 시 0. */
+size_t http_response_build_json(char *out, size_t cap, int status,
+                                const char *body, size_t len, int keep_alive);
+size_t http_response_build_error(char *out, size_t cap, int status, int keep_alive);
+size_t http_response_build_file(char *out, size_t cap, const char *mime,
+                                long size, int keep_alive, const char *extra_headers);
 
 #endif /* HTTP_RESPONSE_H */

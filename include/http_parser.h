@@ -32,6 +32,7 @@ typedef struct {
     int         connection_close;                  /* Connection: close 이면 1 */
     const char *body;        size_t body_len;      /* 본문 시작/길이 */
     int         err_status;                        /* PARSE_ERROR 일 때 HTTP 상태코드 */
+    size_t      consumed;                          /* COMPLETE일 때 이 요청이 차지한 총 바이트(keep-alive용) */
 } http_request_t;
 
 /* buf[0..len) 를 파싱해 req 에 채운다. 입력 버퍼는 수정하지 않는다.
