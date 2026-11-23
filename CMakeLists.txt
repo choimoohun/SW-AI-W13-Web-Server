@@ -18,4 +18,19 @@ if(NOT WEB_SERVER_HAS_POSIX_SOCKET)
     message(FATAL_ERROR "POSIX socket() is required.")
 endif()
 
+add_executable(web_server src/main.c src/http.c)
+
 include(CTest)
+if(BUILD_TESTING)
+    find_package(Perl QUIET)
+    if(PERL_FOUND)
+        add_test(NAME http_split_post
+                 COMMAND ${PERL_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_split_post.pl
+                         $<TARGET_FILE:web_server>)
+        set_tests_properties(http_split_post PROPERTIES TIMEOUT 10)
+        add_test(NAME http_static
+                 COMMAND ${PERL_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_static.pl
+                         $<TARGET_FILE:web_server>)
+        set_tests_properties(http_static PROPERTIES TIMEOUT 15)
+    endif()
+endif()
