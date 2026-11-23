@@ -38,27 +38,6 @@
 - `cleanup_idle()`: 유휴 5초가 넘은 연결을 닫고, keep-alive 최대 100회도 여기서 확인.
 - 200ms 타임아웃은 준비된 이벤트가 없어도 유휴 정리와 종료 플래그를 확인하기 위함.
 
-### 멀티플렉싱 동작 순서
-
-```mermaid
-flowchart LR
-    subgraph APP["워커 스레드"]
-        A["iomux_add / iomux_mod<br/>conn fd 등록·수정"]
-        B["iomux_wait<br/>200ms 대기"]
-        C{"준비된 fd?"}
-        D["READ: on_readable<br/>recv → connection_feed → parser"]
-        E["WRITE: on_writable<br/>send 남은 응답"]
-        F["없음: cleanup_idle<br/>유휴 5초 정리"]
-        A --> B --> C
-        C -->|READ| D --> A
-        C -->|WRITE| E --> A
-        C -->|timeout| F --> A
-    end
-    K[("커널 관심 집합<br/>epoll · kqueue · poll")]
-    A -. 등록 .-> K
-    K -. 준비된 fd 통지 .-> B
-```
-
 큐의 위치:
 
 | 큐/버퍼 | 위치 | 담기는 것 | 누가 넣고 누가 꺼내나 |
