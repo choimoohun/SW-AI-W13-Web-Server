@@ -51,7 +51,7 @@ printf 'secret\n' > /tmp/www/secret.html && chmod 000 /tmp/www/secret.html
 
 - S10에 `--path-as-is`가 필요한 이유는 `curl`이 기본으로 `/../`를 지운 경로를 보내기 때문입니다.
 - S13은 `root`로 실행하면 권한 비트를 무시하고 파일이 열려 `200`이 되므로 일반 사용자로 실행합니다. `nobody`가 `./build/httpd`를 실행하지 못하면 `httpd`를 `/tmp`에 복사해 실행합니다.
-- 파일 없음(404)은 [응답 생성 테스트 R05](../http-response/test-cases.md#기능-테스트)가 확인합니다.
+- 파일 없음(404)은 [응답 생성 테스트 R06](../http-response/test-cases.md#기능-테스트)가 확인합니다.
 - 500(본문 할당 실패, `open()`과 `fstat()`의 예외적 실패)은 테스트로 재현하기 어려우므로 코드 리뷰로 확인합니다. 500 응답의 바이트 형식은 R04와 같은 `http_send_error()` 경로라 따로 확인하지 않습니다.
 
 ## 메모리

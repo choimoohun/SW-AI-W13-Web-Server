@@ -45,7 +45,7 @@ static void test_send_error(void)
     assert(total == strlen(want));
     assert(strcmp(got, want) == 0);
 
-    /* R08 */
+    /* R05 */
     assert(pipe(fds) == 0);
     assert(http_send_error(fds[1], 302) == -1);
     close(fds[1]);
