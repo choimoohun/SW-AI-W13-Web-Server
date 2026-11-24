@@ -13,7 +13,9 @@ path_instructions:
       HTTP 요청의 길이 제한과 정적 파일 경로 제한을 지키는지 먼저 확인해요.
   - path: "**/*.h"
     instructions: |
-      C17과 POSIX API 사용을 기준으로 검토해요.
+      C17과 POSIX API 사용을 기준으로 검토해요. 메모리와 파일 디스크립터가
+      오류 경로에서도 해제되는지, 부분 송수신과 연결 종료를 처리하는지,
+      HTTP 요청의 길이 제한과 정적 파일 경로 제한을 지키는지 먼저 확인해요.
   - path: "**/CMakeLists.txt"
     instructions: |
       CMake 3.16 호환성과 C17 설정을 유지하는지 확인해요.
