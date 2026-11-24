@@ -72,27 +72,21 @@ make
 ### 구성도 — 요청이 지나는 경로
 
 ```mermaid
-flowchart LR
-    C["Client<br/>Browser · curl"] <-->|"HTTP/1.1 keep-alive"| L["Listener :8080<br/>nonblocking"]
+flowchart TB
+    C["Client<br/>Browser · curl"] <-->|"HTTP/1.1 keep-alive"| L["Listener :8080"]
     subgraph S["webserver 프로세스 (C · POSIX)"]
         L --> EL
         subgraph W["Worker Pool ×4 · 스레드당 event loop"]
-            EL["Event loop<br/>epoll · kqueue · poll"] --> HP["HTTP Parser"] --> R{"Router<br/>prefix 매칭"}
-            R -->|"/api/*"| API["Flight API"]
-            R -->|"/health · /echo"| HC["Health · Echo"]
-            R -->|"정적 파일"| ST["Static + CDN cache"]
+            EL["Event loop<br/>epoll · kqueue · poll"] --> HP["HTTP Parser"] --> R{"Router"}
+            R --> API["/api/*<br/>Flight API"]
+            R --> HC["/health · /echo"]
+            R --> ST["정적 파일<br/>+ CDN cache"]
         end
-        R -->|"upstream route"| P["Proxy thread<br/>job queue · Round-Robin<br/>502 / 504"]
-        API --> DB[("Flight store<br/>flights.txt 스냅샷")]
-        CLK["Flight clock<br/>real / sim"] -.-> DB
+        R --> P["Proxy thread<br/>queue · Round-Robin"]
+        API --> DB[("Flight store")]
+        CLK["Flight clock"] -.-> DB
     end
-    subgraph U["Upstream 서비스 (별도 프로세스)"]
-        U1["mini-redis :8000"]
-        U2["stocks :8002"]
-        U3["orders :8401 / :8402"]
-        U4["payments :8500"]
-    end
-    P --> U1 & U2 & U3 & U4
+    P --> U["Upstream 서비스<br/>(별도 프로세스)<br/>mini-redis :8000<br/>stocks :8002<br/>orders :8401 / :8402<br/>payments :8500"]
 ```
 
 멀티플렉싱(워커 안의 이벤트 루프) 동작 원리는 [`DESIGN.md` — 이벤트 루프 동작 원리](docs/DESIGN.md#이벤트-루프-동작-원리)에 따로 그렸습니다.
