@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>기차표 예매</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, "Malgun Gothic", sans-serif;
+      color: #192b28;
+      background: #f5f6f2;
+      --ink: #192b28;
+      --muted: #51645e;
+      --line: #e4eae3;
+      --green: #145c47;
+      --lime: #cdf48c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    h1, h2, p { margin: 0; }
+    button { font: inherit; }
+    .page { width: min(calc(100% - 48px), 1040px); margin: 0 auto; padding: 46px 0 48px; }
+    .heading { margin-bottom: 26px; }
+    h1 { font-size: clamp(2.15rem, 5vw, 3.35rem); line-height: 1.1; letter-spacing: -.065em; }
+    .intro { margin-top: 11px; color: var(--muted); line-height: 1.55; word-break: keep-all; text-wrap: balance; }
+    h2 { font-size: 1.32rem; line-height: 1.25; letter-spacing: -.04em; }
+    .trip {
+      position: relative; isolation: isolate; overflow: hidden;
+      margin-bottom: 22px; padding: 28px 34px 32px; border-radius: 27px;
+      background: radial-gradient(ellipse at 88% 12%, #235747, transparent 63%), #142d2a;
+      color: #f9fff6;
+    }
+    .trip::after {
+      content: ""; position: absolute; z-index: -1; pointer-events: none;
+      width: 65%; height: 160%; right: -30%; top: -40%; transform: rotate(31deg);
+      background: repeating-linear-gradient(90deg, #d5efc016 0 1px, transparent 1px 20px);
+    }
+    .trip-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 14px; color: #d1e5da; font-size: .88rem; }
+    .train { padding: 6px 10px; border-radius: 8px; background: var(--lime); color: #193123; font-weight: 800; }
+    .route { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: clamp(10px, 4vw, 42px); align-items: center; margin-top: 26px; }
+    .station:last-child { text-align: right; }
+    .station strong, .station time { display: block; }
+    .station strong { font-size: clamp(1.45rem, 4.5vw, 2.45rem); line-height: 1.12; letter-spacing: -.05em; }
+    .station time { margin-top: 7px; color: #d1e5da; font-size: clamp(.85rem, 2vw, 1.02rem); font-variant-numeric: tabular-nums; }
+    .track { display: grid; grid-template-columns: 1fr auto 1fr; gap: 9px; align-items: center; color: #d1e5da; font-size: .82rem; white-space: nowrap; }
+    .track::before, .track::after { content: ""; height: 1px; background: #82b19d; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+    .card { padding: 27px; background: #fff; border: 1px solid var(--line); border-radius: 25px; box-shadow: 0 8px 28px #153b2d09; }
+    .seat-count { margin-top: 7px; color: var(--muted); font-size: .9rem; }
+    .cabin { margin-top: 20px; padding: 15px; border: 1px solid #ebeee7; border-radius: 19px; background: #f8faf6; }
+    .seat-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px minmax(0, 1fr); gap: 10px 8px; }
+    .seat:nth-child(3n) { grid-column: 4; }
+    .seat {
+      display: grid; place-content: center; gap: 4px; min-width: 0; min-height: 78px;
+      padding: 6px; border: 1px solid #dce8de; border-radius: 13px 13px 17px 17px;
+      background: #fff; color: #205444; cursor: pointer; font-weight: 780;
+      box-shadow: inset 0 -3px #edf3eb; transition: background .16s, border-color .16s, transform .16s;
+    }
+    .seat span { font-size: .75rem; font-weight: 500; }
+    .seat:hover:not(:disabled) { background: #eaf5ed; border-color: #8ab7a1; transform: translateY(-2px); }
+    .seat[aria-pressed="true"], .seat[aria-pressed="true"]:hover {
+      background: var(--green); border-color: var(--green); color: #fff; box-shadow: inset 0 -3px #103f32;
+    }
+    .seat:disabled { background: #edf0eb; border-color: #e5e9e2; color: #5b6860; box-shadow: none; }
+    .seat:focus-visible, .primary:focus-visible { outline: 3px solid #286d58; outline-offset: 3px; }
+    .summary { display: grid; gap: 16px; }
+    .summary-route { padding: 12px 14px; border-radius: 12px; background: #f3f7ef; color: #275344; font-weight: 750; }
+    dl { display: grid; gap: 10px; margin: 0; }
+    dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    dt { color: var(--muted); }
+    dd { margin: 0; font-weight: 750; text-align: right; }
+    .total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 13px; }
+    .total dd { color: var(--green); font-size: 1.27rem; }
+    .primary {
+      width: 100%; padding: 13px 16px; border: 0; border-radius: 13px;
+      background: var(--lime); color: #1d3c24; cursor: pointer; font-weight: 800;
+      transition: background .16s, transform .16s;
+    }
+    .primary:hover:not(:disabled) { background: #b9e875; }
+    .primary:active:not(:disabled) { transform: scale(.98); }
+    .primary:disabled { background: #eef2e9; color: #566358; cursor: default; }
+    .note, .message { color: var(--muted); font-size: .83rem; line-height: 1.5; word-break: keep-all; }
+    .message:empty { display: none; }
+    .message { color: var(--green); font-weight: 700; }
+    @media (max-width: 680px) {
+      .page { width: calc(100% - 32px); padding: 30px 0 38px; }
+      .heading { margin-bottom: 18px; }
+      .grid { grid-template-columns: 1fr; gap: 14px; }
+      .trip { margin-bottom: 14px; padding: 20px; border-radius: 20px; }
+      .card { padding: 19px; border-radius: 20px; }
+      .route { margin-top: 22px; }
+      .cabin { padding: 11px; }
+      .seat-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 14px minmax(0, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .seat, .primary { transition: none; }
+      .seat:hover:not(:disabled), .primary:active:not(:disabled) { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="heading">
+      <h1>기차표 예매</h1>
+      <p class="intro">서울에서 광주로 가는 열차의 좌석을 골라주세요.</p>
+    </header>
+
+    <section class="trip" aria-label="열차 정보">
+      <p class="trip-meta"><span class="train">KTX 101</span><span>11월 28일 토요일 · 일반실</span></p>
+      <div class="route">
+        <div class="station"><strong>서울</strong><time datetime="09:10">09:10 출발</time></div>
+        <span class="track">1시간 54분</span>
+        <div class="station"><strong>광주송정</strong><time datetime="11:04">11:04 도착</time></div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="seats-title">
+        <h2 id="seats-title">좌석 선택</h2>
+        <p class="seat-count">6석 중 4석 선택 가능</p>
+        <div class="cabin">
+          <div class="seat-grid">
+            <button type="button" class="seat" data-seat="1A" aria-pressed="false">1A<span>창가</span></button>
+            <button type="button" class="seat" disabled>1B<span>예약됨</span></button>
+            <button type="button" class="seat" data-seat="1C" aria-pressed="false">1C<span>통로</span></button>
+            <button type="button" class="seat" data-seat="2A" aria-pressed="false">2A<span>창가</span></button>
+            <button type="button" class="seat" data-seat="2B" aria-pressed="false">2B<span>통로</span></button>
+            <button type="button" class="seat" disabled>2C<span>예약됨</span></button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card summary" aria-labelledby="summary-title">
+        <h2 id="summary-title">선택 내역</h2>
+        <p class="summary-route">서울 → 광주송정</p>
+        <dl>
+          <div><dt>열차</dt><dd>KTX 101</dd></div>
+          <div><dt>좌석</dt><dd id="selected-seat">선택 전</dd></div>
+          <div class="total"><dt>예상 금액</dt><dd id="fare">—</dd></div>
+        </dl>
+        <button type="button" class="primary" id="confirm" disabled>선택 확인</button>
+        <p class="message" id="message" role="status"></p>
+        <p class="note">시간과 요금은 실습용이며 실제 예매는 접수되지 않아요.</p>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const buttons = document.querySelectorAll("[data-seat]");
+    const selectedSeat = document.querySelector("#selected-seat");
+    const fare = document.querySelector("#fare");
+    const confirm = document.querySelector("#confirm");
+    const message = document.querySelector("#message");
+    let choice = null;
+
+    for (const button of buttons) {
+      button.addEventListener("click", () => {
+        choice = choice === button ? null : button;
+        for (const seat of buttons) {
+          seat.setAttribute("aria-pressed", String(seat === choice));
+        }
+        selectedSeat.textContent = choice ? choice.dataset.seat : "선택 전";
+        fare.textContent = choice ? "59,800원" : "—";
+        confirm.disabled = !choice;
+        message.textContent = "";
+      });
+    }
+
+    confirm.addEventListener("click", () => {
+      if (choice) message.textContent = choice.dataset.seat + " 좌석을 선택했어요.";
+    });
+  </script>
+</body>
+</html>

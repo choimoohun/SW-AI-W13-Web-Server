@@ -1,40 +1,51 @@
 # C/POSIX 웹 서버 과제
 
-현재는 **개발 환경만** 구성되어 있습니다. C 소스, 서버 실행 파일, 테스트 케이스가 없으므로 아직 HTTP 포트를 열거나 요청을 처리하지 않습니다.
+외부 HTTP 라이브러리 없이 C17과 POSIX 소켓으로 만든 HTTP/1.1 웹 서버입니다. TCP 연결을 받아 HTTP 요청을 읽고, GET 요청에 문서 루트의 파일을 응답합니다. `/`와 `/index.html`에서 서울 → 광주송정 [기차표 예매 화면](public/index.html)을 확인할 수 있습니다.
 
-## Docker Desktop — Windows / macOS
+## 빠른 실행
 
-Windows에서는 Docker Desktop을 **WSL 2 백엔드 및 Linux 컨테이너 모드**로 실행합니다. macOS에서는 칩에 맞는 Docker Desktop을 실행합니다. 아래 명령은 PowerShell과 macOS 터미널 모두에서 프로젝트 루트에서 실행합니다.
-
-```sh
-docker compose run --build --rm dev
-```
-
-개발 이미지를 빌드하고, 호스트 소스를 `/workspace`에 마운트한 뒤 CMake 구성과 빌드를 실행합니다. 지금은 C 컴파일러와 POSIX `socket()` 사용 가능 여부를 확인하며 실행 파일은 생성하지 않습니다. 빌드 결과는 컨테이너 안 `/tmp/web-server-build`에만 생성되며 컨테이너 종료 시 제거됩니다.
-
-같은 개발 환경에서 직접 명령을 실행하려면:
+Windows에서는 Docker Desktop을 시작 메뉴에서 열고 Linux 컨테이너 모드로 실행합니다. 프로젝트 루트의 터미널에서 다음 명령을 실행합니다.
 
 ```sh
-docker compose run --rm dev sh
+docker compose run --build --rm --publish 127.0.0.1:8080:8080 dev sh -ec 'cmake -S . -B /tmp/web-server-build && cmake --build /tmp/web-server-build && exec /tmp/web-server-build/web_server 8080 public 0.0.0.0'
 ```
 
-서버 구현 후 호스트 브라우저에서 접속하려면 서버를 컨테이너의 `0.0.0.0`에 바인딩하고, Compose에서 호스트의 루프백 주소에 포트를 매핑합니다. 현재는 공개할 포트가 없어 포트 매핑을 넣지 않았습니다.
+`Listening on 0.0.0.0:8080 (root: public)`이 나오면 Chrome에서 [예매 화면](http://127.0.0.1:8080/index.html)을 엽니다. 좌석을 클릭하거나 `Tab`과 `Enter`로 선택하면 선택 내역이 바뀝니다.
 
-## 네이티브 빌드 — macOS / Linux / WSL2 Ubuntu
+서버는 **연결 한 건에서 요청 하나에 응답한 뒤 종료**합니다. 브라우저를 새로고침하거나 아래 예시를 실행할 때마다 서버를 다시 시작합니다. PowerShell에서는 별도 터미널에서 응답을 확인할 수 있습니다.
 
-CMake 3.16 이상과 C17 컴파일러를 설치합니다. macOS에서는 Xcode Command Line Tools의 Clang을 사용할 수 있습니다. Windows 네이티브 빌드는 지원하지 않습니다.
+```powershell
+curl.exe -i http://127.0.0.1:8080/index.html
+```
+
+정상 응답은 `HTTP/1.1 200 OK`와 `Content-Type: text/html; charset=utf-8`을 포함하며, 본문에는 HTML 파일이 들어갑니다. `/missing.html`로 요청하면 `404 Not Found`를 반환합니다.
+
+## 구현 범위
+
+| 작업 | 현재 동작 |
+| --- | --- |
+| TCP 연결 | `socket()` → `bind()` → `listen()` → `accept()`로 연결을 받아 요청과 응답을 주고받습니다. |
+| HTTP 요청 파싱 | GET·POST의 요청 줄과 헤더를 검사합니다. 요청 줄과 헤더는 합쳐서 4 KiB까지, `Content-Length` 기반 본문은 8 KiB까지 받습니다. |
+| HTTP 응답 생성 | 상태 줄, `Content-Type`·`Content-Length`·`Connection` 헤더, 본문을 전송합니다. POST는 받은 본문을 그대로 돌려주는 실습 동작입니다. |
+| 정적 파일 서빙 | 문서 루트의 HTML·CSS·JS·PNG·JPEG를 MIME 타입과 함께 전송합니다. 파일을 4 KiB씩 읽어 보내고, 누락 파일·접근 제한·서버 오류에 각각 `404`·`403`·`500`으로 응답합니다. |
+
+예매 화면의 CSS와 JavaScript는 `index.html` 한 파일에 포함되어 있습니다. 좌석 선택은 브라우저에서 동작하며, 동적 예약·프록시·동시 요청 처리와 부하 테스트는 후속 단계입니다. 현재 HTTP 응답은 `Connection: close`를 사용합니다.
+
+## 빌드 및 검증
+
+Docker에서 빌드와 테스트를 실행합니다.
+
+```sh
+docker compose run --build --rm dev sh -ec 'cmake -S . -B /tmp/web-server-build && cmake --build /tmp/web-server-build && ctest --test-dir /tmp/web-server-build --output-on-failure'
+```
+
+CTest는 분할 POST 본문과 정적 파일의 바이트·MIME 타입·오류 응답을 검증합니다. macOS, Linux 또는 WSL2 Ubuntu에서 직접 빌드하려면 CMake 3.16 이상과 C17 컴파일러를 사용합니다. 통합 테스트를 실행하려면 Perl이 필요합니다.
 
 ```sh
 cmake -S . -B build
 cmake --build build
 (cd build && ctest --output-on-failure)
+./build/web_server
 ```
 
-CTest는 연결되어 있지만 아직 등록된 테스트는 없습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
-
-## 구현 단계에서 지킬 범위
-
-- 표준 C와 POSIX API로 TCP 연결 수락 및 송수신, HTTP 요청 파싱(`GET`, `POST`, 헤더, 본문), 응답 생성을 직접 구현합니다. 외부 HTTP·이벤트 루프 라이브러리는 사용하지 않습니다.
-- 정적 파일 서빙(MIME 타입, `403`·`404`·`500`), 동적 요청 처리, 동시 연결 처리를 구현합니다.
-- Forward Proxy와 Reverse Proxy 중 최소 하나를 구현합니다. 포트와 정적 파일 루트, Reverse Proxy 선택 시 라우팅 규칙을 CLI 인자나 설정 파일로 받습니다.
-- 구현 후 단위·HTTP 기능·동시 접속·부하·메모리 누수 검사를 추가합니다. 불완전한 요청, 큰 본문·긴 URI, 연결 종료, 백엔드 타임아웃(Reverse Proxy 선택 시)을 포함합니다.
+실행 형식은 `web_server [port [document-root [bind-address]]]`입니다. 기본값은 `8080 public 127.0.0.1`입니다. 전체 과제 요구사항은 [SPEC.md](docs/SPEC.md), 마지막 검증과 다음 작업은 [PROGRESS.md](docs/PROGRESS.md)를 참고합니다.
