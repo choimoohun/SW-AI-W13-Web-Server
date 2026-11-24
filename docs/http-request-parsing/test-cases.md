@@ -14,7 +14,9 @@
 | Q04 | `GET index.html HTTP/1.1\r\n\r\n` | 400. URI가 `/`로 시작하지 않음 |
 | Q05 | `GET / HTTP/2.0\r\n\r\n` | 505 |
 | Q06 | `Content-Length: abc`, `Content-Length: -1`, `Content-Length: 1048577` 헤더를 각각 넣은 요청 | 셋 다 400 |
-| Q07 | `GET / HTTP/1.1\r\nNoColonHere\r\n\r\n`, `GET  / HTTP/1.1\r\n\r\n`(공백 두 개), `get / HTTP/1.1\r\n\r\n` | 셋 다 400 |
+| Q07 | `GET / HTTP/1.1\r\nNoColonHere\r\n\r\n`, `GET  / HTTP/1.1\r\n\r\n`(공백 두 개), `G(T / HTTP/1.1\r\n\r\n` | 셋 다 400 |
+| Q13 | `get / HTTP/1.1\r\n\r\n`, `M-SEARCH / HTTP/1.1\r\n\r\n` | 둘 다 0. `method`는 받은 그대로이며 서버는 501을 보냄 |
+| Q14 | `Content-Length: 5`와 `Content-Length: 6` 줄이 함께 온 요청, `Content-Length: 5` 줄이 두 번 온 요청, `Transfer-Encoding: chunked` 헤더가 있는 요청 | 400, 0(`content_length` 5), 501 |
 
 ## 기능 테스트
 

@@ -42,9 +42,34 @@ static void test_resolve(void)
     assert(static_resolve_path("/srv/www", "/style.css", path, 18) == 400);
 }
 
+static void test_fifo(void) /* S15 */
+{
+    char dir[] = "/tmp/test_static_fileXXXXXX", fifo[64], buf[64];
+    int sv[2];
+
+    assert(mkdtemp(dir) != NULL);
+    snprintf(fifo, sizeof fifo, "%s/pipe", dir);
+    assert(mkfifo(fifo, 0600) == 0);
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+    alarm(5); /* 예전처럼 open()에서 막히면 SIGALRM으로 실패 */
+    static_serve(sv[0], fifo);
+    alarm(0);
+    close(sv[0]);
+    ssize_t n = read(sv[1], buf, sizeof buf - 1);
+    assert(n > 0);
+    buf[n] = '\0';
+    assert(strncmp(buf, "HTTP/1.1 403", 12) == 0);
+
+    close(sv[1]);
+    unlink(fifo);
+    rmdir(dir);
+}
+
 int main(void)
 {
     test_mime();
     test_resolve();
+    test_fifo();
     return 0;
 }

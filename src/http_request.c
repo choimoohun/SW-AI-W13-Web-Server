@@ -4,7 +4,12 @@
  */
 #include "http_request.h"
 
+#include <ctype.h>
+#include <stdint.h>
 #include <strings.h>
+
+/* 파싱 중 Content-Length를 아직 보지 못했음을 나타냅니다. 끝나면 0으로 바꿉니다. */
+#define CL_UNSET SIZE_MAX
 
 int http_read_head(rio_t *rp, char *buf, size_t size, size_t *len)
 {
@@ -62,8 +67,9 @@ static int parse_request_line(const char *line, size_t n, http_request *req)
     /* 빈 토큰(연속 공백)과 네 번째 토큰을 막습니다. */
     if (mlen == 0 || ulen == 0 || vlen == 0 || memchr(ver, ' ', vlen))
         return 400;
+    /* RFC 9110 token. 소문자 "get"은 모르는 메서드라 여기서 통과시키고 연결 처리가 501을 보냅니다. */
     for (size_t i = 0; i < mlen; i++)
-        if (line[i] < 'A' || line[i] > 'Z')
+        if (!isalnum((unsigned char)line[i]) && !strchr("!#$%&'*+-.^_`|~", line[i]))
             return 400;
     if (uri[0] != '/')
         return 400;
@@ -104,8 +110,14 @@ static int parse_header_line(const char *line, size_t n, http_request *req)
             if (cl > HTTP_MAX_BODY) /* 자릿수가 많아도 넘치기 전에 멈춥니다. */
                 return 400;
         }
+        /* 값이 다른 Content-Length가 여러 개면 본문 경계를 정할 수 없습니다(RFC 9112 6.3). */
+        if (req->content_length != CL_UNSET && req->content_length != cl)
+            return 400;
         req->content_length = cl;
     }
+    /* shortcut: chunked를 읽지 못해 본문 경계를 모르므로 거부합니다. 프록시 단계에서 구현할 때 바꿉니다. */
+    if (name_is(line, namelen, "Transfer-Encoding"))
+        return 501;
     return 0;
 }
 
@@ -116,7 +128,7 @@ int http_parse_head(const char *buf, size_t len, http_request *req)
 
     req->host[0] = '\0';
     req->connection[0] = '\0';
-    req->content_length = 0;
+    req->content_length = CL_UNSET;
     /* 값 안의 NUL은 문자열 필드를 잘라 먹으므로 형식 오류로 봅니다. */
     if (memchr(buf, '\0', len))
         return 400;
@@ -126,8 +138,11 @@ int http_parse_head(const char *buf, size_t len, http_request *req)
         if (!nl || nl == p || nl[-1] != '\r')
             return 400;
         size_t n = (size_t)(nl - 1 - p); /* CRLF를 뺀 길이 */
-        if (n == 0)
-            return first ? 400 : 0; /* 빈 줄: 헤더 블록의 끝 */
+        if (n == 0) { /* 빈 줄: 헤더 블록의 끝 */
+            if (req->content_length == CL_UNSET)
+                req->content_length = 0;
+            return first ? 400 : 0;
+        }
         int rc = first ? parse_request_line(p, n, req) : parse_header_line(p, n, req);
         if (rc != 0)
             return rc;

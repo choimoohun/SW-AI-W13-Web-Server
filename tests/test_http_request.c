@@ -51,7 +51,19 @@ static void test_parse(void)
     /* Q07 */
     assert(parse("GET / HTTP/1.1\r\nNoColonHere\r\n\r\n") == 400);
     assert(parse("GET  / HTTP/1.1\r\n\r\n") == 400);
-    assert(parse("get / HTTP/1.1\r\n\r\n") == 400);
+    assert(parse("G(T / HTTP/1.1\r\n\r\n") == 400);
+
+    /* Q13: 형식이 맞는 모르는 메서드는 파싱 성공(서버가 501) */
+    assert(parse("get / HTTP/1.1\r\n\r\n") == 0);
+    assert(strcmp(req.method, "get") == 0);
+    assert(parse("M-SEARCH / HTTP/1.1\r\n\r\n") == 0);
+
+    /* Q14 */
+    assert(parse("POST / HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\n") == 400);
+    assert(parse("POST / HTTP/1.1\r\nContent-Length: 0\r\nContent-Length: 6\r\n\r\n") == 400);
+    assert(parse("POST / HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\n") == 0);
+    assert(req.content_length == 5);
+    assert(parse("POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n") == 501);
 
     /* 추가 경계 */
     assert(parse("GET / HTTP/1.1 x\r\n\r\n") == 400);

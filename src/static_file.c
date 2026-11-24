@@ -56,16 +56,19 @@ static int open_status(int err)
 
 int static_serve(int fd, const char *path)
 {
-    int filefd = open(path, O_RDONLY);
+    /* O_NONBLOCK: FIFO를 열 때 쓰는 쪽을 기다리며 서버 전체가 멈추지 않게 합니다. */
+    int filefd = open(path, O_RDONLY | O_NONBLOCK);
     if (filefd < 0)
         return http_send_error(fd, open_status(errno));
 
     struct stat sb;
-    int status = 0;
+    int status = 0, fl;
     if (fstat(filefd, &sb) < 0)
         status = 500;
     else if (!S_ISREG(sb.st_mode))
         status = 403;
+    else if ((fl = fcntl(filefd, F_GETFL)) < 0 || fcntl(filefd, F_SETFL, fl & ~O_NONBLOCK) < 0)
+        status = 500;
     if (status != 0) {
         close(filefd);
         return http_send_error(fd, status);
