@@ -19,7 +19,7 @@
 - **C-05 (실행 인터페이스)**:
   - CLI 인자 또는 설정 파일로 포트, 정적 파일 루트, 프록시 라우팅 규칙을 주입받는다.
   - 예: `./webserver -p <port> -r <doc_root> -c <config_file>`
-  - `[결정 필요]` 설정 파일 포맷 확정 (예: key=value 형태의 단순 `.conf` 포맷).
+  - 결정: `key = value` 형태의 단순 `.conf` 포맷(`conf/tcpserver.conf`). 파일을 읽어 적용하는 기능은 후속 단계(C-05).
 
 ---
 
@@ -49,7 +49,7 @@
   - 최대 URI 길이: `2048` bytes (초과 시 `414 URI Too Long`)
   - 최대 헤더 전체 크기: `8192` bytes (초과 시 `431 Request Header Fields Too Large` 또는 `400`)
   - 최대 요청 본문 크기: `1048576` bytes (1MB, 초과 시 `413 Payload Too Large`)
-  - `[결정 필요]` `Transfer-Encoding: chunked` 지원 여부 (미지원 시 `501` 또는 `400` 반환 명시).
+  - 결정(D3): `Transfer-Encoding: chunked` 미지원, `501` 반환.
 - **수용 기준 (AC)**:
   - TCP 패킷이 여러 조각으로 나뉘어(short read) 도착해도 `\r\n\r\n` 및 `Content-Length` 경계를 정확히 조립한다.
   - `HTTP/1.1` 요청에 `Host` 헤더가 누락된 경우 `400 Bad Request`를 반환한다.
@@ -80,7 +80,7 @@
   - CGI 자식 프로세스 종료 시 좀비 프로세스가 남지 않는다(`waitpid`).
 
 ### FR-06. 동시 요청 처리
-- **명세**: `[결정 필요]` 아래 중 1개 확정
+- **명세**: `[결정 필요]` 아래 중 1개 확정 (임시 결정: D1 단일 스레드 블로킹, [DECISIONS.md](DECISIONS.md))
   - **안 A (권장 기본안)**: `pthread` 기반 고정 크기 스레드 풀 (Worker Thread Pool + Bounded Task Queue).
   - **안 B**: `poll()`(또는 `epoll`/`kqueue`) 기반 논블로킹 이벤트 루프.
   - **안 C**: `fork()` 기반 멀티프로세스.

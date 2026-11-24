@@ -1,5 +1,7 @@
 # 설계 검증 보고서 — 오늘 구현 범위
 
+> **2026-11-21 시점의 검토 기록입니다.** 여기서 '없음/비어 있음/적용 예정'으로 적은 항목은 이후 이 PR에서 해결됐습니다. 현재 상태는 [README.md](../README.md)와 [VERIFICATION_LOG.md](VERIFICATION_LOG.md)를 기준으로 보세요. 기록 보존을 위해 본문은 고치지 않았습니다.
+
 - 검토 기준: `eungi/REQUIREMENTS.md`, `eungi/DESIGN.md`, `eungi/STEP1~4`, `eungi/DECISIONS.md`, `include/`·`src/` 스텁, 빌드/설정 파일 (2026-11-21 세션)
 - 포함 범위: TCP 연결 수락 → HTTP 요청 읽기·파싱 → 정적 파일 찾기 → HTTP 응답 전송 → 연결 정리
 - 제외 범위: Reverse/Forward Proxy, CGI (오늘 검토 대상 아님)

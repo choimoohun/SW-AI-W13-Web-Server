@@ -24,7 +24,7 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 ## 검증 결과 (실제 실행)
 
 ### 빌드
-- `make` → exit 0. `-std=c11 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L` 통과.
+- `make` → exit 0. `-std=c11 -Wall -Wextra -Werror -D_XOPEN_SOURCE=700` 통과.
 
 ### 단위 테스트 (`make test`)
 - test_parser: all passed (요청라인/헤더/본문, 400/405/411/413/414/501/505, short read, 대소문자 무시, 중복 CL 거부).
@@ -56,11 +56,11 @@ README.md의 "구현 마일스톤 및 진행 상태"와 짝을 이룬다.
 ```sh
 make            # 빌드
 make test       # 단위 테스트 (파서, 경로보안/MIME)
-make integration# 기능 테스트 (서버 기동 후 curl 검증, 자동 종료)
+make integration # 기능 테스트 (서버 기동 후 curl 검증, 자동 종료)
 make asan       # ASAN+UBSan 빌드 (macOS=메모리오류 검사)
 # 누수 0 확정 (Linux/Docker):
 open -a Docker  # Docker Desktop 데몬 실행 후
-docker compose run --rm dev sh -c "cd /workspace && make && valgrind --leak-check=full ./webserver ..."
+make leak       # Docker 데몬 실행 후. 성공하면 마지막 줄에 'valgrind exit: 0'이 출력됨
 ```
 
 ## 남은 항목

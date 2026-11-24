@@ -6,13 +6,13 @@
 
 | 문서 | 범위 |
 |---|---|
-| [STEP1_TCP_SERVER.md](./STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
-| [STEP2_HTTP_PARSER.md](./STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
-| [STEP3_HTTP_RESPONSE.md](./STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
-| [STEP4_STATIC_FILE.md](./STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
-| [DECISIONS.md](./DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [STEP1_TCP_SERVER.md](eungi/STEP1_TCP_SERVER.md) | TCP 소켓 서버 |
+| [STEP2_HTTP_PARSER.md](eungi/STEP2_HTTP_PARSER.md) | HTTP 요청 파싱 |
+| [STEP3_HTTP_RESPONSE.md](eungi/STEP3_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
+| [STEP4_STATIC_FILE.md](eungi/STEP4_STATIC_FILE.md) | 정적 파일 서빙 |
+| [DECISIONS.md](eungi/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 
-이 문서들은 오늘 작업 범위를 정리하기 위한 초안입니다. 구현 완료나 테스트 통과를 의미하지 않습니다.
+STEP 문서는 구현 후 기록을 반영했고, 실제 실행 결과는 [verify/VERIFICATION_LOG.md](verify/VERIFICATION_LOG.md)에 있습니다.
 
 ## 구현 마일스톤 및 진행 상태
 
@@ -52,7 +52,7 @@
 - `POST /`(본문 있음) → `405` (정적 서빙은 GET 의미론).
 - `kill -TERM` → 종료 코드 0.
 
-오늘 범위(마일스톤 1~4, 정적 파일 서빙) 완료. 마일스톤 5(ASAN/Valgrind 누수 0 등 견고함 증명)는 대기.
+오늘 범위(마일스톤 1~5, 정적 파일 서빙 + 누수 0 확인) 완료.
 
 ### 테스트 실행 방법
 
@@ -79,7 +79,9 @@ nc -zv 127.0.0.1 8080   # 포트 열림 → "succeeded!" 확인
 echo $?                 # 종료 코드 0 확인 (graceful shutdown)
 ```
 
-### 마일스톤 4 이후 정적 파일 서빙 검증 명령 (아직 실행하지 않음)
+### 정적 파일 서빙 수동 검증 명령
+
+같은 검증을 자동으로 돌리려면 `make integration`을 실행합니다.
 
 ```sh
 curl -i http://127.0.0.1:8080/                          # 200 + index.html
