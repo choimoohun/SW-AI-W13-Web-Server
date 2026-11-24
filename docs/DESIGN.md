@@ -11,7 +11,31 @@
 
 ### 전체 아키텍처
 
-![전체 아키텍처 — 요청이 지나는 경로](img/design_image1.png)
+```mermaid
+flowchart LR
+    C["Client<br/>Browser · curl"] <-->|"HTTP/1.1 keep-alive"| L["Listener :8080<br/>nonblocking"]
+    subgraph S["webserver 프로세스 (C · POSIX)"]
+        L --> EL
+        subgraph W["Worker Pool ×4 · 스레드당 event loop"]
+            EL["Event loop<br/>epoll · kqueue · poll"] --> HP["HTTP Parser"] --> R{"Router<br/>prefix 매칭"}
+            R -->|"/api/*"| API["Flight API"]
+            R -->|"/health · /echo"| HC["Health · Echo"]
+            R -->|"정적 파일"| ST["Static + CDN cache"]
+        end
+        R -->|"upstream route"| P["Proxy thread<br/>job queue · Round-Robin<br/>502 / 504"]
+        API --> DB[("Flight store<br/>flights.txt 스냅샷")]
+        CLK["Flight clock<br/>real / sim"] -.-> DB
+    end
+    subgraph U["Upstream 서비스 (별도 프로세스)"]
+        U1["mini-redis :8000"]
+        U2["stocks :8002"]
+        U3["orders :8401 / :8402"]
+        U4["payments :8500"]
+    end
+    P --> U1 & U2 & U3 & U4
+```
+
+프록시 스레드는 업스트림 응답을 클라이언트에 직접 보냅니다. 이벤트 루프 안의 블로킹 호출을 없애서, 업스트림 지연이 워커와 `/health`를 막지 않게 했습니다.
 
 ### 데이터 흐름 (Data Flow)
 
@@ -31,7 +55,22 @@
 
 워커 풀(고정 4개) → 각 워커가 이벤트 루프를 돌림 → 루프가 멀티플렉싱(`iomux`)으로 커널 관심 집합을 감시합니다.
 
-![워커 풀 + 이벤트 루프 + 멀티플렉싱](img/design_image2.png)
+```mermaid
+flowchart TB
+    C["Clients A · B · C"] -->|"TCP connect"| L["listen fd<br/>워커 4개가 공유"]
+    L --> WAIT
+    subgraph LOOP["Event loop — 워커마다 1개씩 (×4)"]
+        WAIT["iomux_wait<br/>최대 200ms 대기"] --> READY{"준비된 fd"}
+        READY -->|"listen fd"| ACC["accept_ready<br/>이벤트당 1건"]
+        READY -->|"conn READ"| RD["on_readable<br/>recv → feed → parse"]
+        READY -->|"conn WRITE"| WR["on_writable<br/>남은 응답 send"]
+        READY -->|"timeout"| IDLE["cleanup_idle<br/>유휴 5초 정리"]
+        ACC & RD & WR & IDLE --> WAIT
+    end
+    K[("커널 관심 집합<br/>epoll · kqueue · poll")]
+    ACC & RD & WR -.->|"iomux_add / iomux_mod"| K
+    K -.->|"준비된 fd 통지"| WAIT
+```
 
 - `on_readable()`: `recv()` → `connection_feed()` → `http_parser_parse()`. `COMPLETE`면 응답을 `send_buf`에 넣고 `iomux_mod(WRITE)`으로 쓰기 관심 전환. `NEED_MORE`면 다음 `READ`를 기다림.
 - `on_writable()`: `send()`로 남은 응답을 보냄. 다 보내면 연결 상태 정리.
