@@ -55,6 +55,12 @@ printf 'secret\n' > /tmp/www/secret.html && chmod 000 /tmp/www/secret.html
 - 파일 없음(404)은 [응답 생성 테스트 R06](../http-response/test-cases.md#기능-테스트)가 확인합니다.
 - 500(본문 할당 실패, `open()`과 `fstat()`의 예외적 실패)은 테스트로 재현하기 어려우므로 코드 리뷰로 확인합니다. 500 응답의 바이트 형식은 R04와 같은 `http_send_error()` 경로라 따로 확인하지 않습니다.
 
+## 시간 제한
+
+| ID | 절차 | 기대 결과 |
+| --- | --- | --- |
+| S16 | 터미널 B에서 `(printf 'POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\nhello'; sleep 30) \| nc localhost 15213`을 띄운 채, 터미널 C에서 `time curl -s -o /dev/null -w '%{http_code}\n' http://localhost:15213/` | 터미널 C가 6초 안에 `200`. 터미널 B는 약 5초 뒤 응답 없이 서버가 연결을 닫음 |
+
 ## 메모리
 
 | ID | 절차 | 기대 결과 |

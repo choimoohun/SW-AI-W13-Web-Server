@@ -6,6 +6,8 @@
 #include "http_response.h"
 #include "static_file.h"
 
+#define CONN_TIMEOUT_SEC 5 /* docs/static-file-serving/design.md#연결-시간-제한 */
+
 static void handle_connection(int connfd, const char *root)
 {
     rio_t rio;
@@ -70,6 +72,12 @@ int main(int argc, char **argv)
                 continue;
             unix_error("Accept error");
         }
+        /* 순차 서버라 멈춘 클라이언트 하나가 모두를 막으므로 read/write마다 시간 제한을 겁니다.
+           shortcut: 호출마다의 제한이라 바이트를 흘려 보내는 클라이언트는 못 막음. 동시 처리 단계에서 다시 봄 */
+        struct timeval tv = {.tv_sec = CONN_TIMEOUT_SEC};
+        if (setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0 ||
+            setsockopt(connfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv) < 0)
+            fprintf(stderr, "setsockopt timeout: %s\n", strerror(errno));
         handle_connection(connfd, argv[2]);
         Close(connfd);
     }
