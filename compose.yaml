@@ -1,6 +1,7 @@
 services:
   dev:
     build: .
+    init: true
     volumes:
       - type: bind
         source: .

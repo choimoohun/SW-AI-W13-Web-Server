@@ -18,7 +18,7 @@ if(NOT WEB_SERVER_HAS_POSIX_SOCKET)
     message(FATAL_ERROR "POSIX socket() is required.")
 endif()
 
-add_executable(web_server src/main.c src/http.c)
+add_executable(web_server src/main.c src/http.c src/booking.c src/proxy.c)
 
 include(CTest)
 if(BUILD_TESTING)

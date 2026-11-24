@@ -1,4 +1,6 @@
 #include "http.h"
+#include "booking.h"
+#include "proxy.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -17,6 +19,7 @@ struct request {
     char *method;
     char *target;
     size_t body_length;
+    const char *content_type;
 };
 
 static ssize_t read_bytes(int fd, char *buffer, size_t length)
@@ -197,6 +200,10 @@ static int parse_headers(char *line, char *end, struct request *request)
             if (status != 200) {
                 return status;
             }
+        } else if (header_is(line, colon, "Content-Type")) {
+            if (request->content_type != NULL || value == value_end) return 400;
+            *value_end = '\0';
+            request->content_type = value;
         } else if (header_is(line, colon, "Transfer-Encoding")) {
             has_transfer_encoding = true;
         } else if (header_is(line, colon, "Expect")) {
@@ -234,14 +241,14 @@ static int write_all(int fd, const char *buffer, size_t length)
 }
 
 static int respond_headers(int fd, int status, const char *reason, const char *type,
-                           size_t length)
+                           size_t length, const char *allow)
 {
     char headers[256];
     int bytes = snprintf(headers, sizeof headers,
                          "HTTP/1.1 %d %s\r\nContent-Type: %s\r\n"
-                         "Content-Length: %zu\r\nConnection: close\r\n%s\r\n",
-                         status, reason, type, length,
-                         status == 405 ? "Allow: GET, POST\r\n" : "");
+                         "Content-Length: %zu\r\nConnection: close\r\n%s%s%s\r\n",
+                         status, reason, type, length, allow ? "Allow: " : "",
+                         allow ? allow : "", allow ? "\r\n" : "");
     if (bytes < 0 || (size_t)bytes >= sizeof headers ||
         write_all(fd, headers, (size_t)bytes) < 0) {
         return EXIT_FAILURE;
@@ -250,33 +257,43 @@ static int respond_headers(int fd, int status, const char *reason, const char *t
 }
 
 static int respond(int fd, int status, const char *reason, const char *type,
-                   const char *body, size_t length)
+                   const char *body, size_t length, const char *allow)
 {
-    if (respond_headers(fd, status, reason, type, length) != EXIT_SUCCESS ||
+    if (respond_headers(fd, status, reason, type, length, allow) != EXIT_SUCCESS ||
         write_all(fd, body, length) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
+static const char *reason_phrase(int status)
+{
+    switch (status) {
+    case 200: return "OK";
+    case 201: return "Created";
+    case 400: return "Bad Request";
+    case 403: return "Forbidden";
+    case 404: return "Not Found";
+    case 405: return "Method Not Allowed";
+    case 409: return "Conflict";
+    case 413: return "Content Too Large";
+    case 415: return "Unsupported Media Type";
+    case 417: return "Expectation Failed";
+    case 431: return "Request Header Fields Too Large";
+    case 500: return "Internal Server Error";
+    case 501: return "Not Implemented";
+    case 502: return "Bad Gateway";
+    case 504: return "Gateway Timeout";
+    case 505: return "HTTP Version Not Supported";
+    default: return "Upstream Response";
+    }
+}
+
 static int respond_error(int fd, int status)
 {
-    const char *reason;
-
-    switch (status) {
-    case 403: reason = "Forbidden"; break;
-    case 404: reason = "Not Found"; break;
-    case 405: reason = "Method Not Allowed"; break;
-    case 413: reason = "Content Too Large"; break;
-    case 417: reason = "Expectation Failed"; break;
-    case 431: reason = "Request Header Fields Too Large"; break;
-    case 500: reason = "Internal Server Error"; break;
-    case 501: reason = "Not Implemented"; break;
-    case 505: reason = "HTTP Version Not Supported"; break;
-    default: reason = "Bad Request"; break;
-    }
-
-    return respond(fd, status, reason, "text/plain", reason, strlen(reason));
+    const char *reason = reason_phrase(status);
+    return respond(fd, status, reason, "text/plain", reason, strlen(reason),
+                   status == 405 ? "GET, POST" : NULL);
 }
 
 static int hex_digit(unsigned char byte)
@@ -385,7 +402,7 @@ static int serve_static(int connfd, const char *root, char *target)
     }
 
     size_t remaining = (size_t)info.st_size;
-    int result = respond_headers(connfd, 200, "OK", type, remaining);
+    int result = respond_headers(connfd, 200, "OK", type, remaining, NULL);
     char chunk[4096];
     while (result == EXIT_SUCCESS && remaining > 0) {
         size_t limit = remaining < sizeof chunk ? remaining : sizeof chunk;
@@ -400,7 +417,33 @@ static int serve_static(int connfd, const char *root, char *target)
     return result;
 }
 
-int handle_http_client(int connfd, const char *document_root)
+static int dispatch_request(int fd, const struct http_config *config,
+                            const struct request *request, const char *body)
+{
+    if (config->booking_backend) {
+        request->target[strcspn(request->target, "?")] = '\0';
+        struct booking_response response;
+        booking_request(request->method, request->target, request->content_type,
+                        body, request->body_length, &response);
+        return respond(fd, response.status, reason_phrase(response.status), "application/json",
+                       response.body, strlen(response.body), response.allow);
+    }
+    if (config->proxy_prefix != NULL &&
+        strncmp(request->target, config->proxy_prefix, strlen(config->proxy_prefix)) == 0) {
+        struct proxy_response response = {0};
+        int status = proxy_request(&config->backend, request->method, request->target,
+                                   request->content_type, body, request->body_length, &response);
+        if (status != 0) return respond_error(fd, status);
+        return respond(fd, response.status, reason_phrase(response.status), response.type,
+                       response.body, response.length, *response.allow ? response.allow : NULL);
+    }
+    if (strcmp(request->method, "POST") == 0) {
+        return respond(fd, 200, "OK", "application/octet-stream", body, request->body_length, NULL);
+    }
+    return serve_static(fd, config->document_root, request->target);
+}
+
+int handle_http_client(int connfd, const struct http_config *config)
 {
     char buffer[MAX_HEADER_BYTES + MAX_BODY_BYTES];
     struct request request = {0};
@@ -440,8 +483,5 @@ int handle_http_client(int connfd, const char *document_root)
         received += (size_t)count;
     }
 
-    if (post) {
-        return respond(connfd, 200, "OK", "application/octet-stream", body, request.body_length);
-    }
-    return serve_static(connfd, document_root, request.target);
+    return dispatch_request(connfd, config, &request, body);
 }
