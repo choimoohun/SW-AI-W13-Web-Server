@@ -1,6 +1,6 @@
 # C/POSIX 웹 서버 과제
 
-현재는 **개발 환경만** 구성되어 있습니다. C 소스, 서버 실행 파일, 테스트 케이스가 없으므로 아직 HTTP 포트를 열거나 요청을 처리하지 않습니다.
+외부 라이브러리 없이 표준 C와 POSIX API로 웹 서버를 만드는 과제입니다. CS:APP 3판 11~12장의 예제에서 출발해 단계별로 확장합니다. 단계 순서와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
 
 ## Docker Desktop — Windows / macOS
 
@@ -10,7 +10,7 @@ Windows에서는 Docker Desktop을 **WSL 2 백엔드 및 Linux 컨테이너 모�
 docker compose run --build --rm dev
 ```
 
-개발 이미지를 빌드하고, 호스트 소스를 `/workspace`에 마운트한 뒤 CMake 구성과 빌드를 실행합니다. 지금은 C 컴파일러와 POSIX `socket()` 사용 가능 여부를 확인하며 실행 파일은 생성하지 않습니다. 빌드 결과는 컨테이너 안 `/tmp/web-server-build`에만 생성되며 컨테이너 종료 시 제거됩니다.
+개발 이미지를 빌드하고, 호스트 소스를 `/workspace`에 마운트한 뒤 CMake 구성과 빌드를 실행합니다. 빌드 결과는 컨테이너 안 `/tmp/web-server-build`에만 생성되며 컨테이너 종료 시 제거됩니다.
 
 같은 개발 환경에서 직접 명령을 실행하려면:
 
@@ -30,7 +30,11 @@ cmake --build build
 (cd build && ctest --output-on-failure)
 ```
 
-CTest는 연결되어 있지만 아직 등록된 테스트는 없습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
+단위 테스트는 CTest에 등록되어 있습니다. 실행 파일과 실행 방법은 각 단계의 설계 문서에 있습니다. Docker 이미지에는 기능·부하·메모리 검사에 사용할 `curl`, `wrk`, `valgrind`가 포함되어 있습니다.
+
+## 설계 문서
+
+단계별 설계와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
 
 ## 구현 단계에서 지킬 범위
 

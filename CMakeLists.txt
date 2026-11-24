@@ -19,3 +19,27 @@ if(NOT WEB_SERVER_HAS_POSIX_SOCKET)
 endif()
 
 include(CTest)
+
+find_package(Threads REQUIRED)
+
+add_library(csapp STATIC src/csapp.c)
+target_include_directories(csapp PUBLIC src)
+target_link_libraries(csapp PUBLIC Threads::Threads)
+
+add_executable(echoserveri src/echoserveri.c src/echo.c)
+target_link_libraries(echoserveri PRIVATE csapp)
+
+add_executable(echoclient src/echoclient.c)
+target_link_libraries(echoclient PRIVATE csapp)
+
+add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c)
+target_link_libraries(http PUBLIC csapp)
+
+add_executable(httpd src/httpd.c)
+target_link_libraries(httpd PRIVATE http)
+
+foreach(name test_http_request test_http_response test_static_file)
+    add_executable(${name} tests/${name}.c)
+    target_link_libraries(${name} PRIVATE http)
+    add_test(NAME ${name} COMMAND ${name})
+endforeach()
