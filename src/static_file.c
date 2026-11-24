@@ -73,15 +73,16 @@ int static_serve(int fd, const char *path)
 
     int rc = http_send_head(fd, 200, mime_type(path), (size_t)sb.st_size);
     char buf[MAXLINE];
-    ssize_t n;
-    while (rc == 0 && (n = read(filefd, buf, sizeof buf)) != 0) {
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            rc = -1; /* 헤더를 이미 보냈으므로 연결을 끊음 */
-        } else if (rio_writen(fd, buf, (size_t)n) != n) {
-            rc = -1;
-        }
+    off_t left = sb.st_size; /* Content-Length로 보낸 크기만큼만 보냄 */
+    while (rc == 0 && left > 0) {
+        size_t want = left < (off_t)sizeof buf ? (size_t)left : sizeof buf;
+        ssize_t n = read(filefd, buf, want);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0 || rio_writen(fd, buf, (size_t)n) != n)
+            rc = -1; /* read 실패나 파일이 줄어든 EOF. 헤더를 이미 보냈으므로 연결을 끊음 */
+        else
+            left -= n;
     }
     close(filefd);
     return rc;

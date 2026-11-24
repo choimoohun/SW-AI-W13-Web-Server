@@ -22,8 +22,9 @@ int static_resolve_path(const char *root, const char *uri, char *path, size_t si
 
 /*
  * path를 열어 일반 파일이면 200 헤더와 파일 내용을 fd로 보내고, 아니면 상태 코드(404, 403, 400, 500)에
- * 맞는 오류 응답을 보냅니다. 응답을 끝까지 보냈으면 0, 송신 실패(errno는 EPIPE 등)나 본문 전송 중
- * read() 실패면 -1을 반환합니다. 연 파일은 반환 전에 닫고, fd는 닫지 않습니다.
+ * 맞는 오류 응답을 보냅니다. 본문은 fstat()으로 얻은 크기(Content-Length)만큼만 보냅니다.
+ * 응답을 끝까지 보냈으면 0, 송신 실패(errno는 EPIPE 등), 본문 전송 중 read() 실패, 그 크기만큼 읽기 전의
+ * EOF면 -1을 반환합니다. 연 파일은 반환 전에 닫고, fd는 닫지 않습니다.
  */
 int static_serve(int fd, const char *path);
 
