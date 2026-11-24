@@ -1,0 +1,30 @@
+# Giga-DeepSeek 리뷰 설정. 기본 브랜치(main)에 머지해야 적용돼요.
+language: Korean (해요체)
+
+exclude:
+  # CS:APP 교재에서 가져온 코드
+  - "src/csapp.*"
+
+# CI 워크플로가 없어서 기다리지 않아요.
+ci-wait-minutes: 0
+
+instructions-path: .github/giga-deepseek-review.md
+
+path_instructions:
+  - path: "**/*.c"
+    instructions: |
+      C17과 POSIX API 사용을 기준으로 검토해요. 메모리와 파일 디스크립터가
+      오류 경로에서도 해제되는지, 부분 송수신과 연결 종료를 처리하는지,
+      HTTP 요청의 길이 제한과 정적 파일 경로 제한을 지키는지 먼저 확인해요.
+  - path: "**/*.h"
+    instructions: |
+      공개 함수 선언 바로 위에 무엇을 하는지, 반환값과 실패 시 동작(errno, -1 등),
+      호출자가 해제해야 하는 자원을 적은 주석이 있는지 확인해요.
+  - path: "**/CMakeLists.txt"
+    instructions: |
+      CMake 3.16 호환성, C17, CMAKE_C_EXTENSIONS OFF, _POSIX_C_SOURCE=200809L 설정을
+      유지하는지 확인해요. 추가한 테스트가 CTest에 등록돼 실행되는지 확인해요.
+  - path: "docs/**/*.md"
+    instructions: |
+      design.md, functions.md, test-cases.md 사이에 함수 이름, 반환값, 기대 결과가
+      서로 맞는지 확인해요. 단계를 끝냈다면 docs/README.md의 상태 칸도 바뀌었는지 봐요.
