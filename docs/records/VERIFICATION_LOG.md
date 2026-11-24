@@ -504,3 +504,21 @@ payment integration: all passed
 `make integration-backends`, `make integration-payments` 전부 PASS.
 `tests/linux_check.sh`(epoll 컨테이너)도 결제 시나리오 포함해 `all passed`, exit 0.
 부하 테스트는 약 105,728 RPS, Non-2xx 0.
+
+
+## 2026-11-24 추가 기록 — PR #22 리뷰 수정을 eungi-dev에 반영
+
+### 범위
+- PR #22(eungi-step5)에서 고친 파이프라인 버그 2건, Keep-Alive 헤더를 eungi-dev에 옮김.
+- 같은 날 TSan에서 찾은 `g_stop` data race 수정.
+- eungi-dev는 16KB 이하 정적 파일을 CDN 버퍼로 보내므로, 회귀 테스트는 16KB 초과 임시 파일로 파일 스트리밍 경로를 탄다.
+- eungi-dev에는 프록시 경로가 있어 가드를 `file_fd >= 0 || send_len > 0`으로 넓혔다(앞 응답이 남은 채 프록시 스레드가 클라이언트에 쓰는 순서 문제 방지).
+
+### 실제 실행 (Linux VM의 저장소 복사본, FLIGHT_DATA_FILE=/dev/null)
+- 수정 전: `make integration` → `FAIL  pipelined keep-alive: big file + file`.
+- 수정 후: `make` exit 0, `make integration` all passed(파이프라인 2건 포함), `make integration-req` all passed,
+  `make edge-cases` all passed, `make test-flight`/`make test-tracking`/`make integration-flight` all passed.
+- `make asan` 빌드: `make integration`, `make integration-req` all passed, ASan/UBSan 오류 0.
+- `make tsan` 빌드: `make integration` all passed, ThreadSanitizer 경고 0(수정 전 1건: `main.c on_signal`).
+- `make test`: test_parser all passed. test_static은 Linux gcc에서 컴파일 실패(수정 전 원본도 동일, `-Werror=format-truncation`) — 미해결로 매트릭스에 기록.
+- macOS 실행은 아직 안 함.

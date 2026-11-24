@@ -9,6 +9,7 @@
 
 #include "iomux.h"
 #include "connection.h"
+#include "http_response.h"
 #include "flight_store.h"
 #include "flight_clock.h"
 
@@ -23,14 +24,14 @@
 #define MAX_CONNS     128
 #define MAX_EVENTS    256
 #define IO_TIMEOUT_MS 200
-#define IDLE_SECONDS  5
+#define IDLE_SECONDS  HTTP_KEEPALIVE_TIMEOUT_SEC   /* Keep-Alive 헤더와 같은 값 */
 
 typedef struct {
     int id;
     int listen_fd;
     const char *doc_root;
     const server_config_t *cfg;
-    volatile sig_atomic_t *stop;
+    atomic_int *stop;
     iomux *mux;
     connection_t conns[MAX_CONNS];
     int used[MAX_CONNS];
@@ -127,11 +128,13 @@ static void on_writable(worker_ctx_t *w, connection_t *c)
     /* 소켓에는 새 데이터가 없지만 recv_buf에 다음 요청이 남아있을 수 있다. */
     connection_feed(c, NULL, 0);
     if (c->proxied) { close_conn(w, c); return; }
+    /* 새 응답이 생겼으면 먼저 보낸다. 그 응답이 Connection: close라 closing이
+     * 켜졌더라도, 닫기는 다음 on_writable에서 전송을 끝낸 뒤에 한다. */
+    if (connection_want_write(c)) return;   /* 새 응답 생성됨 → WRITE 유지 */
     if (c->closing) {
         close_conn(w, c);
         return;
     }
-    if (connection_want_write(c)) return;   /* 새 응답 생성됨 → WRITE 유지 */
     (void)iomux_mod(w->mux, c->fd, IOMUX_READ, c);
 }
 
@@ -157,7 +160,7 @@ static void *worker_thread_main(void *arg)
         return NULL;
     }
 
-    while (!*(w->stop)) {
+    while (!atomic_load(w->stop)) {
         int n = iomux_wait(w->mux, events, MAX_EVENTS, IO_TIMEOUT_MS);
         if (n < 0) {
             if (errno == EINTR) continue;
@@ -192,7 +195,7 @@ static void *worker_thread_main(void *arg)
 }
 
 int worker_pool_start(int listen_fd, const server_config_t *cfg,
-                      volatile sig_atomic_t *stop)
+                      atomic_int *stop)
 {
     int flags;
     int started = 0;
@@ -225,7 +228,7 @@ int worker_pool_start(int listen_fd, const server_config_t *cfg,
     return 0;
 
 fail:
-    *stop = 1;   /* 이미 만든 워커들을 종료시켜 회수 */
+    atomic_store(stop, 1);   /* 이미 만든 워커들을 종료시켜 회수 */
     for (int i = 0; i < started; ++i) {
         (void)pthread_join(g_threads[i], NULL);
         free(g_workers[i]);

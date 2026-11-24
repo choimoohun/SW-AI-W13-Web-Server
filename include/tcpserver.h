@@ -29,7 +29,7 @@
  * [소유권 계약] listen fd는 tcpserver가 소유(종료 시 닫음). accept가 준 client fd는
  * connection 모듈로 넘기며, 그 뒤 닫기는 connection의 단일 정리 지점이 맡는다.
  *
- * [시그널] SIGINT/SIGTERM 핸들러는 종료 플래그(volatile sig_atomic_t)만 세운다.
+ * [시그널] SIGINT/SIGTERM 핸들러는 종료 플래그(main.c의 atomic_int g_stop)만 세운다.
  * accept 루프가 플래그를 보고 빠져나오며, 핸들러 안에서 close/free 같은 복잡한 정리를 하지 않는다.
  *
  * 아래 선언은 제안 인터페이스다. 구현하며 시그니처를 조정해도 된다.

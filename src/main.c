@@ -18,12 +18,14 @@
 
 #define MAX_WORKERS 16
 
-static volatile sig_atomic_t g_stop = 0;
+/* 시그널 핸들러가 쓰고 워커 스레드가 읽는다. lock-free atomic_int는 핸들러 안에서도 안전하다.
+ * (volatile sig_atomic_t는 신호에는 안전하지만 스레드 간에는 데이터 경쟁 — TSan 검출) */
+static atomic_int g_stop = 0;
 
 static void on_signal(int sig)
 {
     (void)sig;
-    g_stop = 1;
+    atomic_store(&g_stop, 1);
 }
 
 int main(int argc, char **argv)

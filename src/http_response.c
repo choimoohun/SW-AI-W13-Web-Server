@@ -80,9 +80,14 @@ static void http_date(char *out, size_t cap)
 }
 
 /* keep-alive 정책 헤더. HTTP/1.0은 기본 close이므로 keep-alive를 쓰지 않는다. */
+/* 최대 요청 수(max)는 설정(keepalive_max)으로 바뀌므로 헤더에 고정값을 쓰지 않는다.
+ * 실제 제한은 connection_feed()가 마지막 응답을 Connection: close로 보내 알린다. */
+#define KA_STR2(x) #x
+#define KA_STR(x) KA_STR2(x)
 static const char *connection_header(int keep_alive)
 {
-    return keep_alive ? "Connection: keep-alive\r\nKeep-Alive: timeout=5, max=100\r\n"
+    return keep_alive ? "Connection: keep-alive\r\nKeep-Alive: timeout="
+                        KA_STR(HTTP_KEEPALIVE_TIMEOUT_SEC) "\r\n"
                       : "Connection: close\r\n";
 }
 

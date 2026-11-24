@@ -63,3 +63,8 @@
 | 결제 | 게이트웨이 경유 충전 400 | 프록시가 `Idempotency-Key`를 안 넘김 | 중복 방지 키를 본문에도 포함 | `make integration-payments` |
 | 결제 | 환불 요청 411 | 본문 없는 POST | `{}` 본문 전송 | `make integration-payments` |
 | 영속 테스트 | 예약 5개 항목 FAIL | 이전 실험 서버가 8080 점유 | 프로세스 정리 후 재실행 | `flight persistence: all passed` |
+| 파이프라인 | 한 번에 보낸 두 요청 중 첫 응답 본문이 빠지고 둘째 헤더가 이어짐 (PR #22 리뷰 R11, 16KB 초과 파일) | `connection_feed()`가 보낼 응답이 남아 있어도 다음 요청을 처리 → `file_fd` 덮어쓰기 | 응답이 남아 있으면 멈추고 `on_writable`에서 이어 처리 | `make integration` 파이프라인 2건 |
+| 파이프라인 | 둘째 요청이 `Connection: close`면 응답을 보내기 전에 연결이 닫힘 | `on_writable()`이 새 응답 확인보다 `closing` 확인을 먼저 함 | 응답을 먼저 보내고 다음 차례에 닫도록 순서 변경 | `make integration` 파이프라인 2건 |
+| 헤더 | `Keep-Alive: max=100`이 `keepalive_max` 설정과 무관하게 고정 (PR #22 리뷰 R12) | 헤더 문자열 하드코딩 | `max` 제거, `timeout`은 유휴 정리와 같은 상수 | `curl -i` → `Keep-Alive: timeout=5` |
+| TSan | `on_signal`의 `g_stop` 쓰기와 워커 읽기가 data race | `volatile sig_atomic_t`는 스레드 간 동기화를 보장하지 않음 | `atomic_int` + `atomic_store`/`atomic_load` | `make tsan` 후 `make integration` → 경고 0 |
+| 빌드(Linux, 미해결) | Linux gcc에서 `tests/unit/test_static.c` 컴파일 실패 | `-Werror=format-truncation`: `snprintf` 버퍼 256바이트 경고 (macOS clang은 경고 없음) | 아직 안 고침 — 버퍼 크기 조정 필요 | Linux에서 `make test` |

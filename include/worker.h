@@ -32,21 +32,22 @@
  * macOS은 코어 고정 API 없음 → no-op. 정확성과 무관.
  *
  * [종료 — NFR-02]
- * main의 g_stop(volatile sig_atomic_t)을 전 워커가 공유.
+ * main의 g_stop(atomic_int)을 전 워커가 공유. 시그널 핸들러가 쓰고 워커 스레드가 읽으므로
+ * sig_atomic_t가 아니라 atomic_int를 쓴다(sig_atomic_t는 스레드 간 동기화를 보장하지 않음).
  * iomux_wait 타임아웃 주기로 플래그를 확인 → 루프 탈출 → 자기 연결 정리 → 스레드 종료.
  * main은 worker_pool_join으로 전 워커 회수 후 listen fd 닫고 exit 0.
  *
  * 아래 선언은 제안 인터페이스다. 구현하며 시그니처를 조정해도 된다.
  */
 
-#include <signal.h> /* sig_atomic_t */
+#include <stdatomic.h> /* atomic_int */
 #include "config.h"
 
 /* 워커 N개 기동. 성공 0, 실패 -1.
  * listen_fd는 호출 전에 nonblocking이어야 하며 닫기는 main 소유.
  * stop은 main의 종료 플래그 주소(워커는 읽기만). */
 int worker_pool_start(int listen_fd, const server_config_t *cfg,
-                      volatile sig_atomic_t *stop);
+                      atomic_int *stop);
 
 /* 전 워커 종료 대기(pthread_join). worker_pool_start 성공 후에만 호출. */
 void worker_pool_join(void);

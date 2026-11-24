@@ -323,6 +323,13 @@ int connection_feed(connection_t *c, const char *data, size_t len)
         if (c->closing || c->recv_len == 0) {
             return 0;
         }
+        /* 보낼 응답(버퍼 또는 파일 본문)이 남아 있으면 다음 요청은 전송이 끝난 뒤 처리한다.
+         * 여기서 이어 처리하면 다음 응답 헤더가 앞 응답 본문보다 먼저 나가거나(file_fd 덮어쓰기),
+         * 프록시 스레드가 앞 응답보다 먼저 클라이언트에 쓸 수 있다(PR #22 리뷰 R11).
+         * 이어받기는 worker.c on_writable의 connection_feed(c, NULL, 0)가 맡는다. */
+        if (c->file_fd >= 0 || c->send_len > 0) {
+            return 0;
+        }
         /* 남은 버퍼에 다음 요청이 완성되어 있으면 계속 처리 */
     }
 }
