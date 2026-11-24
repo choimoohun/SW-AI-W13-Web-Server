@@ -1,15 +1,32 @@
 # Architecture Design
 
-본 문서는 외부 라이브러리 없이 C11과 POSIX API만으로 구현된 웹 서버의 아키텍처,
-모듈 책임, 그리고 모듈 사이의 의존성·소유권·계약을 다룹니다.
+외부 라이브러리 없이 C11 + POSIX만으로 만든 웹서버의 **최종 설계**와, 그 설계가 **어떤 문제에서 출발해 어떻게 바뀌었는지**를 담습니다.
 
-## 시스템 아키텍처 개요
+문서마다 맡은 일이 하나씩 있어서, 이 문서는 "무엇을 설계했나"만 쓰고 나머지는 링크로 넘깁니다.
 
-단일 바이너리 안에서 워커(프로세스/스레드) N개가 공유 listen fd를 받고,
-각자 `iomux`(epoll/kqueue/poll) 인스턴스로 이벤트를 처리합니다.
-요청은 게이트웨이(정적 파일 / 항공편 API / 프록시 라우트 / 미니 CDN)로 분기됩니다.
+| 알고 싶은 것 | 문서 |
+|---|---|
+| 왜 이 문제를 푸나 | [REQUIREMENTS.md](REQUIREMENTS.md) |
+| 왜 이 기술인가, 대안은 | [DECISIONS.md](DECISIONS.md) (D번호) |
+| 무엇으로 검증하나, 통과했나 | [verify/VERIFICATION_MATRIX.md](verify/VERIFICATION_MATRIX.md) |
+| 요구사항이 어느 코드로 갔나 | [verify/TRACEABILITY.md](verify/TRACEABILITY.md) |
+| 실제 실행 결과 | [records/VERIFICATION_LOG.md](records/VERIFICATION_LOG.md) |
+| 개념 설명(커널·소켓·파일 I/O) | [notes/runtime-internals.md](notes/runtime-internals.md), [notes/iomux.md](notes/iomux.md) |
 
-### 전체 아키텍처
+## 1. 문제 정의
+
+자세한 배경은 [REQUIREMENTS.md — 이 프로젝트가 푸는 중심 문제](REQUIREMENTS.md#이-프로젝트가-푸는-중심-문제)에 있습니다. 설계를 이끈 문제는 넷입니다.
+
+1. **느린 클라이언트 하나가 전체를 막는다.** 동시에 100개 이상을 받아야 한다. (FR-06)
+2. **여러 요청이 같은 좌석을 동시에 고친다.** 초과 예약이 나면 안 된다. (FR-05)
+3. **서비스가 한 프로세스에 묶이면** 배포·장애·확장이 같이 묶인다. 느린 업스트림이 서버 전체를 막아서도 안 된다. (FR-07, NFR-03)
+4. **C에는 GC가 없다.** 메모리·fd를 누가 해제하는지 정하지 않으면 누수와 double-close가 쌓인다. (NFR-01, NFR-02)
+
+제약: C11 + POSIX만, 외부 HTTP·이벤트 루프 라이브러리 금지, Linux·macOS 모두 빌드 ([REQUIREMENTS.md — 제약](REQUIREMENTS.md#기술-스택-및-환경-제약-constraints)).
+
+## 2. 최종 설계
+
+### 2.1 구성도 — 요청이 지나는 경로
 
 ```mermaid
 flowchart TB
@@ -29,25 +46,9 @@ flowchart TB
     P --> U["Upstream 서비스<br/>(별도 프로세스)<br/>mini-redis :8000<br/>stocks :8002<br/>orders :8401 / :8402<br/>payments :8500"]
 ```
 
-프록시 스레드는 업스트림 응답을 클라이언트에 직접 보냅니다. 이벤트 루프 안의 블로킹 호출을 없애서, 업스트림 지연이 워커와 `/health`를 막지 않게 했습니다.
+### 2.2 이벤트 루프 — 워커 안에서 일어나는 멀티플렉싱
 
-### 데이터 흐름 (Data Flow)
-
-```text
-[Network]
-   -> iomux (epoll/kqueue/poll)
-   -> worker (accept 1건/이벤트)
-   -> connection (feed: 비동기 recv + 버퍼)
-   -> http_parser (메모리 버퍼만 읽음, FD 모름)
-   -> route: static_handler | flight_api | cdn | proxy
-   -> http_response (직렬화, 파일은 청크 스트림)
-   -> connection (flush: 비동기 send, EAGAIN이면 다시 큐)
-   -> [Network]
-```
-
-### 이벤트 루프 동작 원리
-
-워커 풀(고정 4개) → 각 워커가 이벤트 루프를 돌림 → 루프가 멀티플렉싱(`iomux`)으로 커널 관심 집합을 감시합니다.
+워커 4개가 각자 아래 루프를 하나씩 돌립니다. listen fd는 공유하고, accept한 연결은 그 워커가 끝까지 소유합니다.
 
 ```mermaid
 flowchart TB
@@ -66,52 +67,65 @@ flowchart TB
     K -.->|"준비된 fd 통지"| WAIT
 ```
 
-- `on_readable()`: `recv()` → `connection_feed()` → `http_parser_parse()`. `COMPLETE`면 응답을 `send_buf`에 넣고 `iomux_mod(WRITE)`으로 쓰기 관심 전환. `NEED_MORE`면 다음 `READ`를 기다림.
-- `on_writable()`: `send()`로 남은 응답을 보냄. 다 보내면 연결 상태 정리.
-- `cleanup_idle()`: 유휴 5초가 넘은 연결을 닫고, keep-alive 최대 100회도 여기서 확인.
-- 200ms 타임아웃은 준비된 이벤트가 없어도 유휴 정리와 종료 플래그를 확인하기 위함.
+- `on_readable()`: `recv()` → `connection_feed()` → `http_parser_parse()`. 요청이 완성되면 응답을 `send_buf`에 넣고 `iomux_mod(WRITE)`로 쓰기 관심으로 바꿉니다.
+- `on_writable()`: 남은 응답을 `send()`. 다 보내면 다시 READ로.
+- `cleanup_idle()`: 유휴 5초가 넘은 연결을 닫습니다. 200ms 타임아웃은 이벤트가 없어도 정리와 종료 플래그를 확인하기 위한 것입니다.
 
-큐의 위치:
+큐와 버퍼가 어디에 있는지:
 
-| 큐/버퍼 | 위치 | 담기는 것 | 누가 넣고 누가 꺼내나 |
+| 큐/버퍼 | 위치 | 담기는 것 | 넣는 쪽 → 꺼내는 쪽 |
 |---|---|---|---|
-| `listen` 대기열 | 서버 커널 | 완성된 연결 | 커널이 넣고, `accept()`가 꺼냄 |
-| 소켓 수신 버퍼 | 양쪽 커널 | 바이트 | 상대가 `write()`, 내가 `read()` |
-| `epoll` 준비 목록 | 서버 커널 | 준비된 fd | 커널이 넣고, `iomux_wait()`가 꺼냄 |
-| `worker_ctx.conns[]` | 서버 앱 | 연결 슬롯 | `accept_ready()`가 넣고, `close_conn()`이 뺌 |
-| 프록시 작업 큐 | 서버 앱 | `/api` 작업 | 워커가 넣고, 프록시 스레드가 꺼냄 |
+| `listen` 대기열 | 커널 | 완성된 연결 | 커널 → `accept()` |
+| `epoll` 준비 목록 | 커널 | 준비된 fd | 커널 → `iomux_wait()` |
+| `worker_ctx.conns[]` | 앱(워커별) | 연결 슬롯 | `accept_ready()` → `close_conn()` |
+| 프록시 작업 큐 | 앱(공유) | 업스트림 작업 | 워커 → 프록시 스레드 |
 
-- `accept()`는 별도 스레드가 아니라 워커 안에서 실행되고, 이벤트당 한 번씩만 꺼냅니다(D10). 한 번에 여러 개를 꺼내면 한 워커가 독점하게 됩니다.
-- 느린 연결은 `READ`가 늦게 준비될 뿐, 다른 fd 처리를 막지 않습니다.
-- `/api/...`는 워커가 프록시 큐에 넣고, 전용 스레드가 백엔드와 통신합니다.
-- 워커 4개가 각자 `iomux` 인스턴스를 가지고 `listen fd`는 공유합니다. conn fd는 accept한 워커가 끝까지 소유합니다(D5).
-- 클라이언트에게는 연결 큐가 없습니다. 클라이언트는 `listen()`을 하지 않고 소켓마다 송신/수신 버퍼만 있습니다.
+## 3. 설계 결정 ↔ 문제 ↔ 근거 ↔ 검증
 
-## 핵심 모듈 설계 (Module Responsibility)
+설계 결정 하나가 한 행입니다. 이유·대안은 D번호로, 검증 명령과 통과 여부는 매트릭스의 요구사항 행으로 넘깁니다.
+이 표에는 상태(PASS 등)를 적지 않습니다. 상태는 매트릭스 한 곳에만 둡니다.
+
+| 설계 결정 | 푸는 문제 | 근거·대안 | 검증 |
+|---|---|---|---|
+| 워커 스레드 4개 × 각자 event loop, 단일 프로세스 | 1 (FR-06) | [D5](decisions/STEP05_CONCURRENCY_DECISIONS.md), [대안 비교](DECISIONS.md#대안-비교) | [매트릭스 FR-06](verify/VERIFICATION_MATRIX.md) |
+| `iomux`: epoll / kqueue / poll 폴백, 레벨 트리거 | 1 (FR-06), 제약 C-03 | [D9·D21](decisions/STEP05_CONCURRENCY_DECISIONS.md) | [매트릭스 FR-06, C-03](verify/VERIFICATION_MATRIX.md) |
+| 이벤트당 accept 1건 | 1 (FR-06) | [D10](decisions/STEP05_CONCURRENCY_DECISIONS.md) | [매트릭스 FR-06](verify/VERIFICATION_MATRIX.md) |
+| keep-alive 최대 100회, 유휴 5초 | 1 (NFR-03) | [D4(폐기→keep-alive)](decisions/STEP03_HTTP_RESPONSE_DECISIONS.md), D10 | [매트릭스 NFR-03](verify/VERIFICATION_MATRIX.md) |
+| 항공편별 락 + 메타 락, 파일 쓰기는 락 밖 | 2 (FR-05) | [D6·D12](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md) | [매트릭스 FR-06·도메인 영속 저장](verify/VERIFICATION_MATRIX.md) |
+| prefix 라우팅 + Round-Robin을 프록시 모듈 하나로 | 3 (FR-07) | [D18](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md) | [매트릭스 FR-07](verify/VERIFICATION_MATRIX.md) |
+| 업스트림 호출은 전용 프록시 스레드 + 큐, `dup()`로 fd 소유권 이전 | 3 (NFR-03) | [D22](decisions/STEP05_CONCURRENCY_DECISIONS.md) | [매트릭스 FR-07](verify/VERIFICATION_MATRIX.md) |
+| 캐시·DB·결제는 별도 프로세스, 예약·좌석은 C 서버 안 | 3 (FR-07) | [D27·D28](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md) | [매트릭스 별도 백엔드·결제](verify/VERIFICATION_MATRIX.md) |
+| 정적 파일: `realpath` 경계 검사, MIME, 미니 CDN(TTL) | FR-04 | [보안 정책](DECISIONS.md#보안-정책), [D17](decisions/STEP04_STATIC_FILE_DECISIONS.md) | [매트릭스 FR-04](verify/VERIFICATION_MATRIX.md) |
+| 네트워크 I/O는 논블로킹, 파일 I/O는 청크 단위 동기 | 1 (FR-06), 제약 C-02 | [notes/runtime-internals.md](notes/runtime-internals.md) | [매트릭스 FR-06](verify/VERIFICATION_MATRIX.md) |
+| 파서는 fd를 모르는 순수 함수, `consumed`로 요청 경계 확정 | FR-02 | [D3](decisions/STEP02_HTTP_PARSER_DECISIONS.md) | [매트릭스 FR-02](verify/VERIFICATION_MATRIX.md) |
+| 리소스마다 해제 주체 하나 (§4) | 4 (NFR-01·02) | §4 | [매트릭스 NFR-01·02](verify/VERIFICATION_MATRIX.md) |
+
+검증 원칙은 매트릭스를 따릅니다: [VERIFICATION_LOG.md](records/VERIFICATION_LOG.md)에 실행 기록이 있어야 PASS로 적고, 실패 기록은 지우지 않습니다.
+
+## 4. 모듈 · 의존 · 소유권 · 계약
+
+### 모듈 책임
 
 | 모듈 | 책임 | 주요 의존 |
 |---|---|---|
-| `main` | 부트스트랩, 시그널, 워커 풀 기동 | config, tcpserver, worker, proxy, flight_store |
-| `config` | `-p/-r/-c` CLI와 설정 파일 파싱, 라우트 테이블 보유 | 없음(최하위) |
-| `tcpserver` | listen 소켓 생성/바인드/리슨, graceful close | config |
-| `iomux` | OS별 멀티플렉싱 추상화(epoll/kqueue/poll) | 없음(최하위) |
-| `worker` | 워커 루프, accept, 유휴 정리, 접근 로그 | iomux, connection, flight_store, flight_clock |
-| `connection` | 연결 상태 머신, feed/flush, keep-alive 100회 | parser, response, static, flight_api, proxy, cdn |
-| `http_parser` | HTTP/1.1 파싱. `consumed`로 요청 경계 확정 | 없음(순수 함수) |
+| `main` | 부트스트랩, 시그널, 워커 풀·프록시 스레드 기동 | config, tcpserver, worker, proxy, flight_store |
+| `config` | `-p/-r/-c`와 설정 파일 파싱, 라우트 테이블 | 없음 |
+| `tcpserver` | listen 소켓 생성·bind·listen | config |
+| `iomux` | epoll/kqueue/poll 추상화 | 없음 |
+| `worker` | 워커 event loop, accept, 유휴 정리, 접근 로그 | iomux, connection |
+| `connection` | 연결 상태 머신(feed/flush), keep-alive | parser, response, static, flight_api, proxy, cdn |
+| `http_parser` | HTTP/1.1 파싱, `consumed`로 경계 확정 | 없음(순수 함수) |
 | `static_handler` | realpath 경계 검사, MIME, 파일 핸들 | http_response |
-| `http_response` | 상태/헤더/본문 직렬화, 파일 청크 | 없음 |
+| `http_response` | 상태·헤더·본문 직렬화, 파일 청크 | 없음 |
 | `flight_api` | 항공편 JSON API 라우팅·직렬화 | flight_store, flight_clock, http_response |
-| `flight_store` | 예약/취소/영속 저장, 항공편별 락 | 없음 |
-| `flight_clock` | sim/real 시계, 배속, 지연 상태 | 없음 |
+| `flight_store` | 예약·취소·영속 저장, 항공편별 락 | 없음 |
+| `flight_clock` | real/sim 시계, 자동 출발·도착 | 없음 |
 | `cdn` | 정적 자산 TTL 캐시, `X-Cache`/`ETag` | http_response |
-| `proxy` | 경로 기반 게이트웨이, Round-Robin, 전용 스레드 큐 | http_response |
+| `proxy` | prefix 게이트웨이, Round-Robin, 전용 스레드 큐 | http_response |
 
-`common.h` / `common.c`는 처음에만 잡아둔 빈 자리였고 실제 공유 코드가 없어 제거했습니다.
-억지로 공용 헤더를 두면 모듈 간 결합만 생기므로, 공유가 실제로 필요해진 시점에 다시 둡니다.
+### 의존 규칙
 
-## 의존성 규칙 (Dependency Rule)
-
-의존은 한 방향으로만 흐릅니다. 아래쪽 계층은 위쪽 계층을 include하지 않습니다.
+의존은 아래 방향으로만 흐릅니다. 아래 계층은 위 계층을 include하지 않습니다.
 
 ```text
 Layer 0  config, iomux, flight_store, flight_clock, http_response, http_parser
@@ -120,136 +134,76 @@ Layer 2  connection, static_handler, cdn, proxy, flight_api
 Layer 3  main
 ```
 
-- `http_parser`는 소켓 FD를 모릅니다. 버퍼만 받아 파싱하므로 단위 테스트가 쉽습니다.
-- `connection`은 여러 핸들러를 알지만, 핸들러는 `connection`을 모릅니다.
-- 빌드는 `-MMD -MP`로 헤더 의존성을 추적합니다. `flight_t`에 뮤텍스를 넣었을 때
-  의존성이 없어 객체가 안 바뀌어 KE999가 404가 난 적이 있어 이 규칙을 지킵니다.
+- `http_parser`는 소켓 fd를 모르고 버퍼만 받습니다. 그래서 단위 테스트가 쉽습니다.
+- `connection`은 핸들러들을 알지만, 핸들러는 `connection`을 모릅니다.
+- 빌드는 `-MMD -MP`로 헤더 의존성을 추적합니다([D25](decisions/STEP05_CONCURRENCY_DECISIONS.md)).
 
-## 소유권 · 의존 · 계약 (Ownership / Dependency / Contract)
+### 소유권 — 해제 주체는 하나
 
-C에는 GC도 RAII도 없으므로, "누가 해제하는가"를 코드와 주석으로 고정해야 합니다.
+- conn fd: accept한 워커가 끝까지 소유하고 `close_conn()`에서만 닫습니다.
+- 프록시 큐: `dup()`로 복제한 fd는 큐(프록시 스레드)가 소유하고 닫습니다. 원본은 워커가 소유합니다.
+- 정적 파일 fd: 응답이 파일을 스트리밍하는 동안 `connection`이 소유하고, 다 보내면 닫습니다.
+- `flight_store_list(out, cap)`는 `out`에 쓰기만 하고 해제하지 않습니다.
 
-### 소유권 (Ownership)
+### 계약 — 시그니처로 드러나지 않는 약속
 
-리소스(메모리, FD, 버퍼)의 해제 책임이 있는 주체가 정확히 하나여야 합니다.
+- `http_parser`: `PARSE_COMPLETE`는 `consumed` 바이트를 확정합니다. `connection`은 버퍼를 그만큼 앞으로 당겨야 합니다.
+- `flight_store_reserve()`: 잔여 좌석이 0이면 실패하고, 성공할 때만 예약 ID를 돌려줍니다. 락 안에서는 스냅샷만 만들고 파일 쓰기는 락 밖에서 합니다.
+- `proxy`: prefix를 rewrite 경로로 바꿔 업스트림에 넘기고, 연결 실패는 502, 응답 지연은 504로 구분합니다.
+- 결제 서비스: 프록시가 임의 헤더를 넘기지 않으므로 중복 방지 키는 본문의 `idempotency_key`로 받습니다([D28](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md)).
 
-- 프록시 큐: `dup()`로 복제한 fd를 큐가 소유하고, 소비자가 `close()`합니다.
-  워커는 원본 fd를 계속 소유합니다. 둘 다 같은 fd를 닫으면 double-close,
-  아무도 닫지 않으면 fd 누수입니다.
-- `http_response_build_*()`가 반환하는 버퍼는 호출자가 소유하고, flush 후 `free()`합니다.
-- `flight_store_list(out, cap)`는 `out`을 쓰기만 하고 해제하지 않습니다. 배열 소유권은 호출자에게 있습니다.
+## 5. 설계가 바뀐 과정 — 초안 → AI 문답 → 검증 루프 → 최종
 
-### 의존 (Dependency)
+§2의 최종 설계는 한 번에 나오지 않았습니다. 아래 순서로 고쳐 왔고, 단계마다 원본 기록을 링크합니다.
 
-A가 B의 헤더/타입/함수를 필요로 하면 A는 B에 의존합니다.
-문제는 순환 의존입니다. `A.h`가 `B.h`를, `B.h`가 다시 `A.h`를 include하면
-전방 선언과 구조체 레이아웃이 꼬입니다. 위 계층 규칙으로 이를 막습니다.
-
-### 계약 (Contract)
-
-모듈 경계에서 지켜야 하는 약속입니다. 시그니처만으로는 설명되지 않는 전제·후조건을 뜻합니다.
-
-- `http_parser`: 입력은 연속 버퍼, `PARSE_COMPLETE`는 `consumed` 바이트를 확정한다.
-  `connection`은 반드시 버퍼를 `consumed`만큼 앞으로 보내야 한다.
-  이걸 안 지키면 keep-alive에서 다음 요청이 이전 요청 버퍼에 섞였습니다.
-- `flight_store_reserve()`: 잔여 좌석이 0이면 실패하고, 성공 시에만 예약 ID를 반환한다.
-  락 안에서는 스냅샷만 만들고 파일 쓰기는 락 밖에서 한다.
-- `proxy`: rewrite 경로로 prefix를 대체해 백엔드에 전달하고, 실패를 502/504로 구분한다.
-
-이 세 가지(소유권·의존·계약)가 문서화돼야 "파일을 나눴다"가 아니라
-"모듈이 분리됐다"고 말할 수 있습니다.
-
-## 파일 I/O는 논블로킹인가
-
-소켓도 파일 디스크립터이므로 `O_NONBLOCK`을 걸면 `recv()`가 데이터 없을 때
-`EAGAIN`을 돌려줍니다. 우리 서버의 네트워크 I/O는 이 방식입니다.
-
-반면 일반 파일(디스크)은 다릅니다. `O_NONBLOCK`을 걸어도 대부분의 POSIX 구현은
-정규 파일을 항상 "준비됨"으로 보고, `poll()`이 바로 리턴합니다. 실제 디스크
-읽기는 페이지 캐시에서 빨리 끝나지만 캐시 미스에서는 여전히 블록할 수 있습니다.
-진짜 비동기 파일 I/O는 POSIX AIO, Linux `io_uring`, Windows IOCP 같은 별도
-기구가 필요합니다. 이 프로젝트는 C11/POSIX 외부 라이브러리 금지와 이식성 때문에
-`static_handler`의 파일 읽기를 작은 청크로 나눠 동기 호출하고, 소켓 쓰기만
-논블로킹으로 처리합니다. 즉 "네트워크 I/O는 non-blocking, 파일 I/O는 청크 동기"입니다.
-
-## 오류를 만날 때마다 레이어를 얹은 구조 (STEP1 → STEP6, FR-05~07)
-
-| 레이어 | 실제로 드러난 문제 | 그래서 얹은 것 |
+| 단계 | 무엇을 했나 | 원본 기록 |
 |---|---|---|
-| L0 기반 (STEP1~4) | 정적 파일 경로 탈출, 바이너리 손상, MIME 누락 | `realpath` 경계 검사, 청크 전송, `http_parser` / `static_handler` / `http_response` 분리 |
-| L1 동시성 (STEP5) | 단일 accept 루프가 100요청을 직렬 처리 → before 모드에서도 초과 예약이 안 나옴 | `worker` + `iomux`, 공유 listen fd, 이벤트당 accept 1건 |
-| L1 연결 | keep-alive에서 `req.consumed`를 안 지워 recv_buf에 다음 요청이 섞임 | `connection_feed()` 버퍼 정리, 최대 100회, 유휴 5초 |
-| L2 도메인 (STEP6) | `split_fields()`가 구분자 뒤 포인터를 안 늘려 저장 파일이 0건으로 로드됨 | 필드 파서 수정, `data/flights.txt` 영속 저장 |
-| L2 락 | `store_load()`의 `memset`이 이미 초기화한 뮤텍스를 지움 | 락 초기화 순서 변경 → 항공편별 락 + 메타 락 |
-| L2 락 | 락을 든 상태에서 파일 쓰기 → 디스크 I/O가 예약을 막음 | 스냅샷을 만든 뒤 락 밖에서 `rename()` 기록 |
-| 빌드 | `flight_t`에 뮤텍스 추가 후 헤더 의존성이 없어 객체가 안 바뀜 → 구조체 레이아웃 불일치로 KE999가 404 | `-MMD -MP` 헤더 의존성 추가 |
-| L3 게이트웨이 (FR-07) | `trim()`이 앞 공백을 포인터만 옮겨 prefix가 `" /api/orders/"`가 됨 → 모든 라우트 404 | `memmove`로 실제 버퍼를 당김 |
-| L3 게이트웨이 | 프록시의 blocking recv가 워커 전체를 멈춤 → 느린 백엔드가 `/health`까지 막음 | 프록시 전용 스레드 + 큐, `dup()`로 소유권 이전 |
-| L4 캐시·관측 | `X-Cache`만 있고 `Cache-Control`/`ETag`가 없어 캐시 정책 판단 불가 | 캐시 헤더 추가, `Date`/`Server`, 접근 로그(`[wN]`, IP, 지연) |
-| L4 검증 | valgrind가 `epoll_pwait(events)` OOB 검출(배열 64, 요청 max 256) | 이벤트 배열 256으로 확대, `min(max, cap)` 클램프 |
-| 이식성 | Linux glibc에서 `usleep` 미선언 → `-Werror` 빌드 실패 | `nanosleep()`으로 교체 |
-| L5 백엔드 | 단일 오리진에 모든 도메인을 두면 독립 배포·리소스 제한 불가 | `conf/backends.conf` 라우트로 mini-redis·mini-dbms 별도 프로세스 연결 |
+| ① 초안 | STEP1~4 범위의 모듈 스텁과 호출 순서를 잡고 검토. 동시성은 별도 판정으로 미룸 | [records/DESIGN_REVIEW_2026-11-21.md](records/DESIGN_REVIEW_2026-11-21.md), [iterations/](iterations/) |
+| ② 직접 학습 | 소켓 식별, 멀티플렉싱 개념을 먼저 공부 (AI 문답 아님) | [study/study_log.md](../study/study_log.md) |
+| ③ AI 문답 | 설계 질문을 AI에 묻고, 실행으로 확인한 것만 채택·기각 | [agent/AI_QA_LOG.md](agent/AI_QA_LOG.md) |
+| ④ 검증 루프 | 실행하다 드러난 결함을 고치고 같은 명령으로 재검증 | [verify/VERIFICATION_MATRIX.md — 검증에서 잡은 문제](verify/VERIFICATION_MATRIX.md#검증에서-잡은-문제), [records/VERIFICATION_LOG.md](records/VERIFICATION_LOG.md) |
+| ⑤ 최종 설계 | §2, §3 | 이 문서 |
 
-마지막으로 구현하지 않은 것도 결정으로 남겼습니다.
+### ③ AI 문답에서 바뀐 것
 
-- HTTP/2는 C 파서를 다시 만들지 않고 게이트웨이에서 종료합니다(D26).
-- 항공편 도메인은 C 안에 두고, 캐시·DB·프론트만 별도 서비스/산출물로 연결합니다(D27).
+| 질문 | 결론 | 설계에 남은 것 |
+|---|---|---|
+| 멀티프로세스 + 멀티플렉싱이 맞나 | 공유 좌석을 `fork`로 나누면 사본·IPC가 생김 → 기각 | 단일 프로세스 + 워커 스레드 (D5) |
+| `poll`이면 충분한가 | 준비된 fd만 받는 epoll/kqueue가 연결 증가에 유리 | epoll/kqueue + poll 폴백 (D9·D21) |
+| 한 이벤트에 accept를 여러 번 해도 되나 | 한 워커가 독점해 동시성 데모가 사라짐 | 이벤트당 1건 (D10) |
+| HTTP 메시지 큐가 필요한가 | 요구사항에 없음, 워커↔프록시 작업 큐로 충분 → 기각 | 인메모리 작업 큐만 |
+| 정적 파일 I/O를 진짜 비동기화해야 하나 | 병목은 디스크가 아니라 좌석 락 → 범위 밖 | 청크 동기 읽기 유지 |
 
-## 외부 결제 서비스
+전체 질의와 근거는 [AI_QA_LOG.md](agent/AI_QA_LOG.md)에 있습니다.
 
-결제는 `tests/backends/serve_payments.py`로 별도 프로세스(8500)에서 동작합니다.
-게이트웨이는 `/api/payments/`를 `/`로 rewrite해 전달하고, 결제 서비스는 자기
-파일 DB를 가집니다. 중복 방지 키는 요청 본문의 `idempotency_key`를 사용합니다.
-프록시가 임의 헤더를 전달하지 않기 때문입니다. 재시작 후에도 상태가 남습니다.
+### ④ 검증 루프에서 잡아 고친 것 — 문제가 나올 때마다 한 층씩
 
-## 아직 분리하지 않은 부분 (정직한 한계)
+| 층 | 실행하다 드러난 문제 | 그래서 바꾼 설계 |
+|---|---|---|
+| L0 기반 (STEP1~4) | 경로 탈출, 바이너리 손상, MIME 누락 | `realpath` 경계 검사, 청크 전송, parser / static / response 분리 |
+| L1 동시성 (STEP5) | 단일 accept 루프가 100요청을 직렬 처리 → 좌석 경쟁이 재현조차 안 됨 | 워커 + `iomux`, 공유 listen fd, 이벤트당 accept 1건 |
+| L1 연결 | keep-alive에서 `consumed`를 안 지워 다음 요청이 섞임 | `connection_feed()` 버퍼 정리 계약 (§4) |
+| L2 도메인 (STEP6) | 저장 파일이 0건으로 로드됨 (`split_fields()` 포인터) | 필드 파서 수정, `data/flights.txt` 영속 저장 |
+| L2 락 | `memset`이 초기화된 뮤텍스를 지움 / 락 안 파일 쓰기가 예약을 막음 | 락 초기화 순서 변경, 스냅샷 후 락 밖 `rename()` |
+| 빌드 | 헤더 의존성이 없어 구조체 레이아웃 불일치 → KE999 404 | `-MMD -MP` (D25) |
+| L3 게이트웨이 (FR-07) | `trim()` 버그로 모든 라우트 404 | `memmove`로 버퍼 정리 |
+| L3 게이트웨이 | 프록시의 blocking `recv()`가 워커를 멈춤 → 느린 업스트림이 `/health`까지 막음 (이벤트 루프 안의 블로킹 호출) | 전용 프록시 스레드 + 큐 (D22) |
+| L4 캐시·관측 | `X-Cache`만 있고 캐시 정책 헤더가 없음 | `Cache-Control`/`ETag`, `Date`/`Server`, 접근 로그 |
+| L4 검증 | valgrind가 `epoll_pwait` 이벤트 배열 OOB 검출 | 배열 256 + `min(max, cap)` |
+| 이식성 | Linux에서 `usleep` 미선언으로 `-Werror` 실패 | `nanosleep()` |
+| L5 백엔드 | 한 오리진에 모든 도메인 → 독립 배포·자원 제한 불가 | 라우트로 mini-redis·mini-dbms·결제를 별도 프로세스 연결 (D27·D28) |
 
-최대한 나눴지만 아래는 의도적으로 합쳐 두었습니다. 필요해지면 그때 분리합니다.
+증상·원인·재검증 명령은 [VERIFICATION_MATRIX.md — 검증에서 잡은 문제](verify/VERIFICATION_MATRIX.md#검증에서-잡은-문제)에 있습니다.
 
-- `flight_api.c`(789줄): 최소 JSON 파서·직렬화·라우팅·핸들러가 한 파일.
-  `json.c` / `flight_router.c` / `flight_handlers.c`로 나눌 수 있습니다.
-- `proxy.c`(362줄): 게이트웨이 라우트 매칭 + RR + 전용 스레드 큐가 함께 있습니다.
-  `router.c` / `backend_pool.c` / `proxy_thread.c`로 나눌 수 있습니다.
-- 접근 로그는 `worker.c` 안에 있습니다. `logger.c`로 빼면 포맷 변경이 쉬워집니다.
+구현하지 않기로 한 것도 결정으로 남겼습니다: HTTP/2·TLS는 앞단 게이트웨이에서 종료(D26), chunked 요청 본문은 501(D3).
 
-즉 "파일 단위 분리"는 대부분 끝났고, "책임 단위 분리"는 위 세 곳이 남았습니다.
+## 6. 한계와 다음 단계
 
----
+의도적으로 합쳐 둔 곳입니다. 필요해지면 나눕니다.
 
-## 현행 구조 메모 (as-built)
+- `flight_api.c`: JSON 파서·직렬화·라우팅·핸들러가 한 파일 → `json.c` / `flight_router.c` / `flight_handlers.c`로 나눌 수 있음.
+- `proxy.c`: 라우트 매칭·RR·스레드 큐가 한 파일 → `router.c` / `backend_pool.c` / `proxy_thread.c`.
+- 접근 로그가 `worker.c` 안에 있음 → `logger.c`.
+- 크래시 격리가 없음: 워커가 스레드라 한 워커의 크래시가 프로세스 전체를 내림(D5의 대가).
 
-코드가 지금 어떻게 도는지 설명하는 절입니다. 제약에 맞지 않거나 코드가 바뀌면 여기를 먼저 고칩니다.
-
-### 요청 처리 흐름 (`connection.c`)
-
-1. `recv` → `connection_feed()`：`http_parser`로 요청 경계 확정(`consumed`).
-2. `config_match_route()`로 프록시 라우트를 먼저 확인.
-   - 매칭되면 `proxy_handle()`가 백엔드로 전달하고 직접 소켓에 응답 후 연결 종료.
-3. 내장 엔드포인트 `/health`, `/echo` 확인.
-4. `/api/...`이면 `flight_api_build()` → `flight_store` 조회/변경.
-5. 그 외는 `static_handler_resolve()` → 경로 보안(`realpath`) → CDN 조회 → 파일/캐시 응답.
-6. 접근 로그: `[wN] [client_ip] "METHOD URI" status bytes ms`.
-
-### 미니 CDN(로컬 TTL 캐시)을 둔 이유
-
-`src/cdn.c`는 정적 자산 응답에 TTL·hit/miss·무효화·`X-Cache` 헤더를 적용하는 서버 내부 캐시다. 실제 엣지 네트워크가 아니라, 캐시 정책과 헤더 동작을 로컬 실행으로 검증하기 위한 계층이다.
-
-### 현행 구조에서 잘 붙은 부분
-
-- 단일 프로세스 + 워커 N개, 각자 iomux 인스턴스 소유(`epoll`/`kqueue`/`poll`) → fd 핸드오프 큐 없음.
-- 이벤트당 accept 1건 덕분에 100동시 요청에서 좌석 경쟁이 실제로 재현됨.
-- before(의도적 레이스)/after(뮤텍스) 분리, UI에는 데모 컨트롤 없음.
-- 영속 저장은 임시 파일 → `rename` 원자적 교체.
-- 구조 관련 확정 사항과 남은 작업은 [agent/DAILY_SCOPE.md](agent/DAILY_SCOPE.md)의 "아키텍처 완료·남은 일" 절을 본다.
-
-### 실제 동작 원리 (커널·소켓)
-
-HTTP 스펙이 아니라 이 서버에서 실제로 일어나는 일을 적는다.
-
-1. **TCP 소켓은 IP+포트만으로 식별되지 않는다** — 실제로는 `<src IP, src port, dst IP, dst port>` 4튜플로 구분한다. 그래서 같은 서버 `IP:포트`를 쓰는 여러 `conn fd`를 커널이 구분할 수 있다. (`src/tcpserver.c`, `src/worker.c`)
-2. **커널 수신은 2단계** — Wait for Data(도착까지 기다림) → Copy Data(커널 수신 버퍼 → 유저 버퍼로 복사).
-3. **`listen fd`와 `conn fd`는 다르다** — `listen fd`는 연결 요청을 받는 지점, `conn fd`는 성립된 연결 위의 데이터 경로.
-4. **레벨 트리거(LT) / 엣지 트리거(ET)** — LT는 "읽을 데이터가 있다" 상태가 유지되는 동안 계속 통지하고, ET는 0에서 양수로 변하는 시점만 통지한다. 우리는 `EPOLLET` 없이 LT를 쓴다.
-5. **accept 분산** — 워커가 `listen fd`를 공유하고 `iomux_wait`가 깨우면 한 번만 `accept()`하고, 나머지는 `EAGAIN`으로 스킵한다(D10).
-6. **`dup()`로 소유권 이전** — 프록시 전용 스레드가 연결을 처리할 때 `dup()`으로 소켓을 복제해 워커 루프가 백엔드를 기다리지 않게 한다.
-7. **유휴 연결 정리** — 마지막 활동 후 5초가 넘으면 닫는다. keep-alive 최대 100회도 여기서 확인한다.
+아직 검증하지 않은 것(매트릭스 `NOT RUN`)과 남은 작업은 [verify/VERIFICATION_MATRIX.md](verify/VERIFICATION_MATRIX.md), [agent/DAILY_SCOPE.md](agent/DAILY_SCOPE.md)에 있습니다.

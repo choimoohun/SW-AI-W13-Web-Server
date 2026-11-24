@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases clean
+.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
 
 all: $(BIN)
 
@@ -112,6 +112,12 @@ asan:
 	$(MAKE) clean
 	$(MAKE) CFLAGS="$(CSTD) -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -fsanitize=address,undefined -g" all
 	@echo "[asan] ./$(BIN) 실행 후 시나리오 실행. macOS=메모리오류 검사, 누수 0 확정=Linux valgrind."
+
+# PR 리뷰 코멘트를 검토 체크리스트로 모은다: make pr-review PR=12
+# 결과: docs/records/pr_reviews/PR-12.md (gh auth login 필요)
+pr-review:
+	@test -n "$(PR)" || { echo "사용법: make pr-review PR=<번호>"; exit 1; }
+	@python3 scripts/pr_review_fetch.py $(PR) $(if $(REPO),--repo $(REPO))
 
 clean:
 	rm -f $(OBJS) $(DEPS) $(BIN)
