@@ -35,8 +35,6 @@
  * main의 g_stop(volatile sig_atomic_t)을 전 워커가 공유.
  * iomux_wait 타임아웃 주기로 플래그를 확인 → 루프 탈출 → 자기 연결 정리 → 스레드 종료.
  * main은 worker_pool_join으로 전 워커 회수 후 listen fd 닫고 exit 0.
- *
- * 아래 선언은 제안 인터페이스다. 구현하며 시그니처를 조정해도 된다.
  */
 
 #include <signal.h> /* sig_atomic_t */

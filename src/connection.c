@@ -221,6 +221,13 @@ int connection_feed(connection_t *c, const char *data, size_t len)
         if (c->closing || c->recv_len == 0) {
             return 0;
         }
+        /* 파일 본문을 보내는 중이면 다음 요청은 전송이 끝난 뒤 처리한다.
+         * 여기서 이어 처리하면 다음 응답 헤더가 이 본문보다 먼저 send_buf에 붙고
+         * file_fd도 덮어쓴다. 이어받기는 worker.c on_writable의
+         * connection_feed(c, NULL, 0)가 맡는다. */
+        if (c->file_fd >= 0) {
+            return 0;
+        }
         /* 남은 버퍼에 다음 요청이 완성되어 있으면 계속 처리 */
     }
 }

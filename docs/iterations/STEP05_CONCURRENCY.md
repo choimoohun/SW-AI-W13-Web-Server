@@ -38,7 +38,7 @@ graph LR
        `http_parser_parse()`의 `PARSE_COMPLETE` / `PARSE_NEED_MORE` / `PARSE_ERROR`를 활용하고 `req.consumed`로 요청 경계 확정.
 3. [x] `worker` 루프 완성: `accept_ready()`, `on_readable()`, `on_writable()`, 유휴 타임아웃, `close_conn()` 단일 정리.
 4. [x] `worker_pool_start()` / `worker_pool_join()` 완성(`pthread_create()`, `pthread_join()`, 실패 회수).
-5. [x] `main.c` 배선: accept 루프 → `worker_pool_start(listen_fd, N, doc_root, &g_stop)`
+5. [x] `main.c` 배선: accept 루프를 워커로 이동 → `worker_pool_start(listen_fd, &cfg, &g_stop)`
        → `g_stop` 대기 → `worker_pool_join()` → `close(listen_fd)` → exit 0.
 6. [x] `LDLIBS`에 `-pthread` 추가. epoll/kqueue 백엔드도 동일 인터페이스로 구현 완료(poll은 폴백).
 7. [ ] (선택) 어피니티 `#ifdef __linux__`, `EPOLLEXCLUSIVE`, `SO_REUSEPORT` 실험.
@@ -58,7 +58,10 @@ graph LR
 - 종료: SIGTERM → 워커 join → listen fd close, 잔여 프로세스 없음.
 
 ## 관련 결정
-- D5, D9, D10, D20, D21, D22, D25 — [STEP05 결정](../decisions/STEP05_CONCURRENCY_DECISIONS.md)
+- D5, D9, D10, D25 — [STEP05 결정](../decisions/STEP05_CONCURRENCY_DECISIONS.md)
+
+## 알려진 한계
+- epoll 백엔드는 커널이 준비된 fd만 돌려주지만(O(ready)), 그 fd의 연결 포인터는 `iomux.c`의 `ptr_for_fd()`가 등록 배열을 선형으로 찾는다. 이벤트 K개, 연결 N개면 한 번의 `iomux_wait`에 O(N·K)다. 워커당 연결이 적은 지금 규모에서는 측정상 문제가 없어 두었고, fd 번호로 바로 찾는 표(fd → 포인터)로 바꾸는 것을 후속 개선으로 남긴다(PR #22 리뷰 R10).
 
 ## 기록 원칙
 - 구현하지 않은 기능을 완료로 기록하지 않는다. 검증은 실행 결과로만 남긴다.

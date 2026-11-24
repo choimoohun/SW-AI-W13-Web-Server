@@ -29,4 +29,7 @@ size_t http_response_build_error(char *out, size_t cap, int status, int keep_ali
 size_t http_response_build_file(char *out, size_t cap, const char *mime,
                                 long size, int keep_alive, const char *extra_headers);
 
+/* keep-alive 유휴 시간(초). Keep-Alive 응답 헤더와 worker.c의 유휴 정리가 같은 값을 쓴다. */
+#define HTTP_KEEPALIVE_TIMEOUT_SEC 5
+
 #endif /* HTTP_RESPONSE_H */

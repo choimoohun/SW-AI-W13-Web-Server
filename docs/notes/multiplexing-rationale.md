@@ -53,16 +53,16 @@
 
 ## 4. 우리 코드에서 실제로 일어나는 일
 
-1. `worker_pool_start()`가 워커를 `pthread_create`한다(`main.c`). 각 워커는 자기 `iomux` 인스턴스를 만든다(`worker.c`).
+1. `main.c`가 `worker_pool_start()`를 호출하면, 이 함수가 워커를 `pthread_create`한다(`worker.c`). 각 워커는 자기 `iomux` 인스턴스를 만든다(`worker.c`).
 2. `iomux_create()`가 플랫폼에 따라 `epoll_create1(0)` / `kqueue()` / `poll` 중 하나를 만들고, `iomux_add()`로 리스너를 등록한다.
-3. `while (!*w->stop)` 루프에서 `iomux_wait(mux, events, MAX_EVENTS, 200ms)`를 부른다. 200ms 타임아웃을 주는 이유는, 준비된 이벤트가 없어도 주기적으로 유휴 연결을 정리하고 종료 플래그를 확인하기 위해서다(스케줄링 이벤트인 `event-loop.md`의 내용과 같다).
+3. `while (!*w->stop)` 루프에서 `iomux_wait(mux, events, MAX_EVENTS, 200ms)`를 부른다. 200ms 타임아웃을 주는 이유는, 준비된 이벤트가 없어도 주기적으로 유휴 연결을 정리하고 종료 플래그를 확인하기 위해서다.
 4. 준비된 이벤트가 오면 `accept()` / `on_readable` / `on_writable`을 부른다.
-5. `accept()`에서 새 소켓은 `O_NONBLOCK`으로 만든다. 논블로킹이라 `recv()`가 바로 데이터를 주지 않아도 `EAGAIN`으로 돌아오고, `iomux_mod()`로 `EPOLLOUT`을 다시 등록해 쓰기를 계속한다.
+5. `accept()`에서 새 소켓은 `O_NONBLOCK`으로 만든다. 논블로킹이라 `recv()`에 읽을 데이터가 없으면 `EAGAIN`으로 바로 돌아오고, `on_readable()`은 읽기를 멈추고 다음 READ 이벤트를 기다린다.
 6. `recv()`로 읽은 데이터는 `recv_buf`에 누적한다. 이전에는 수신 버퍼가 8KB로 고정돼서 8KB를 넘는 정상 요청이 431로 실패했지만, 지금은 `connection_feed()`가 버퍼를 동적으로 키운다(`include/connection.h`의 `CONN_RECV_CAP`/`CONN_RECV_MAX`).
 7. 요청이 끝나고 응답이 준비되면 `EPOLLOUT`를 등록해 `send()`를 진행한다. 쓰기가 부분 성공하면 `EPOLLOUT`를 다시 등록해 나머지를 나중에 보낸다.
 8. 클라이언트가 연결을 닫으면 `recv()`가 0을 돌려주거나 `EPOLLERR`/`EPOLLHUP`가 보이고, `iomux_del()` + `close()`로 정리한다.
 
-레벨 트리거(LT)를 쓴다. `EPOLLET`를 쓰지 않는 이유는, LT가 "읽을 데이터가 있다"는 상태가 유지되는 동안 계속 알려줘서 부분적으로 읽어도 다음 호출에서 다시 알려주기 때문이다. 원문이 "단순하고 쓰기 쉽다"고 한 것도 같은 이유다.
+레벨 트리거(LT)를 쓴다. `EPOLLET`를 쓰지 않는 이유는, LT가 "읽을 데이터가 있다"는 상태가 유지되는 동안 계속 알려줘서 부분적으로 읽어도 다음 호출에서 다시 알려주기 때문이다.
 
 ---
 
@@ -73,12 +73,12 @@
 - 공유 상태는 별도 뮤텍스로 처리한다.
 - 결제 게이트웨이나 외부 백엔드 호출은 이 단계의 책임 범위가 아니다.
 
-"연결을 어떻게 처리하고, 공통 욕구를 어떻게 풀 것인가"는 서로 다른 층이다.
+"연결을 어떻게 처리하고, 공유 상태를 어떻게 동기화할 것인가"는 서로 다른 층이다.
 
 ---
 
 ## 6. 검증
 
 - `make test` — 단위/통합 테스트가 모두 통과한다(수신 버퍼 동적 확장, 경로 탈출, Content-Length 숫자 검증 등 회귀 테스트 포함).
-- `make integration`, `make edge-cases` — 연결 수명, 큰 본문(8KB 정상 / 1MB+1 거부), 비정상 요청 후 생존 확인.
+- `make integration` — 정적 서빙, 경로 탈출, 바이너리 무결성, keep-alive 파이프라인 확인. 성공하면 마지막 줄에 `integration: all passed`가 출력된다.
 - 실제 빌드에서 이 프로젝트가 도는 플랫폼(macOS)은 `kqueue` 백엔드, Linux에서는 `epoll` 백엔드가 선택된다. `http_parser.c`, `http_response.c`, `static_handler.c`, `connection.c`의 패치가 반영되어 `make test`가 통과한다.
