@@ -100,10 +100,14 @@ parse_status_t http_parser_parse(const char *buf, size_t len, http_request_t *re
             if (req->content_length != -1) return fail(req, 400);   /* 중복 거절 */
             char tmp[32];
             if (val_len == 0 || val_len >= sizeof(tmp)) return fail(req, 400);
+            /* 모든 바이트가 ASCII 숫자여야 한다. strtol 만으로는 "+3" 과 "3\0junk"
+             * 를 통과시키기 때문에 변환 전에 숫자 검사를 한다. */
+            for (size_t i = 0; i < val_len; i++) {
+                if (val[i] < '0' || val[i] > '9') return fail(req, 400);
+            }
             memcpy(tmp, val, val_len); tmp[val_len] = '\0';
-            char *end;
-            long cl = strtol(tmp, &end, 10);
-            if (*end != '\0' || cl < 0) return fail(req, 400);
+            long cl = strtol(tmp, NULL, 10);
+            if (cl < 0) return fail(req, 400);
             if (cl > MAX_BODY) return fail(req, 413);
             req->content_length = cl;
         } else if (name_len == 10 && strncasecmp(p, "Connection", 10) == 0) {
@@ -124,11 +128,13 @@ parse_status_t http_parser_parse(const char *buf, size_t len, http_request_t *re
         if (body_avail < (size_t)req->content_length) return PARSE_NEED_MORE;
         req->body = body_start;
         req->body_len = (size_t)req->content_length;
+        req->consumed = (size_t)(body_start - buf) + req->body_len;
         return PARSE_COMPLETE;
     }
     /* Content-Length 없음: POST 면 411, GET 등은 본문 없이 완성 */
     if (is_post) return fail(req, 411);
     req->body = body_start;
     req->body_len = 0;
+    req->consumed = (size_t)(body_start - buf);
     return PARSE_COMPLETE;
 }

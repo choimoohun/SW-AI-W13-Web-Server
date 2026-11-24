@@ -16,6 +16,8 @@
 #include <sys/socket.h>  /* send */
 #include <errno.h>
 #include <stdio.h>       /* snprintf */
+#include <string.h>      /* memcpy */
+#include <time.h>        /* gmtime_r, strftime */
 
 /* 남은 바이트를 모두 전송. 부분 쓰기/EINTR 처리. 실패 -1, 성공 0. */
 static int send_all(int fd, const char *buf, size_t len)
@@ -37,6 +39,8 @@ static const char *reason_phrase(int status)
 {
     switch (status) {
         case 200: return "OK";
+        case 201: return "Created";
+        case 409: return "Conflict";
         case 400: return "Bad Request";
         case 403: return "Forbidden";
         case 404: return "Not Found";
@@ -66,6 +70,91 @@ void http_response_send_error(int client_fd, int status)
     send_all(client_fd, hdr, (size_t)n);
 }
 
+/* FR-03: 표준 헤더. Date는 RFC 1123 형식의 GMT 시각. */
+static void http_date(char *out, size_t cap)
+{
+    time_t now = time(NULL);
+    struct tm tm;
+    (void)gmtime_r(&now, &tm);
+    (void)strftime(out, cap, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+}
+
+/* keep-alive 정책 헤더. HTTP/1.0은 기본 close이므로 keep-alive를 쓰지 않는다.
+ * 최대 요청 수(max)는 설정(keepalive_max)으로 바뀌므로 헤더에 고정값을 쓰지 않는다.
+ * 실제 제한은 connection_feed()가 마지막 응답을 Connection: close로 보내 알린다. */
+#define KA_STR2(x) #x
+#define KA_STR(x) KA_STR2(x)
+static const char *connection_header(int keep_alive)
+{
+    return keep_alive ? "Connection: keep-alive\r\nKeep-Alive: timeout="
+                        KA_STR(HTTP_KEEPALIVE_TIMEOUT_SEC) "\r\n"
+                      : "Connection: close\r\n";
+}
+
+size_t http_response_build_json(char *out, size_t cap, int status,
+                                const char *body, size_t len, int keep_alive)
+{
+    char date[64];
+    int n;
+
+    http_date(date, sizeof(date));
+    n = snprintf(out, cap,
+                     "HTTP/1.1 %d %s\r\n"
+                     "Date: %s\r\n"
+                     "Server: jungle-c/1.0\r\n"
+                     "Content-Type: application/json; charset=utf-8\r\n"
+                     "Content-Length: %zu\r\n"
+                     "%s\r\n",
+                     status, reason_phrase(status), date, len,
+                     connection_header(keep_alive));
+    if (n < 0 || (size_t)n >= cap) return 0;
+    if (len > cap - (size_t)n) return 0;
+    if (len > 0 && body != NULL) memcpy(out + n, body, len);
+    return (size_t)n + len;
+}
+
+size_t http_response_build_error(char *out, size_t cap, int status, int keep_alive)
+{
+    return http_response_build_json(out, cap, status, "", 0, keep_alive);
+}
+
+size_t http_response_build_file(char *out, size_t cap, const char *mime,
+                                long size, int keep_alive, const char *extra_headers)
+{
+    char date[64];
+    int n;
+
+    http_date(date, sizeof(date));
+    n = snprintf(out, cap,
+                     "HTTP/1.1 200 OK\r\n"
+                     "Date: %s\r\n"
+                     "Server: jungle-c/1.0\r\n"
+                     "Content-Type: %s\r\n"
+                     "Content-Length: %ld\r\n"
+                     "%s"
+                     "%s\r\n",
+                     date, mime, size,
+                     extra_headers == NULL ? "" : extra_headers,
+                     connection_header(keep_alive));
+    if (n < 0 || (size_t)n >= cap) return 0;
+    return (size_t)n;
+}
+
+void http_response_send_json(int client_fd, int status, const char *body, size_t len)
+{
+    char hdr[512];
+    int n = snprintf(hdr, sizeof(hdr),
+                     "HTTP/1.1 %d %s\r\n"
+                     "Content-Type: application/json; charset=utf-8\r\n"
+                     "Content-Length: %zu\r\n"
+                     "Connection: close\r\n"
+                     "\r\n",
+                     status, reason_phrase(status), len);
+    if (n < 0 || (size_t)n >= sizeof(hdr)) return;
+    if (send_all(client_fd, hdr, (size_t)n) < 0) return;
+    if (len > 0 && body != NULL) (void)send_all(client_fd, body, len);
+}
+
 void http_response_send_file(int client_fd, const char *mime, int file_fd, long size)
 {
     char hdr[512];
@@ -83,7 +172,9 @@ void http_response_send_file(int client_fd, const char *mime, int file_fd, long 
     char chunk[16384];
     long sent = 0;
     while (sent < size) {
-        ssize_t r = read(file_fd, chunk, sizeof(chunk));
+        size_t want = sizeof(chunk);
+        if ((long)want > size - sent) want = (size_t)(size - sent);
+        ssize_t r = read(file_fd, chunk, want);
         if (r < 0) {
             if (errno == EINTR) continue;
             return;   /* 읽기 오류 */

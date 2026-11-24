@@ -1,5 +1,21 @@
-/* 설정 자료형과 읽기 인터페이스를 둘 파일.
- * 오늘 범위의 최소 설정은 listen port와 doc_root다. CLI와 파일 설정을 함께 받는다면
- * 기본값 → 설정 파일 → CLI 우선순위를 정하고, 값 검증과 메모리 소유권을 명확히 한다.
- * 프록시/CGI 설정은 그 기능을 구현할 때 추가한다. 요구사항: C-05, FR-04.
+/*
+ * config.h — 실행 설정. 기본값 → 설정 파일 → CLI 순으로 덮어쓴다.
+ * 모든 문자열은 고정 배열이라 동적 할당/해제가 없다(NFR-01).
  */
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define CFG_PATH_LEN 256
+
+typedef struct {
+    char port[16];
+    char doc_root[CFG_PATH_LEN];
+    char config_file[CFG_PATH_LEN];
+    int workers;
+    int keepalive_max;
+} server_config_t;
+
+/* argc/argv에서 설정을 읽어 cfg를 채운다. 실패 -1, 성공 0. */
+int config_load(int argc, char **argv, server_config_t *cfg);
+
+#endif /* CONFIG_H */

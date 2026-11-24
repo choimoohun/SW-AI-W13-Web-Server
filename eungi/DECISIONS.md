@@ -5,13 +5,15 @@
 
 ## 결정 목록
 
+> 이 파일의 번호는 STEP1~4 동안 쓴 **임시 번호**입니다. STEP05부터는 `docs/decisions/`의 번호를 씁니다. 두 체계에서 D5가 겹치므로, 이 파일의 D5는 "D5(STEP1~4)"로 구분해 부릅니다.
+
 | ID | 결정 | 이유 | 관련 |
 |---|---|---|---|
-| D1 | 정적 파일 범위는 단일 스레드 블로킹으로 구현 | 오늘 범위 완주 우선. 동시성 모델 확정 후 분기만 교체 | STEP1, main/connection |
+| D1 | (대체됨 → STEP05 D5) 정적 파일 범위는 단일 스레드 블로킹으로 구현 | 오늘 범위 완주 우선. 동시성 모델 확정 후 분기만 교체 | STEP1, main/connection |
 | D2 | 정적 경로에 POST 요청은 405 | 정적 서빙은 GET 의미론 | STEP4, connection |
 | D3 | Transfer-Encoding: chunked 미지원, 501 | 본문은 Content-Length로만 판단 | STEP2, http_parser |
-| D4 | Keep-Alive 미지원, Connection: close로 요청마다 닫기 | 범위 단순화 | STEP3, connection/http_response |
-| D5 | 피처 매크로 _XOPEN_SOURCE=700 | realpath가 glibc XOPEN 확장 필요, Linux/macOS 이식성 | Makefile/CMakeLists |
+| D4 | (대체됨 → STEP05 D10, keep-alive 최대 100회) Keep-Alive 미지원, Connection: close로 요청마다 닫기 | 범위 단순화 | STEP3, connection/http_response |
+| D5(STEP1~4) | 피처 매크로 _XOPEN_SOURCE=700 | realpath가 glibc XOPEN 확장 필요, Linux/macOS 이식성 | Makefile/CMakeLists |
 | D6 | 경로 탈출은 컴포넌트 단위 .. 거부 + realpath 경계 검사 | 문자열 검사만으론 심볼릭링크·인코딩 우회를 못 막음 | STEP4, static_handler |
 
 ## 상세

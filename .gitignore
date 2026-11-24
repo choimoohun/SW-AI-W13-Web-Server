@@ -17,6 +17,7 @@ build.ninja
 
 # Compiler and linker outputs
 *.o
+*.d
 *.obj
 *.a
 *.lib

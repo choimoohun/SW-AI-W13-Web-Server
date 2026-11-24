@@ -44,5 +44,29 @@ fi
 ct=$(curl -s -D - -o /dev/null "$BASE/test.png" | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2}')
 if [ "$ct" = "image/png" ]; then echo "PASS  MIME image/png"; else echo "FAIL  MIME -> $ct"; fail=1; fi
 
+# keep-alive 파이프라인: 한 번에 보낸 두 요청의 응답이 순서대로, 본문까지 온전해야 한다 (PR #22 R11).
+pipe=$(python3 - "$PORT" <<'PY'
+import socket, sys
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3)
+s.sendall(b"GET /sample.txt HTTP/1.1\r\nHost: t\r\n\r\n"
+          b"GET /style.css HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n")
+d = b""
+try:
+    while True:
+        x = s.recv(65536)
+        if not x:
+            break
+        d += x
+except OSError:
+    pass
+a = open("www/sample.txt", "rb").read()
+b = open("www/style.css", "rb").read()
+parts = d.split(b"\r\n\r\n")
+ok = len(parts) == 3 and parts[1].startswith(a) and parts[2] == b
+print("ok" if ok else "bad")
+PY
+)
+if [ "$pipe" = "ok" ]; then echo "PASS  pipelined keep-alive (2 responses in order)"; else echo "FAIL  pipelined keep-alive -> $pipe"; fail=1; fi
+
 if [ "$fail" = 0 ]; then echo "integration: all passed"; else echo "integration: FAILED"; fi
 exit $fail

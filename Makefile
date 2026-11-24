@@ -2,18 +2,21 @@
 # 오늘 범위: 정적 파일 서버. 소스 src/, 헤더 include/.
 CC      ?= cc
 CSTD    ?= -std=c11
-CFLAGS  ?= $(CSTD) -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude
+CFLAGS  ?= $(CSTD) -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -MMD -MP
 LDFLAGS ?=
-LDLIBS  ?=
+LDLIBS  ?= -pthread   # 데모 스레드/저장소 락 링크용
 
 SRCS := $(wildcard src/*.c)
 OBJS := $(SRCS:.c=.o)
+DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration leak asan clean
+.PHONY: all test integration leak asan tsan clean
 
 all: $(BIN)
+
+-include $(DEPS)
 
 $(BIN): $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
@@ -33,6 +36,12 @@ test:
 integration: $(BIN)
 	@sh tests/integration/run.sh
 
+# ThreadSanitizer 빌드 (워커 스레드 간 데이터 레이스 확인용).
+tsan:
+	$(MAKE) clean
+	$(MAKE) CFLAGS="$(CSTD) -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -fsanitize=thread -g" all
+	@echo "[tsan] ./webserver 실행 후 make integration 등 동시 요청을 보내 리포트 확인."
+
 # 누수 검사 (Linux valgrind, Docker). Docker Desktop 실행 필요.
 leak:
 	@docker info >/dev/null 2>&1 || { echo "Docker 데몬이 꺼져 있습니다. 'open -a Docker'로 실행하세요."; exit 1; }
@@ -46,5 +55,5 @@ asan:
 	@echo "[asan] ./$(BIN) 실행 후 시나리오 실행. macOS=메모리오류 검사, 누수 0 확정=Linux valgrind."
 
 clean:
-	rm -f $(OBJS) $(BIN)
+	rm -f $(OBJS) $(DEPS) $(BIN)
 	rm -rf $(TESTBIN)
