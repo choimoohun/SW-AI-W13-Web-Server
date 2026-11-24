@@ -4,7 +4,7 @@
 
 ## 단위 테스트
 
-`tests/test_http_request.c`에서 `http_parse_head()`에 문자열을 넘기고 반환값과 구조체를 `assert`로 확인합니다. CTest에 `test_http_request`로 등록하며, 빌드와 등록 방법은 [정적 파일 서빙 설계의 빌드 설계](../static-file-serving/design.md#빌드-설계)에 있습니다.
+`tests/test_http_request.c`에서 `http_parse_head()`에 문자열을 넘기고 반환값과 구조체를 `assert`로 확인합니다. `http_read_head()`와 `http_read_body()`는 요청 바이트를 `pipe()`에 써 두고 읽기 끝을 `rio_t`로 감싸 시험합니다. 이 방식으로 아래 기능 테스트 Q10, Q11, Q12의 판정(`HTTP_READ_BAD`, `HTTP_READ_CLOSED`)도 소켓 없이 확인하며, 코드 주석의 Q10–Q12는 같은 케이스를 가리킵니다. CTest에 `test_http_request`로 등록하며, 빌드와 등록 방법은 [정적 파일 서빙 설계의 빌드 설계](../static-file-serving/design.md#빌드-설계)에 있습니다.
 
 | ID | 입력 헤더 블록 | 기대 결과 |
 | --- | --- | --- |

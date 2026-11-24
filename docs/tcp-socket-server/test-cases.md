@@ -52,7 +52,7 @@ cmake --build build
 | ID | 절차 | 기대 결과 |
 | --- | --- | --- |
 | T09 | 연결한 `echoclient`를 다른 터미널에서 `kill -9` | 커널이 FIN을 보내므로 서버는 해당 연결을 닫고 다음 연결을 기다림 |
-| T10 | 아래 스크립트로 RST를 보내며 끊은 뒤 T01 실행 | **기대 실패.** 서버가 `Rio_readlineb error: Connection reset by peer`, `Rio_writen error: ...`를 출력하거나 메시지 없이 `SIGPIPE`로 종료해 T01이 `Connection refused`. **보완 후 기준**: 서버가 해당 연결만 닫고 T01이 통과 |
+| T10 | 아래 스크립트로 RST를 보내며 끊은 뒤 T01 실행 | 서버가 표준 오류에 `rio_readlineb error: Connection reset by peer` 또는 `rio_writen error: ...`를 쓰고 해당 연결만 닫음. T01 통과 |
 
 ```sh
 python3 -c "
@@ -64,7 +64,7 @@ s.close()
 "
 ```
 
-`SO_LINGER`를 0초로 두고 닫으면 FIN 대신 RST가 나갑니다. T10은 교재 코드의 한계를 확인하는 케이스이며, [design.md의 보완할 지점](./design.md#요구사항-충족-판정)을 적용한 뒤 다시 실행합니다.
+`SO_LINGER`를 0초로 두고 닫으면 FIN 대신 RST가 나갑니다. T10은 [design.md의 보완한 지점](./design.md#보완한-지점)을 확인합니다. 보완 전 교재 코드로 실행하면 서버가 `Rio_readlineb error: Connection reset by peer`, `Rio_writen error: ...`를 출력하거나 메시지 없이 `SIGPIPE`로 끝나 T01이 `Connection refused`가 됩니다. RST가 언제 도착하느냐에 따라 메시지 없이 정상 EOF로 끝날 수도 있습니다.
 
 ## 메모리
 

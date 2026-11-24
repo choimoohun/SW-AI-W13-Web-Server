@@ -32,42 +32,47 @@
 | 허용 라이브러리만 사용 | `csapp.c`는 표준 C와 POSIX 호출을 감싼 코드입니다. | 충족 |
 | 빌드 파일 제공 | 교재 본문에는 빌드 파일이 없습니다. 이 저장소는 `CMakeLists.txt`를 사용합니다. | 타깃 추가 필요. [빌드 설계](#빌드-설계) 참고 |
 | 개발 환경 | Linux 기준 코드입니다. | Docker(`debian:bookworm-slim`) 또는 WSL2 Ubuntu에서 빌드. macOS 네이티브 빌드는 확인하지 않음 |
-| `SIGPIPE` 무시 | 처리하지 않습니다. 클라이언트가 끊긴 소켓에 쓰면 `SIGPIPE`의 기본 동작으로 서버가 끝날 수 있습니다. | 미충족 |
-| 클라이언트의 갑작스러운 연결 종료 | `Rio_readlineb`, `Rio_writen`, `Accept`가 실패하면 래퍼가 `unix_error()`로 서버 프로세스 전체를 끝냅니다. RST를 받은 연결 하나 때문에 서버가 멈춥니다. | 미충족 |
+| `SIGPIPE` 무시 | 처리하지 않습니다. 클라이언트가 끊긴 소켓에 쓰면 `SIGPIPE`의 기본 동작으로 서버가 끝날 수 있습니다. | 교재 코드는 미충족. 이 저장소는 [보완](#보완한-지점)해 충족 |
+| 클라이언트의 갑작스러운 연결 종료 | `Rio_readlineb`, `Rio_writen`, `Accept`가 실패하면 래퍼가 `unix_error()`로 서버 프로세스 전체를 끝냅니다. RST를 받은 연결 하나 때문에 서버가 멈춥니다. | 교재 코드는 미충족. 이 저장소는 [보완](#보완한-지점)해 충족 |
 | `SIGINT`, `SIGTERM` 안전한 셧다운 | 신호 처리기가 없어 기본 동작으로 즉시 끝납니다. 열린 디스크립터는 커널이 회수합니다. | 미충족. 순차 에코 서버에는 정리할 상태가 없으므로 스레드가 생기는 12장 단계에서 구현 |
 | 동시 요청 처리 | 순차 서버라 한 연결을 끝낼 때까지 다음 연결을 처리하지 않습니다. | 범위 밖. 12장에서 구현 |
 
-**결론**: 교재 코드를 그대로 쓰면 TCP 소켓 서버 항목의 표준 흐름과 연결 수락 후 송수신은 충족합니다. 그러나 중점 포인트의 `SIGPIPE` 무시와 품질 항목의 갑작스러운 연결 종료 대응은 충족하지 못합니다. 교재대로 먼저 만들고 [비정상 종료 테스트](./test-cases.md#비정상-종료)로 한계를 확인한 뒤 보완합니다. 안전한 셧다운은 이 단계에서 다루지 않습니다.
+**결론**: 교재 코드를 그대로 쓰면 TCP 소켓 서버 항목의 표준 흐름과 연결 수락 후 송수신은 충족합니다. 그러나 중점 포인트의 `SIGPIPE` 무시와 품질 항목의 갑작스러운 연결 종료 대응은 충족하지 못합니다. 이 저장소는 아래 두 지점을 보완해 둘 다 충족합니다. [비정상 종료 테스트](./test-cases.md#비정상-종료)가 이를 확인합니다. 안전한 셧다운은 이 단계에서 다루지 않습니다.
+
+### 보완한 지점
+
+- 서버 시작 시 `SIGPIPE`를 무시합니다. 무시만 하면 `Rio_writen` 래퍼가 `EPIPE`에서 서버를 끝내므로, `echo()`는 래퍼 대신 `rio_writen()`, `rio_readlineb()`의 반환값을 보고 -1이면 표준 오류에 원인을 출력한 뒤 반환합니다. `main()`이 그 연결만 닫습니다.
+- `Accept` 래퍼 대신 `accept()`를 호출하고 `EINTR`, `ECONNABORTED`이면 반복문을 계속합니다.
 
 > [!NOTE]
-> 이 단계에서 보완할 지점
->
-> - 서버 시작 시 `SIGPIPE`를 무시합니다. 무시만 하면 `Rio_writen` 래퍼가 `EPIPE`에서 서버를 끝내므로, `echo()`는 래퍼 대신 `rio_writen()`, `rio_readlineb()`의 반환값을 보고 해당 연결만 닫습니다.
-> - `Accept` 래퍼 대신 `accept()`를 호출하고 `EINTR`, `ECONNABORTED`이면 반복문을 계속합니다.
->
 > 셧다운을 나중에 구현할 때는 csapp의 `Signal()`을 쓰면 안 됩니다. `Signal()`은 `SA_RESTART`를 켜므로 `accept()`가 다시 시작되어 반복문이 종료 플래그를 확인하지 못합니다. `SA_RESTART` 없이 `sigaction()`을 직접 호출해야 합니다. 또 `rio_read()`는 `EINTR`이면 다시 읽으므로, 연결이 열려 있는 동안에는 신호를 받아도 바로 끝나지 않습니다.
 
 ## 코드 흐름
 
-서버는 리스닝 소켓을 한 번 만든 뒤, 연결을 하나 수락하고 그 연결이 EOF에 이를 때까지 에코한 다음 다음 연결을 수락합니다.
+서버는 리스닝 소켓을 한 번 만든 뒤, 연결을 하나 수락하고 그 연결이 EOF나 오류에 이를 때까지 에코한 다음 다음 연결을 수락합니다. 아래는 [보완한 지점](#보완한-지점)을 적용한 이 저장소의 흐름입니다.
 
 ```mermaid
 flowchart TD
     A["main(argc, argv)"] --> B{"argc == 2?"}
     B -->|"아니요"| U["사용법 출력 후 exit(0)"]
-    B -->|"예"| C["Open_listenfd(argv[1])<br/>getaddrinfo, socket, setsockopt, bind, listen"]
+    B -->|"예"| S["Signal(SIGPIPE, SIG_IGN)"]
+    S --> C["Open_listenfd(argv[1])<br/>getaddrinfo, socket, setsockopt, bind, listen"]
     C -->|"실패"| X["오류 출력 후 exit(0)"]
-    C -->|"listenfd"| D["Accept(listenfd)<br/>연결이 올 때까지 블로킹"]
+    C -->|"listenfd"| D["accept(listenfd)<br/>연결이 올 때까지 블로킹"]
+    D -->|"EINTR, ECONNABORTED"| D
+    D -->|"그 밖의 실패"| X
     D -->|"connfd"| E["Getnameinfo로 클라이언트 주소 변환<br/>Connected to 출력"]
     E --> F["echo(connfd)"]
     F --> G["Rio_readinitb(&rio, connfd)"]
-    G --> H{"Rio_readlineb 반환값"}
-    H -->|"n > 0"| I["server received n bytes 출력<br/>Rio_writen(connfd, buf, n)"]
-    I --> H
+    G --> H{"rio_readlineb 반환값"}
+    H -->|"n > 0"| I["server received n bytes 출력<br/>rio_writen(connfd, buf, n)"]
+    I -->|"성공"| H
+    I -->|"-1"| W["표준 오류에 원인 출력"]
+    H -->|"-1, 오류"| W
     H -->|"0, EOF"| J["echo 반환"]
+    W --> J
     J --> K["Close(connfd)"]
     K --> D
-    H -->|"-1, 오류"| X
 ```
 
 클라이언트와 서버 사이의 한 줄 왕복은 다음 순서로 진행됩니다.

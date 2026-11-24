@@ -30,7 +30,7 @@ Connection: close\r\n
 | 헤더와 본문 분리 | `http_send_head()`는 헤더까지만 보냅니다 | 파일 본문은 크기가 크고 이진 데이터이므로 문자열 버퍼에 담지 않고 정적 파일 모듈이 나눠 보냅니다 |
 | 형식 함수와 송신 함수 분리 | `http_format_head()`는 버퍼에 쓰기만 하고, `http_send_head()`가 그것을 `rio_writen()`으로 보냅니다 | 응답 바이트를 소켓 없이 단위 테스트합니다 |
 | 버퍼 작성 | `snprintf()` 한 번으로 헤더 전체를 쓰고 반환값으로 잘림을 확인합니다 | 교재 `clienterror()`의 `sprintf(buf, "%s...", buf)`는 원본과 대상이 겹쳐 정의되지 않은 동작입니다 |
-| 송신 오류 | 래퍼 `Rio_writen` 대신 `rio_writen()`의 반환값을 봅니다 | 클라이언트가 먼저 끊으면 `EPIPE`가 옵니다. `SIGPIPE`는 서버 시작 시 무시합니다([TCP 소켓 서버의 보완](../tcp-socket-server/design.md#요구사항-충족-판정)) |
+| 송신 오류 | 래퍼 `Rio_writen` 대신 `rio_writen()`의 반환값을 봅니다 | 클라이언트가 먼저 끊으면 `EPIPE`가 옵니다. `SIGPIPE`는 서버 시작 시 무시합니다([TCP 소켓 서버의 보완](../tcp-socket-server/design.md#보완한-지점)) |
 
 ## 상태 코드
 
