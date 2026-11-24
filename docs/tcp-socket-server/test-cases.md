@@ -70,7 +70,7 @@ s.close()
 
 | ID | 절차 | 기대 결과 |
 | --- | --- | --- |
-| T11 | Debug 빌드(`cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug`) 후 `valgrind --leak-check=full ./build-debug/echoserveri 15213`, T01과 T02를 실행하고 `Ctrl+C` | 잘못된 읽기와 쓰기 없음. `definitely lost: 0 bytes` |
+| T11 | 앞에서 띄운 서버를 `Ctrl+C`로 끝냄(남아 있으면 valgrind 서버가 T06처럼 `Address already in use`로 끝나고 T01, T02가 기존 서버에 붙어 검사가 무의미해짐). Debug 빌드(`cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug`) 후 `valgrind --leak-check=full ./build-debug/echoserveri 15213`, T01과 T02를 실행하고 `Ctrl+C` | 잘못된 읽기와 쓰기 없음. `definitely lost: 0 bytes` |
 
 ## 범위 밖 항목
 

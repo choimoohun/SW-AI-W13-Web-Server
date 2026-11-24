@@ -16,11 +16,9 @@ static void test_format(void)
     assert(strcmp(buf, want) == 0);
 
     assert(http_format_head(buf, sizeof buf, 302, "text/html", 0) == -1); /* R02 */
-    assert(http_format_head(buf, 10, 200, "text/html", 13) == -1);        /* R03 */
-
-    /* R03 경계: 정확히 맞는 크기는 성공, 1바이트 모자라면 잘림 */
-    assert(http_format_head(buf, strlen(want) + 1, 200, "text/html", 13) == (int)strlen(want));
-    assert(http_format_head(buf, strlen(want), 200, "text/html", 13) == -1);
+    assert(http_format_head(buf, 10, 200, "text/html", 13) == -1);        /* R03a */
+    assert(http_format_head(buf, strlen(want) + 1, 200, "text/html", 13) == (int)strlen(want)); /* R03b */
+    assert(http_format_head(buf, strlen(want), 200, "text/html", 13) == -1);                  /* R03c */
 }
 
 static void test_send_error(void)
