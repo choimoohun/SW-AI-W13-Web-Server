@@ -34,7 +34,7 @@ cmake --build build
 
 ## 설계 문서
 
-과제 요구사항은 [docs/웹 서버 만들기.md](docs/웹%20서버%20만들기.md), 단계별 설계와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
+단계별 설계와 진행 상태는 [docs/README.md](docs/README.md)에 있습니다.
 
 ## 구현 단계에서 지킬 범위
 
