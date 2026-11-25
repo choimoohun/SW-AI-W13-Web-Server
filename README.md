@@ -51,13 +51,13 @@ sequenceDiagram
 
     C->>K: 연결 요청
     K->>E: 연결 수립 → listen fd를 준비 목록에
-    E->>W: 워커 깨움 (events 배열)
+    E->>W: events 배열에 담아 워커 깨움
     W->>K: accept(listen fd) → conn fd 받음
     W->>E: conn fd 논블로킹 설정 후 등록 → 잠듦
 
     C->>K: 요청 바이트
     K->>E: conn fd를 준비 목록에
-    E->>W: 워커 깨움 (events 배열)
+    E->>W: events 배열에 담아 워커 깨움
     W->>K: conn fd를 읽어 버퍼에 쌓기 → 완성 시 처리 / 아니면 다른 연결 처리
 ```
 
