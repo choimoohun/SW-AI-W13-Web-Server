@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases demo-up demo-down verify-demo pr-review clean
 
 all: $(BIN)
 
@@ -104,6 +104,16 @@ load-test-heavy: $(BIN)
 # 검토 과제용 테스트 케이스: 트래픽 급증/느린 클라이언트/예약·결제 일관성/워커 격리.
 review-cases: $(BIN)
 	@sh tests/integration/review_cases.sh
+
+# 데모 전체를 띄우고 끈다 (C 서버 + 결제 + 공항 A/B + MQ + 알림).
+demo-up:
+	@sh tests/integration/demo_up.sh
+demo-down:
+	@sh tests/integration/demo_down.sh
+
+# 데모 구성에서 돌려야 하는 회귀 순서.
+verify-demo: $(BIN)
+	@$(MAKE) --no-print-directory test integration-flight integration-airports integration-notifications edge-cases
 
 # 영속 저장 검증: 재시작 후에도 예약/좌석/이력 유지.
 integration-persist: $(BIN)
