@@ -90,14 +90,15 @@ static bool parse_response_headers(char *header, struct proxy_response *response
     for (const char *p = header + 13; p < end; p++) {
         if ((unsigned char)*p < 32 || (unsigned char)*p >= 127) return false;
     }
-    // 이 백엔드 계약은 Content-Length로 끝나는 본문 응답만 사용한다.
-    if (response->status == 204 || response->status == 304) return false;
+    // 조건부 요청과 캐시 메타데이터의 중계는 지원하지 않는다.
+    if (response->status == 304) return false;
+    bool no_content = response->status == 204;
 
     bool has_length = false;
     bool has_type = false;
     bool has_allow = false;
     for (char *line = end + 2; (end = strstr(line, "\r\n")) != NULL; line = end + 2) {
-        if (line == end) return has_length && has_type;
+        if (line == end) return no_content || (has_length && has_type);
         *end = '\0';
         char *colon = strchr(line, ':');
         if (colon == NULL || colon == line) return false;
@@ -113,7 +114,8 @@ static bool parse_response_headers(char *header, struct proxy_response *response
         }
         if (strcasecmp(line, "Transfer-Encoding") == 0) return false;
         if (strcasecmp(line, "Content-Length") == 0) {
-            if (has_length || !parse_length(value, sizeof response->body, &response->length))
+            if (no_content || has_length ||
+                !parse_length(value, sizeof response->body, &response->length))
                 return false;
             has_length = true;
         } else if (strcasecmp(line, "Content-Type") == 0) {

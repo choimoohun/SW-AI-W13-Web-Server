@@ -158,6 +158,21 @@ static bool header_is(const char *name, const char *colon, const char *expected)
     return length == strlen(expected) && strncasecmp(name, expected, length) == 0;
 }
 
+static bool parse_connection_options(const char *value, const char *end)
+{
+    while (value < end) {
+        while (value < end && (*value == ' ' || *value == '\t' || *value == ',')) value++;
+        const char *option = value;
+        while (value < end && is_token_byte((unsigned char)*value)) value++;
+        // Message framing and body metadata must not be marked hop-by-hop.
+        if (header_is(option, value, "Host") || header_is(option, value, "Content-Length") ||
+            header_is(option, value, "Content-Type")) return false;
+        while (value < end && (*value == ' ' || *value == '\t')) value++;
+        if (value < end && *value++ != ',') return false;
+    }
+    return true;
+}
+
 static int parse_headers(char *line, char *end, struct request *request)
 {
     bool has_host = false;
@@ -222,6 +237,8 @@ static int parse_headers(char *line, char *end, struct request *request)
             if (request->content_type != NULL || value == value_end) return 400;
             *value_end = '\0';
             request->content_type = value;
+        } else if (header_is(line, colon, "Connection")) {
+            if (!parse_connection_options(value, value_end)) return 400;
         } else if (header_is(line, colon, "Transfer-Encoding")) {
             has_transfer_encoding = true;
         } else if (header_is(line, colon, "Expect")) {
@@ -263,11 +280,18 @@ static int respond_headers(int fd, int status, const char *reason, const char *t
                            size_t length, const char *allow, int64_t deadline)
 {
     char headers[256];
-    int bytes = snprintf(headers, sizeof headers,
+    int bytes;
+    if (status == 204) {
+        bytes = snprintf(headers, sizeof headers,
+                         "HTTP/1.1 204 No Content\r\nConnection: close\r\n%s%s%s\r\n",
+                         *type ? "Content-Type: " : "", type, *type ? "\r\n" : "");
+    } else {
+        bytes = snprintf(headers, sizeof headers,
                          "HTTP/1.1 %d %s\r\nContent-Type: %s\r\n"
                          "Content-Length: %zu\r\nConnection: close\r\n%s%s%s\r\n",
                          status, reason, type, length, allow ? "Allow: " : "",
                          allow ? allow : "", allow ? "\r\n" : "");
+    }
     if (bytes < 0 || (size_t)bytes >= sizeof headers ||
         write_all(fd, headers, (size_t)bytes, deadline) < 0) {
         return EXIT_FAILURE;
@@ -292,6 +316,7 @@ static const char *reason_phrase(int status)
     switch (status) {
     case 200: return "OK";
     case 201: return "Created";
+    case 204: return "No Content";
     case 400: return "Bad Request";
     case 403: return "Forbidden";
     case 404: return "Not Found";
