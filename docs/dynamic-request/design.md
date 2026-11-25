@@ -16,10 +16,11 @@
 
 ## 요청 분기
 
-연결 처리(`handle_connection()`)는 본문까지 읽은 뒤 URI로 정적과 동적을 가릅니다.
+연결 처리(`handle_connection()`)는 본문까지 읽은 뒤 URI로 정적과 동적을 가릅니다. 7단계부터는 `--route` 접두사와 일치하는 요청이 가장 먼저 프록시로 갑니다([리버스 프록시](../reverse-proxy/design.md)).
 
 | URI | 허용 메서드 | 처리 |
 | --- | --- | --- |
+| `--route` 접두사와 일치 | GET, POST | `proxy_serve()` |
 | `/cgi-bin/`으로 시작 | GET, POST | `cgi_serve()` |
 | 그 밖 | GET | `static_serve()` |
 

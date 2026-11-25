@@ -19,6 +19,12 @@ static void test_format(void)
     assert(http_format_head(buf, 10, 200, "text/html", 13) == -1);        /* R03a */
     assert(http_format_head(buf, strlen(want) + 1, 200, "text/html", 13) == (int)strlen(want)); /* R03b */
     assert(http_format_head(buf, strlen(want), 200, "text/html", 13) == -1);                  /* R03c */
+
+    /* R09: 리버스 프록시의 게이트웨이 오류 */
+    assert(strcmp(http_status_text(502), "Bad gateway") == 0);
+    assert(strcmp(http_status_text(504), "Gateway timeout") == 0);
+    assert(http_format_head(buf, sizeof buf, 504, "text/html", 0) > 0);
+    assert(strncmp(buf, "HTTP/1.1 504 Gateway timeout\r\n", 30) == 0);
 }
 
 static void test_send_error(void)

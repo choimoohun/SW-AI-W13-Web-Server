@@ -44,6 +44,8 @@ Connection: close\r\n
 | 404 | Not found | 파일이나 CGI 프로그램 없음 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
 | 500 | Internal server error | 헤더를 보내기 전의 서버 내부 실패, CGI 실패 | [요청 파싱](../http-request-parsing/design.md#판정-규칙)(본문 할당 실패), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
 | 501 | Not implemented | `Transfer-Encoding` 헤더, 허용하지 않은 메서드(GET 외. `/cgi-bin/`은 POST도 허용) | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [요청 분기](../dynamic-request/design.md#요청-분기) |
+| 502 | Bad gateway | 백엔드 연결 거부, 비정상 응답(조기 EOF, 형식 오류, 1xx, `Transfer-Encoding`) | [리버스 프록시](../reverse-proxy/design.md) |
+| 504 | Gateway timeout | 백엔드 연결·송신·응답 헤더 수신 시간 초과 | [리버스 프록시](../reverse-proxy/design.md) |
 | 505 | HTTP version not supported | `HTTP/1.0`, `HTTP/1.1`이 아닌 버전 | [요청 파싱](../http-request-parsing/design.md#판정-규칙) |
 
 상태 메시지는 교재 그림 11.25의 표기를 따릅니다. 500은 그림에 없으므로 같은 표기 방식으로 `Internal server error`라고 씁니다.

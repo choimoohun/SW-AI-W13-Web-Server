@@ -24,7 +24,7 @@ const char *mime_type(const char *path)
     return "application/octet-stream";
 }
 
-int static_resolve_path(const char *root, const char *uri, char *path, size_t size)
+int static_has_bad_segments(const char *uri)
 {
     size_t len = strcspn(uri, "?");
 
@@ -36,10 +36,18 @@ int static_resolve_path(const char *root, const char *uri, char *path, size_t si
         int dot = seg == 1 && uri[i] == '.';
         int empty = seg == 0 && i > 0; /* 맨 앞 '/' 앞의 빈 조각은 정상 */
         if (dotdot || dot || empty)
-            return 403;
+            return 1;
         i += seg + 1;
     }
+    return 0;
+}
 
+int static_resolve_path(const char *root, const char *uri, char *path, size_t size)
+{
+    size_t len = strcspn(uri, "?");
+
+    if (static_has_bad_segments(uri))
+        return 403;
     const char *index = (len > 0 && uri[len - 1] == '/') ? "index.html" : "";
     int n = snprintf(path, size, "%s%.*s%s", root, (int)len, uri, index);
     if (n < 0 || (size_t)n >= size)

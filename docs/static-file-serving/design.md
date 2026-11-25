@@ -130,33 +130,35 @@ FIFO를 `O_RDONLY`로 열면 쓰는 쪽이 나타날 때까지 `open()`이 막�
 │   ├── http_response.h/.c 응답 생성
 │   ├── static_file.h/.c   MIME, 경로 해석, 파일 송신
 │   ├── cgi.h/.c           CGI 실행 (5단계)
-│   └── conn_queue.h/.c    연결 대기열 (6단계)
+│   ├── conn_queue.h/.c    연결 대기열 (6단계)
+│   └── proxy.h/.c         리버스 프록시 (7단계)
 └── tests/
     ├── test_http_request.c
     ├── test_http_response.c
     ├── test_static_file.c
     ├── test_cgi.c         (5단계)
-    └── test_conn_queue.c  (6단계)
+    ├── test_conn_queue.c  (6단계)
+    └── test_proxy.c       (7단계)
 ```
 
 | 파일 | 의존 | 산출물 |
 | --- | --- | --- |
-| `http_request.c`, `http_response.c`, `static_file.c`, `cgi.c`, `conn_queue.c` | `csapp.h`(RIO, `MAXLINE`), pthread | 정적 라이브러리 `http` |
+| `http_request.c`, `http_response.c`, `static_file.c`, `cgi.c`, `conn_queue.c`, `proxy.c` | `csapp.h`(RIO, `MAXLINE`), pthread | 정적 라이브러리 `http` |
 | `httpd.c` | `http`, `csapp` | 실행 파일 `httpd` |
-| `tests/test_*.c` | `http`, `csapp` | 단위 테스트 실행 파일 다섯 개 |
+| `tests/test_*.c` | `http`, `csapp` | 단위 테스트 실행 파일 여섯 개 |
 
 ## 빌드 설계
 
 기존 `CMakeLists.txt`의 `echoclient` 타깃 뒤에 추가합니다. pthread는 `csapp` 타깃이 `Threads::Threads`로 이미 연결합니다.
 
 ```cmake
-add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c src/cgi.c src/conn_queue.c)
+add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c src/cgi.c src/conn_queue.c src/proxy.c)
 target_link_libraries(http PUBLIC csapp)
 
 add_executable(httpd src/httpd.c)
 target_link_libraries(httpd PRIVATE http)
 
-foreach(name test_http_request test_http_response test_static_file test_cgi test_conn_queue)
+foreach(name test_http_request test_http_response test_static_file test_cgi test_conn_queue test_proxy)
     add_executable(${name} tests/${name}.c)
     target_link_libraries(${name} PRIVATE http)
     add_test(NAME ${name} COMMAND ${name})

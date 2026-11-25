@@ -32,13 +32,13 @@ target_link_libraries(echoserveri PRIVATE csapp)
 add_executable(echoclient src/echoclient.c)
 target_link_libraries(echoclient PRIVATE csapp)
 
-add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c src/cgi.c src/conn_queue.c)
+add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c src/cgi.c src/conn_queue.c src/proxy.c)
 target_link_libraries(http PUBLIC csapp)
 
 add_executable(httpd src/httpd.c)
 target_link_libraries(httpd PRIVATE http)
 
-foreach(name test_http_request test_http_response test_static_file test_cgi test_conn_queue)
+foreach(name test_http_request test_http_response test_static_file test_cgi test_conn_queue test_proxy)
     add_executable(${name} tests/${name}.c)
     target_link_libraries(${name} PRIVATE http)
     add_test(NAME ${name} COMMAND ${name})

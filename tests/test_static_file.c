@@ -35,6 +35,13 @@ static void test_resolve(void)
     assert(static_resolve_path("/srv/www", "/a?/../b", path, sizeof path) == 0); /* '?' 뒤는 검사하지 않음 */
     assert(strcmp(path, "/srv/www/a") == 0);
 
+    /* S18: 프록시 분기 전에도 쓰는 경로 조각 검사 */
+    assert(static_has_bad_segments("/api/a..b") == 0);
+    assert(static_has_bad_segments("/api?x=/../") == 0);
+    assert(static_has_bad_segments("/api/../x") == 1);
+    assert(static_has_bad_segments("/api/./x") == 1);
+    assert(static_has_bad_segments("//api") == 1);
+
     /* S17: 같은 파일의 다른 표기는 거부. "/cgi-bin/" 접두사 검사를 피하지 못하게 함 */
     assert(static_resolve_path("/srv/www", "//cgi-bin/x", path, sizeof path) == 403);
     assert(static_resolve_path("/srv/www", "/./cgi-bin/x", path, sizeof path) == 403);

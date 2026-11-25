@@ -1,11 +1,13 @@
 /*
  * httpd.c - 스레드 풀 웹 서버 (CS:APP3e 11.6 Tiny와 12.5.5 prethreaded 서버 기반)
- * 설계: docs/static-file-serving/design.md, docs/dynamic-request/design.md, docs/concurrency/design.md
+ * 설계: docs/static-file-serving/design.md, docs/dynamic-request/design.md, docs/concurrency/design.md,
+ *       docs/reverse-proxy/design.md
  */
 #include "cgi.h"
 #include "conn_queue.h"
 #include "http_request.h"
 #include "http_response.h"
+#include "proxy.h"
 #include "static_file.h"
 
 #define NWORKERS 8
@@ -13,6 +15,7 @@
 #define CGI_PREFIX "/cgi-bin/"
 
 static conn_queue queue;
+static proxy_router router;
 static const char *root;
 static volatile sig_atomic_t stop;
 
@@ -44,10 +47,21 @@ static void handle_connection(int connfd)
             http_send_error(connfd, 500);
         goto out;
     }
-    int dynamic = strncmp(req.uri, CGI_PREFIX, strlen(CGI_PREFIX)) == 0;
-    int allowed = strcmp(req.method, "GET") == 0 || (dynamic && strcmp(req.method, "POST") == 0);
+    /* 프록시 경로도 "/api/../admin"처럼 접두사를 벗어나는 URI를 백엔드에 넘기지 않게 먼저 막습니다.
+       shortcut: "%2e%2e"는 디코딩하지 않아 통과함. 백엔드가 디코딩 뒤 정규화하면 접두사 격리가 깨지므로 그때 거부 추가 */
+    if (static_has_bad_segments(req.uri)) {
+        http_send_error(connfd, 403);
+        goto out;
+    }
+    proxy_route *route = proxy_router_match(&router, req.uri);
+    int dynamic = !route && strncmp(req.uri, CGI_PREFIX, strlen(CGI_PREFIX)) == 0;
+    int allowed = strcmp(req.method, "GET") == 0 || ((route || dynamic) && strcmp(req.method, "POST") == 0);
     if (!allowed) {
         http_send_error(connfd, 501);
+        goto out;
+    }
+    if (route) {
+        proxy_serve(connfd, &router, route, &req, buf, len);
         goto out;
     }
     /* "/cgi-bin/dir/"에 static_resolve_path()가 index.html을 붙여 실행하지 않도록 디렉터리 요청은 막습니다. */
@@ -90,11 +104,23 @@ int main(int argc, char **argv)
     pthread_t tid[NWORKERS];
     sigset_t stop_signals;
 
-    if (argc != 3) {
-        fprintf(stderr, "usage: %s <port> <root>\n", argv[0]);
-        exit(0);
+    if (argc < 3) {
+        fprintf(stderr, "usage: %s <port> <root> [--route <prefix>=<host:port>[,<host:port>...]]...\n", argv[0]);
+        exit(1);
     }
     root = argv[2];
+    proxy_router_init(&router, PROXY_DEFAULT_TIMEOUT_MS);
+    for (int i = 3; i < argc; i += 2) {
+        char err[512];
+        if (strcmp(argv[i], "--route") != 0 || i + 1 == argc) {
+            fprintf(stderr, "%s: expected --route <prefix>=<host:port>[,...], got '%s'\n", argv[0], argv[i]);
+            exit(1);
+        }
+        if (proxy_router_add_spec(&router, argv[i + 1], err, sizeof err) < 0) {
+            fprintf(stderr, "%s: %s\n", argv[0], err);
+            exit(1);
+        }
+    }
 
     /* 끊긴 소켓에 쓸 때 프로세스가 죽지 않고 EPIPE를 받도록 합니다. */
     Signal(SIGPIPE, SIG_IGN);
@@ -145,5 +171,6 @@ int main(int argc, char **argv)
     for (int i = 0; i < NWORKERS; i++)
         Pthread_join(tid[i], NULL);
     conn_queue_destroy(&queue);
+    proxy_router_destroy(&router);
     return 0;
 }
