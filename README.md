@@ -1,181 +1,226 @@
-# C POSIX 웹서버 — 오늘 작업 문서
+# C POSIX 웹 서버 — 항공편 예약 서비스 (Team C)
 
 ## MOTO
 
-실제 구현 및 동작 원리를 알자, 주위의 불편을 개선하자 
+실제 구현 및 동작 원리를 알자, 주위의 불편을 개선하자
 
-## 현재 작업 상태
+## 한눈에 보기
 
-오늘 작업 범위와 다음 단계는 [DAILY_SCOPE.md](docs/agent/DAILY_SCOPE.md)에 있습니다.
+- **서버 안:** 워커 스레드 4개가 각자 이벤트 루프(macOS `kqueue`, Linux `epoll`, 그 외 `poll`)를 돌려, 적은 스레드로 많은 연결을 처리합니다.
+- **서버 뒤:** 웹 서버가 리버스 프록시로서 API 요청을 뒤의 서비스로 전달합니다. 결과가 바로 필요한 호출은 API(동기)로, 늦어도 되는 일은 메시지 큐(비동기)로 나눠 한 서비스의 장애가 전체로 번지지 않게 했습니다.
+- **검증:** 단위·기능·부하·메모리·엣지 케이스 테스트를 `make` 명령으로 다시 실행할 수 있습니다.
 
-## 핵심 문제
+---
 
-TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 원합니다. 이 차이를 안전하게 메우고, 여러 클라이언트가 동시에 써도 상태가 깨지지 않게 만드는 것이 이 프로젝트의 출발점입니다. 자세한 문제 정의는 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)에 있습니다.
+## 1. 문제
 
-동시성은 **두 축을 따로 고릅니다**.
+- 웹에서는 많은 사람이 동시에 접속하고, 서버 한 대가 최대한 많은 요청을 받아야 합니다.
+- 네트워크로 바이트가 오는 시간은 길고, CPU가 요청을 처리하는 시간은 짧습니다. **바이트를 기다리는 동안 CPU를 놀리지 않는 것**이 핵심입니다.
+- TCP는 경계가 없는 바이트 흐름이라 요청 하나가 여러 조각으로 나뉘어 도착합니다. 연결마다 버퍼에 이어 붙이고, 헤더 끝(빈 줄)과 `Content-Length`로 요청이 다 왔는지 판단해야 합니다.
+- 연결마다 스레드를 두면 연결이 수만 개일 때(C10K) 메모리와 컨텍스트 스위칭 비용이 커집니다.
+- 논블로킹으로 연결마다 데이터가 왔는지 계속 물어보면, CPU를 낭비하거나 도착과 확인 사이에 지연(GAP)이 생깁니다.
 
-- **일하는 주체** — 워커 스레드 4개. 좌석 같은 공유 데이터를 `fork`로 나누면 워커마다 사본이 생겨 공유 메모리·IPC가 필요해지므로 스레드를 골랐습니다.
-- **I/O를 기다리는 방식** — 멀티플렉싱(Linux `epoll`, macOS `kqueue`, 그 외 `poll`). 연결은 많은데 대부분 유휴라서, 블로킹처럼 한 연결씩 붙잡고 있지 않고 **준비된 연결만** 받습니다.
+자세한 문제 정의는 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)에 있습니다.
 
-그래서 각 스레드는 한 연결을 끝까지 도맡지 않고, 여러 연결을 돌아가며 처리합니다. 세 가지 방식을 비교한 근거는 [notes/iomux.md](docs/notes/iomux.md)와 [DECISIONS.md](docs/DECISIONS.md)에 있습니다.
+## 2. 설계 ① 서버 안 — 멀티스레드 × I/O 멀티플렉싱
 
-## 문서 범위
+워커가 계속 물어보는 대신, **커널이 먼저 알려주는 방식**으로 바꿨습니다.
 
-작업 범위는 TCP 서버부터 정적 파일 서빙, 워커 풀·동시성, 항공편 예약, 별도 백엔드·결제 서비스 연결까지입니다.
+```
+[서버 시작]  메인: listen fd 생성 → 워커: 감시 목록에 listen fd 등록 → epoll_wait에서 잠듦
 
-| 문서 | 범위 |
-|---|---|
-| [STEP01_TCP_SERVER.md](docs/iterations/STEP01_TCP_SERVER.md) | TCP 소켓 서버 |
-| [STEP02_HTTP_PARSER.md](docs/iterations/STEP02_HTTP_PARSER.md) | HTTP 요청 파싱 |
-| [STEP03_HTTP_RESPONSE.md](docs/iterations/STEP03_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
-| [STEP04_STATIC_FILE.md](docs/iterations/STEP04_STATIC_FILE.md) | 정적 파일 서빙 |
-| [STEP05_CONCURRENCY.md](docs/iterations/STEP05_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
-| [STEP06_FLIGHT_DEMO.md](docs/iterations/STEP06_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
-| [EXT01_DOMAIN_COMPLETION.md](docs/iterations/EXT01_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 (확장) |
-| [EXT02_REQUIREMENTS_WRAPUP.md](docs/iterations/EXT02_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 (확장) |
-| [EXT03_BACKEND_SERVICES.md](docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장) |
-| [EXT04_PAYMENT_SERVICE.md](docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
-| [DECISIONS.md](docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
-| [notes/iomux.md](docs/notes/iomux.md) | I/O 멀티플렉싱·이벤트 루프를 고른 이유와 대안 비교(`epoll`/`kqueue`/`poll`) |
-| [notes/runtime-internals.md](docs/notes/runtime-internals.md) | 런타임 동작·네트워크 개념 |
-| [DESIGN.md](docs/DESIGN.md) | 아키텍처, 이벤트 루프 동작 순서, 실제 동작 원리 |
-| [TEAM_RULES.md](docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
-
-각 문서에는 단계별 작업 범위와 실제 구현·검증 기록이 들어 있습니다.
-
-## 현재 구현 상태 (2026-11-22)
-
-정적 파일 서빙을 넘어 아래 기능까지 구현·검증했습니다.
-
-| 기능 | 진입점 | 검증 명령 |
-|---|---|---|
-| 워커 풀 + `iomux` 이벤트 루프(Linux epoll / macOS kqueue / 폴백 poll) + keep-alive(최대 100회) | `src/worker.c`, `src/iomux.c`, `src/connection.c` | `make integration`, `make load-test` |
-| 항공편 예약 + 파일 영속 저장 | `src/flight_store.c`, `src/flight_api.c` | `make test-flight`, `make integration-flight`, `make integration-persist` |
-| 출발/도착 자동 추적 + 지연 | `src/flight_clock.c`, `www/ops.html` | `make test-tracking`, `make integration-tracking` |
-| Date/Server 헤더, `/health`, `/echo`, 접근 로그, `-p/-r/-c` | `src/http_response.c`, `src/config.c` | `make integration-req` |
-| 리버스 프록시(게이트웨이 라우팅 + Round-Robin 로드밸런싱) | `src/proxy.c`, `conf/tcpserver.conf` | `make integration-req` |
-| 로컬 미니 CDN(TTL 캐시, `X-Cache: HIT/MISS`) | `src/cdn.c` | `make integration-req` |
-| 공항 정보 서비스 2대(상세 화면, 라우팅·RR·장애 격리) | `tests/backends/serve_airports.py`, `conf/backends.conf` | `make integration-airports` |
-
-### 리버스 프록시 뒤의 백엔드 서비스
-
-| 경로 | 백엔드 | 용도 |
-|---|---|---|
-| `/api/payments/` | 결제 서비스 `:8500` | **항공 서비스 기능**: 예약 결제·환불, 자기 DB, 중복 방지 키, 아웃박스 |
-| `/api/airports/` | 공항 정보 서비스 `:8601`, `:8602` | **항공 서비스 기능**: 상세 화면의 출발·도착 공항 정보. 2대 Round-Robin, 한 대가 죽어도 그 칸만 안내 문구 |
-| `/api/mq/` | 메시지 큐 `:8700` | **항공 서비스 기능**: 결제 이벤트를 받아 알림 서비스로 넘긴다. consume lease(10초)·ack·재시도 |
-| `/api/notifications/` | 알림 서비스 `:8800` | **항공 서비스 기능**: "예약 확정" 알림을 저장하고 '내 예약'에 표시. MQ가 죽어도 결제는 성공 |
-| `/api/cache/`, `/api/stocks/`, `/api/orders/` | 이전 주차 mini-redis·mini-dbms | **실험용**: 별도 프로세스의 자원 제한·독립 재시작 시연. `conf/backends.experimental.conf` + `make integration-backends`(옆 레포 필요) |
-
-데모 실행(백엔드 포함):
-
-```sh
-python3 tests/backends/serve_airports.py --port 8601 --name A &
-python3 tests/backends/serve_airports.py --port 8602 --name B &
-python3 tests/backends/serve_payments.py &          # :8500, 아웃박스 -> MQ
-python3 tests/backends/serve_mq.py &                # :8700
-python3 tests/backends/serve_notifications.py &     # :8800, 1초마다 MQ 소비
-./webserver -c conf/backends.conf   # http://127.0.0.1:8085/flights.html
+클라이언트             커널 (서버 쪽)                         워커
+   │ ── SYN ──────────▶ │
+   │ ◀── SYN+ACK ────── │                                   (잠자는 중)
+   │ ── ACK ──────────▶ │  연결 완성 → accept 대기열
+                        │  listen fd 준비 → 콜백 → 깨움 ───▶ accept() → conn fd 받음
+                        │                                   conn fd를 감시 목록에 추가
+                        │                                   다시 epoll_wait에서 잠듦
+   │ ── "GET /..." ───▶ │  데이터 도착 → 소켓 수신 버퍼에 저장
+                        │  conn fd 준비 → 콜백 → 깨움 ───▶ recv() → 버퍼에 붙임
+                        │                                   요청 완성? → 처리 → send()
+   │ ◀── 응답 ───────── │
 ```
 
-알림 흐름은 비동기다. 결제가 성공해도 알림은 최대 몇 초 뒤에 '내 예약'에 나타나고,
-MQ나 알림 서비스가 죽어도 결제는 성공한다. `make integration-notifications`로 검증한다.
+- 워커는 할 일이 없으면 잠들어 있다가, 새 연결이 오거나 데이터가 오면 커널이 깨웁니다.
+- 워커는 받은 바이트를 연결별 버퍼에 이어 붙이고, 요청이 완성된 연결만 처리합니다. 덜 온 연결은 두고 다른 연결로 넘어갑니다.
+- 워커 4개가 각자 이렇게 돌아서, **한 워커 안에서는 여러 연결을 번갈아 처리하고(동시성), 워커 4개는 코어 위에서 동시에 일합니다(병렬성).**
+- 응답 뒤에도 연결을 닫지 않고 다음 요청을 받습니다(keep-alive, 최대 100회). 5초 동안 아무것도 오지 않으면 정리합니다.
 
-실제 실행:
+![워커별 이벤트 루프](docs/img/worker-event-loops.png)
 
-```sh
-make
-./webserver                      # http://127.0.0.1:8080/
-# 또는: ./webserver -p 8083 -r ./www -c conf/tcpserver.conf
-```
+| 제한 | 값 | 넘으면 |
+|---|---|---|
+| 워커당 동시 연결 | 128 (`MAX_CONNS`) | 새 연결을 받자마자 닫음 |
+| URI 길이 | 2048 바이트 | 414 |
+| 헤더 크기 | 8192 바이트 | 431 |
+| 본문 크기 | 1 MiB | 413 |
+| 유휴 연결 | 5초 | 연결 정리 |
 
-브라우저 화면: `http://127.0.0.1:8080/flights.html`(예약), `http://127.0.0.1:8080/ops.html`(운항 관제).
-동시성 before/after는 앱 UI가 아니라 `make integration-flight`, `make tsan`으로 확인합니다.
+이벤트 루프 동작 순서는 [`DESIGN.md` §2.2](docs/DESIGN.md#22-이벤트-루프--워커-안에서-일어나는-멀티플렉싱)에, `epoll`/`kqueue`/`poll`을 비교한 근거는 [notes/iomux.md](docs/notes/iomux.md)에 있습니다.
 
-## 전체 아키텍처 한눈에 보기
-
-### 구성도 — 요청이 지나는 경로
+## 3. 설계 ② 서버 뒤 — 리버스 프록시와 메시지 큐
 
 ```mermaid
-flowchart TB
-    C["Client<br/>Browser · curl"] <-->|"HTTP/1.1 keep-alive"| L["Listener :8080"]
-    subgraph S["webserver 프로세스 (C · POSIX)"]
-        L --> EL
-        subgraph W["Worker Pool ×4 · 스레드당 event loop"]
-            EL["Event loop<br/>epoll · kqueue · poll"] --> HP["HTTP Parser"] --> R{"Router"}
-            R --> API["/api/*<br/>Flight API"]
-            R --> HC["/health · /echo"]
-            R --> ST["정적 파일<br/>+ CDN cache"]
-        end
-        R --> P["Proxy thread<br/>queue · Round-Robin"]
-        API --> DB[("Flight store")]
-        CLK["Flight clock"] -.-> DB
-    end
-    P --> U["Upstream 서비스<br/>(별도 프로세스)<br/>mini-redis :8000<br/>stocks :8002<br/>orders :8401 / :8402<br/>payments :8500"]
+flowchart LR
+    B["브라우저"] -->|HTTP| W["웹 서버 :8085<br/>워커 ×4"]
+    W -->|"정적 파일 · /api/flights"| W
+    W -->|"/api/... 요청"| Q["프록시 큐"] --> P["프록시 스레드"]
+    P -->|Round-Robin| A1["공항 A :8601"]
+    P --> A2["공항 B :8602"]
+    P --> PAY["결제 :8500"]
+    P --> N["알림 :8800"]
+    PAY -->|"publish (비동기)"| MQ["메시지 큐 :8700"]
+    MQ -->|consume| N
 ```
 
-멀티플렉싱(워커 안의 이벤트 루프) 동작 원리는 [`DESIGN.md` §2.2 이벤트 루프](docs/DESIGN.md#22-이벤트-루프--워커-안에서-일어나는-멀티플렉싱)에 따로 그렸습니다.
+### 리버스 프록시
 
-프록시 경로는 전용 `proxy thread`가 큐에서 꺼낸 작업을 처리하고, 업스트림 응답을 클라이언트에 직접 보냅니다. 이벤트 루프 안의 블로킹 호출을 없애서, 업스트림 지연이 있어도 `/health`는 막히지 않습니다.
+- 워커는 완성된 API 요청을 **프록시 큐에 넣고 바로 다른 연결로 돌아갑니다.** 뒤의 서비스를 기다리는 일은 프록시 스레드가 맡습니다.
+- 프록시 스레드는 큐에서 하나씩 꺼내, 경로에 맞는 백엔드를 Round-Robin으로 고르고, 경로를 바꿔(`/api/payments/charge` → `/charge`) 전달한 뒤, 응답을 클라이언트에 보냅니다.
+- 실패 처리: 연결 실패 502, 5초 안에 응답 없음 504, 프록시 큐가 256개로 차면 503.
 
-현행 구조와 그 근거는 [`DESIGN.md`](docs/DESIGN.md), AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_QA_LOG.md`](docs/agent/AI_QA_LOG.md)에 있습니다.
+| 경로 | 백엔드 | 역할 |
+|---|---|---|
+| `/api/airports/` | 공항 A `:8601`, 공항 B `:8602` | 항공편 상세의 공항 정보. 2대 Round-Robin. 한 대가 죽어도 그 칸만 안내 문구 |
+| `/api/payments/` | 결제 `:8500` | 결제·환불, 중복 방지 키, 아웃박스 |
+| `/api/notifications/` | 알림 `:8800` | 예약 확정 알림 조회 |
+| `/api/mq/` | 메시지 큐 `:8700` | 대기 메시지 수 조회 (화면 배지) |
 
-### 왜 Reverse Proxy이지, Forward Proxy가 아닌가
+설정은 [`conf/backends.conf`](conf/backends.conf)의 `route = 경로|백엔드들|바꿀 경로` 줄입니다.
+
+### 동기 API vs 메시지 큐
+
+| 기능 | 방식 | 이유 |
+|---|---|---|
+| 공항 정보, 결제 | **API (동기)**: 응답을 기다림 | 결과를 화면에 바로 보여줘야 함 |
+| 예약 확정 알림 | **메시지 큐 (비동기)** | 조금 늦어도 됨. 알림 서비스가 멈춰도 결제는 성공해야 함 |
+
+- 결제 서비스는 결제를 저장한 뒤 알림 서비스를 직접 부르지 않고, `reservation.paid` 메시지를 메시지 큐에 넣고 바로 응답합니다(아웃박스 패턴: 큐가 죽어 있으면 보관했다가 다시 보냄).
+- 알림 서비스는 1초마다 큐에서 메시지를 꺼내 알림을 만들고 처리 완료(ack)를 알립니다. 같은 메시지는 한 번만 알림이 됩니다.
+- 그래서 알림 서비스나 메시지 큐가 멈춰도 결제는 성공하고, 다시 켜지면 밀린 알림이 처리됩니다.
+
+### 왜 Reverse Proxy인가
 
 | | Forward Proxy | Reverse Proxy (우리 선택) |
 |---|---|---|
-| 누가 쓰나 | 클라이언트 측이 자기 트래픽을 보냄 | 서버 측이 들어오는 요청을 백엔드로 넘김 |
+| 누구를 대신하나 | 클라이언트를 대신해 밖으로 요청 | 서버들을 대신해 요청을 받음 |
 | 숨기는 대상 | 클라이언트 정체 | 백엔드 구성(IP·포트·수) |
 | 부하 분산 | 해당 없음 | 여러 백엔드에 Round-Robin |
-| 우리 과제에서 | 브라우저 설정 문제라 C 서버 일과가 아님 | `/api/*` → 8401/8402 분산, rewrite — FR-07 |
 
-우리는 들어오는 `/api/*`를 내부 백엔드로 중계하는 게 필요합니다. 그래서 Reverse Proxy입니다.
-Forward Proxy(선택 항목)는 구현하지 않았고 [`REQUIREMENTS.md` FR-08](docs/REQUIREMENTS.md)을 범위 밖으로 정했습니다.
+Forward Proxy는 구현하지 않았고 [`REQUIREMENTS.md` FR-08](docs/REQUIREMENTS.md)에서 범위 밖으로 정했습니다.
 
-## 기술 영역 및 학습 목표
+## 4. 시연 순서
 
-이 프로젝트를 통해 아래의 핵심 기술 영역들을 깊이 있게 다루고 검증합니다.
+명령 하나에 코드 블록 하나씩 두었습니다. 복사해서 그대로 붙여 넣으면 됩니다.
 
-| 기술 영역 | 핵심 학습 내용 |
-|---|---|
-| Network | TCP/IP 작동 원리, 포트 할당, 소켓 연결 관리 |
-| Linux/POSIX | 파일 디스크립터(FD) 개념, 시스템 콜 활용 |
-| HTTP | HTTP 프로토콜 규격, 요청과 응답 구조, 상태 코드 |
-| C Programming | 포인터 활용, 데이터 버퍼 관리, 메모리 할당과 해제 |
-| File I/O | 파일을 열고 읽고 닫는 저수준 제어 |
-| Network I/O | 소켓을 통한 데이터 송수신 흐름 설계 |
-| Security | 지정된 폴더 밖의 파일 접근 차단, 잘못된 메모리 접근 방지 |
-| Testing | 단위 및 통합 테스트 설계, 메모리 오류 검사 |
-| Architecture | 기능별 모듈 분리, 자원 소유권 관리, 코드 구조 설계 |
+### 0. 데모 시작
 
-## 구현 마일스톤 및 진행 상태
+```
+make demo-up
+```
 
-구현 순서대로 9개 마일스톤을 나눠 "구현 → 실제 실행으로 검증 → 다음" 순서로 진행했습니다.
+브라우저(시크릿 창 권장): http://127.0.0.1:8085/flights.html
 
-| 마일스톤 | 내용 | 상태 |
-|---|---|---|
-| 1 | TCP 서버 골격: listen → accept → 요청/응답 + graceful shutdown | 완료·검증 |
-| 2 | HTTP 요청 파싱: connection 누적 읽기 + `http_parser` (`PARSE_COMPLETE/NEED_MORE/ERROR`) | 완료·검증 |
-| 3 | 정적 파일 찾기: `static_handler` 경로 검증 + MIME + 404/403/500 | 완료·검증 |
-| 4 | HTTP 응답: `http_response` 직렬화 + 청크 전송 + 바이너리 무결성 | 완료·검증 |
-| 5 | 견고함: 단일 정리 지점 + 타임아웃 + ASan/valgrind 누수 0 | 완료·검증 |
-| 6 | 워커 풀 + 이벤트 루프: `worker`, `iomux`(epoll/kqueue/poll), accept 분산, keep-alive 100회 | 완료·검증 |
-| 7 | 항공편 도메인: 예약·취소·영속 저장, 좌석 경쟁 before/after, 출발/도착 추적 | 완료·검증 |
-| 8 | 요구사항 마무리: Date/Server, health/echo, 접근 로그, `-p/-r/-c`, 프록시 게이트웨이+RR, 미니 CDN | 완료·검증 |
-| 9 | 별도 백엔드 프로세스 연결: mini-redis·mini-dbms를 게이트웨이 뒤에 연결, 리소스 제한·독립 재시작 시연 | 완료·검증 |
-| 10 | 결제 서비스 분리: 자기 DB·중복 방지 키·환불, `flights.html` 결제 버튼, 독립 재시작 | 완료·검증 |
+### 1. 라운드로빈 — 공항 서버 A, B가 번갈아 응답
 
-### 마일스톤별 검증 요약
+항공편 상세를 두 번 열거나, 터미널에서:
 
-| 마일스톤 | 확인 |
-|---|---|
-| 1~4 TCP·파서·응답·정적 파일 | `make`, 200/404/403, PNG 바이트 일치, MIME, 종료 코드 0 |
-| 5 견고함 | `make test`·`make asan`, Docker valgrind 누수 0 |
-| 6 동시성 | keep-alive, slow client 비차단, 100동시 통과 |
-| 7 항공편 | before/after 재현, 재시작 후 예약 유지, `make tsan` after 0건 |
-| 8~10 마무리·별도 백엔드·결제 | 프록시 RR/XFF/502, 접근 로그, `X-Cache` HIT, 결제 충전·환불 |
+```
+for i in 1 2 3 4; do curl -s http://127.0.0.1:8085/api/airports/ICN; echo; done
+```
 
-실행 명령은 아래 "로컬에서 돌려보는 방법"에, 상세 출력은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
+### 2. 알림 서비스 끄기 → 결제는 성공, 메시지는 큐에 대기
+
+```
+make noti-down
+```
+
+결제 → '내 예약' 카드에 빨간 테두리. 큐에 대기 중인 메시지(`"ready": 1` 이상):
+
+```
+make mq-stats
+```
+
+![알림 서비스 중지 중](docs/img/demo-notice-down.png)
+
+### 3. 알림 서비스 켜기 → 밀린 알림 도착
+
+```
+make noti-up
+```
+
+2초 안에 같은 카드가 초록으로 바뀌고 토스트가 뜹니다. 큐 확인(`"ready": 0`):
+
+```
+make mq-stats
+```
+
+![재시작 후 알림 도착](docs/img/demo-notice-resumed-green.png)
+
+### 4. 부하 테스트 — 동시 100개 연결로 5000건
+
+```
+ab -n 5000 -c 100 http://127.0.0.1:8085/flights.html
+```
+
+`Requests per second`와 `Failed requests`를 확인합니다.
+
+### 5. 잘못된 요청 거절
+
+너무 긴 URL → 414
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8085/$(python3 -c 'print("a"*3000)')"
+```
+
+1MiB 초과 본문 → 413
+
+```
+head -c 1100000 /dev/zero | curl -s -o /dev/null -w '%{http_code}\n' --data-binary @- http://127.0.0.1:8085/echo
+```
+
+### 6. 데모 종료
+
+```
+make demo-down
+```
+
+## 5. 검증
+
+전체 회귀는 데모를 끈 상태에서 실행합니다(테스트가 같은 포트를 씁니다).
+
+```
+make demo-down
+```
+
+```
+make verify-demo
+```
+
+| 과제 요구사항 | 명령 | 확인 내용 | 결과 |
+|---|---|---|---|
+| 단위: HTTP 파서 | `make test` | 요청 줄·헤더·본문 경계, `NEED_MORE`/`COMPLETE`/`ERROR` | 통과 |
+| 단위: MIME 매핑·경로 보안 | `make test` | 확장자별 MIME, 지정 폴더 밖 접근 차단, 404 | 통과 |
+| 단위: 라우팅·프록시 경로 바꾸기 | `make test` | prefix 매칭, rewrite | 통과 |
+| 기능: 실제 HTTP 클라이언트 (curl) | `make integration`, `make integration-req` | 정적 파일, keep-alive, 프록시 RR·X-Forwarded-For·502·504 | 통과 |
+| 기능: 동시 다중 클라이언트 | `make integration` | 100개 동시 접속, 느린 클라이언트가 다른 요청을 막지 않음 | 통과 |
+| 기능: 브라우저 | 시연 순서 2~3 | 예약 → 결제 → 알림, 서비스 중지 시 빨간 테두리 | 수동 확인 |
+| 기능: 서비스 장애 격리 | `make integration-airports`, `make integration-notifications` | 공항 B 종료 시 그 차례만 502, 알림·큐 장애에도 결제 201, 재시작 후 밀린 알림 처리 | 통과 |
+| 부하 (`hey`, `/health`) | 아래 표 | 동시 수별 처리량 | 동시 100: 63,174 RPS, 에러 0 |
+| 부하 (`ab`, `/flights.html`) | 시연 순서 4 | 동시 100, 3000건 | 약 5,400 RPS, 평균 18ms |
+| 부하: 트래픽 급증·큐 상한 | `make review-cases` | 동시 100 × 1000 요청 Non-2xx 0, 프록시 큐가 차면 503 | 통과 |
+| 메모리: 잘못된 접근 | `make asan` 후 시나리오 실행 | AddressSanitizer + UBSan | 오류 0 |
+| 메모리: 누수 | `make leak` (Docker, Linux valgrind) | 누수 | 누수 0 |
+| 메모리: 데이터 경합 | `make tsan` | 좌석 경쟁 after 모드 | 경합 0 |
+| 엣지: 비정상 메서드 / 잘못된 버전 | `make edge-cases` | 405 / 505 | 통과 |
+| 엣지: 매우 긴 URI / 큰 본문 | `make edge-cases` | 414 / 413 | 통과 |
+| 엣지: 백엔드 없음 / 타임아웃 | `make edge-cases`, `make integration-req` | 502 / 504 | 통과 |
+| 엣지: 갑작스러운 연결 종료 | `make edge-cases` | 불완전 요청 후 끊김, RST 후 서버 생존 | 통과 |
+| 엣지: 유휴 연결 | `make edge-cases` | 5초 후 연결 정리 | 통과 |
+| 재시작: 같은 포트 | `make restart-test` | `SO_REUSEADDR`로 `Address already in use` 없음 | 통과 |
+
+`make asan`, `make tsan`은 바이너리를 sanitizer 빌드로 다시 만듭니다. 검사 후에는 `make clean` 후 `make`로 일반 빌드로 되돌립니다.
 
 ### 부하 테스트 (macOS, `hey`, `/health`)
 
@@ -190,111 +235,124 @@ Forward Proxy(선택 항목)는 구현하지 않았고 [`REQUIREMENTS.md` FR-08]
 | 1000 | 1 | 11,549 | 31.20 | 257.40 | 360.20 | 16155 / 3845 |
 | 1000 | 4 | 4,734 | 62.10 | 835.50 | 2510.80 | 18097 / 1903 |
 
-읽는 법:
-
 - 동시 10~100에서는 워커 수를 늘려도 큰 차이가 없습니다. `/health`는 일이 짧아 병렬화 이득이 적습니다.
-- 동시 1000에서는 **클라이언트와 서버 양쪽 제한**이 걸립니다. 워커당 연결 상한(`MAX_CONNS = 128`)을 넘는 연결은 서버가 받자마자 닫고(`EOF`), 맥의 임시 포트 고갈(`can't assign requested address`)도 함께 나옵니다. 서버 프로세스는 죽지 않았고, 부하 후 `/health`는 200이었습니다.
-- 그래서 발표에서는 "동시 100까지는 안정, 1000에서는 용량 한계가 숫자로 보인다"가 근거가 됩니다. 정원을 더 올리려면 연결 상한·임시 포트 범위·클라이언트 병렬도를 같이 다뤄야 합니다.
+- 동시 1000에서는 워커당 연결 상한(128)을 넘는 연결을 서버가 받자마자 닫고, 맥의 임시 포트 고갈도 함께 나옵니다. 서버 프로세스는 죽지 않았고, 부하 후 `/health`는 200이었습니다.
+
+### 부하 테스트 (macOS, `ab`, `/flights.html`, 각 3000건)
+
+| 동시 | RPS | 평균 응답 (ms) |
+|---|---|---|
+| 1 | 2,700 | 0.37 |
+| 10 | 4,813 | 2.08 |
+| 50 | 5,680 | 8.80 |
+| 100 | 5,438 | 18.39 |
+
+상세 출력은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
+
+## 6. 한계와 개선
+
+| 한계 | 영향 | 개선 방향 |
+|---|---|---|
+| 프록시 스레드 1개 | 느린 백엔드 하나가 큐의 뒤 요청을 막음 (head-of-line blocking) | 백엔드 서비스별 큐 + 프록시 스레드 여러 개 |
+| 헬스 체크 없음 | 죽은 백엔드에도 차례가 돌아가 그 요청은 502 | 연결 실패 시 다른 백엔드로 재시도, 주기적 헬스 체크 |
+| 인증·권한 없음 | 브라우저별 임시 ID로 예약 구분, 관리자 API 공개 | 로그인 서비스가 토큰 발급, 게이트웨이에서 검증 |
+| TLS 없음 | 평문 통신 | 게이트웨이에서 TLS 종료 |
+| 캐시 무효화 API 없음 | 로컬 CDN 캐시는 TTL 만료로만 정리 | 무효화 API |
+| 느린 공격(slowloris) | 5초 유휴 정리로 일부만 방어 | 요청 완성 시간 상한, 연결당 속도 하한 |
+
+---
+
+## 문서 범위
+
+| 문서 | 범위 |
+|---|---|
+| [STEP01_TCP_SERVER.md](docs/iterations/STEP01_TCP_SERVER.md) | TCP 소켓 서버 |
+| [STEP02_HTTP_PARSER.md](docs/iterations/STEP02_HTTP_PARSER.md) | HTTP 요청 파싱 |
+| [STEP03_HTTP_RESPONSE.md](docs/iterations/STEP03_HTTP_RESPONSE.md) | HTTP 응답 생성 및 전송 |
+| [STEP04_STATIC_FILE.md](docs/iterations/STEP04_STATIC_FILE.md) | 정적 파일 서빙 |
+| [STEP05_CONCURRENCY.md](docs/iterations/STEP05_CONCURRENCY.md) | 워커 풀 + 이벤트 루프, keep-alive, 동시성 검증 |
+| [STEP06_FLIGHT_DEMO.md](docs/iterations/STEP06_FLIGHT_DEMO.md) | 항공편 예약·출발/도착 추적, 좌석 경쟁 before/after |
+| [EXT01_DOMAIN_COMPLETION.md](docs/iterations/EXT01_DOMAIN_COMPLETION.md) | 영속 저장·락·시계 전이로 도메인 완성 (확장) |
+| [EXT02_REQUIREMENTS_WRAPUP.md](docs/iterations/EXT02_REQUIREMENTS_WRAPUP.md) | 요구사항 확정, 헤더·로그·경계 케이스 (확장) |
+| [EXT03_BACKEND_SERVICES.md](docs/iterations/EXT03_BACKEND_SERVICES.md) | mini-redis·mini-dbms 별도 프로세스 연결 (확장, 실험용) |
+| [EXT04_PAYMENT_SERVICE.md](docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
+| [DECISIONS.md](docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
+| [notes/iomux.md](docs/notes/iomux.md) | I/O 멀티플렉싱·이벤트 루프를 고른 이유와 대안 비교 |
+| [notes/runtime-internals.md](docs/notes/runtime-internals.md) | 런타임 동작·네트워크 개념 |
+| [DESIGN.md](docs/DESIGN.md) | 아키텍처, 이벤트 루프 동작 순서, 실제 동작 원리 |
+| [TEAM_RULES.md](docs/TEAM_RULES.md) | 팀이 확정한 규칙 |
+
+## 구현된 기능
+
+| 기능 | 진입점 | 검증 명령 |
+|---|---|---|
+| 워커 풀 + `iomux` 이벤트 루프(Linux epoll / macOS kqueue / 폴백 poll) + keep-alive(최대 100회) | `src/worker.c`, `src/iomux.c`, `src/connection.c` | `make integration`, `make load-test` |
+| 항공편 예약 + 파일 영속 저장 | `src/flight_store.c`, `src/flight_api.c` | `make test-flight`, `make integration-flight`, `make integration-persist` |
+| 출발/도착 자동 추적 + 지연 | `src/flight_clock.c`, `www/ops.html` | `make test-tracking`, `make integration-tracking` |
+| Date/Server 헤더, `/health`, `/echo`, 접근 로그, `-p/-r/-c` | `src/http_response.c`, `src/config.c` | `make integration-req` |
+| 리버스 프록시(게이트웨이 라우팅 + Round-Robin) | `src/proxy.c`, `conf/backends.conf` | `make integration-req` |
+| 로컬 미니 CDN(TTL 캐시, `X-Cache: HIT/MISS`) | `src/cdn.c` | `make integration-req` |
+| 공항 정보 서비스 2대(라우팅·RR·장애 격리) | `tests/backends/serve_airports.py` | `make integration-airports` |
+| 결제 서비스(중복 방지 키·환불·아웃박스) | `tests/backends/serve_payments.py` | `make integration-payments` |
+| 메시지 큐 + 예약 확정 알림(비동기) | `tests/backends/serve_mq.py`, `tests/backends/serve_notifications.py` | `make integration-notifications` |
+
+실험용 백엔드(이전 주차 mini-redis·mini-dbms, `/api/cache/`·`/api/stocks/`·`/api/orders/`)는 데모 설정에서 분리해 `conf/backends.experimental.conf`와 `make integration-backends`(옆 레포 필요)로만 씁니다.
 
 ## 로컬에서 돌려보는 방법
 
-기본 실행:
+빌드와 기본 실행(포트 8080):
 
-```sh
-cd /Users/velocitygoal/Desktop/jungle/SW-AI-W13-Web-Server
+```
 make
+```
+
+```
 ./webserver
-# 또는: FLIGHT_DATA_FILE=/dev/null ./webserver -p 8086 -r ./www -c conf/tcpserver.conf
 ```
 
-실행 확인:
+데모 전체(웹 서버 8085 + 결제 + 공항 A/B + 메시지 큐 + 알림):
 
-```sh
-nc -zv 127.0.0.1 8080      # 포트 열림
-WEB_WORKERS=4 ./webserver  # 워커 4개 (기본값)
-# 종료 후 종료 코드 확인: echo $?
-# 접근 로그의 [wN]으로 여러 워커가 처리했는지 확인
+```
+make demo-up
 ```
 
-브라우저에서 확인:
-
-- `http://127.0.0.1:8080/` — 기본 페이지
-- `http://127.0.0.1:8080/flights.html` — 항공편 예약/취소/내 예약/운항 이력
-- `http://127.0.0.1:8080/ops.html` — 출발·도착 추적 콘솔
-- `http://127.0.0.1:8080/health`, `/echo`, `/api/flights`
+브라우저: `http://127.0.0.1:8085/flights.html`(예약), `http://127.0.0.1:8080/ops.html`(운항 관제, 기본 실행 시)
 
 검증 명령:
 
-```sh
-make test                      # 단위 테스트
-make integration               # keep-alive·slow client·100동시
-make integration-flight        # 좌석 경쟁 HTTP 통합(before/after 모두 수행)
-make integration-persist       # 재시작 후 예약 유지
-make test-tracking             # 시계 전이 단위
-make integration-tracking      # 자동 출발/도착
-make integration-req           # 헤더/health/echo/프록시/캐시
-make integration-backends      # mini-redis·mini-dbms·결제 별도 프로세스 연결
-make integration-payments     # 결제 충전·중복 방지 키·환불·독립 재시작
-make tsan                      # 데이터 레이스 비교
-make load-test                 # 부하 (동시 20, 200요청)
-make load-test-heavy           # 동시 100, 1000요청
-make mutation                  # 뮤테이션 테스트(조건 뒤집기 → 테스트가 실패해야 PASS)
-make edge-cases                # 잘못된 요청·큰 본문·백엔드 없음·클라이언트 끊김
-make restart-test              # 같은 포트 재시작 시 Address already in use 없음
-make review-cases              # TC1~TC5(트래픽 급증·느린 클라이언트·큐 상한)
-```
+| 명령 | 내용 |
+|---|---|
+| `make test` | 단위 테스트 |
+| `make integration` | keep-alive·slow client·100동시 |
+| `make integration-flight` | 좌석 경쟁 HTTP 통합(before/after) |
+| `make integration-persist` | 재시작 후 예약 유지 |
+| `make integration-tracking` | 자동 출발/도착 |
+| `make integration-req` | 헤더/health/echo/프록시/캐시 |
+| `make integration-airports` | 공항 RR·장애 격리 |
+| `make integration-payments` | 결제 충전·중복 방지 키·환불·독립 재시작 |
+| `make integration-notifications` | 결제 → 메시지 큐 → 알림, 장애 시나리오 5개 |
+| `make edge-cases` | 잘못된 요청·큰 본문·백엔드 없음·클라이언트 끊김·유휴 |
+| `make review-cases` | 트래픽 급증·느린 클라이언트·프록시 큐 상한 |
+| `make restart-test` | 같은 포트 재시작 시 `Address already in use` 없음 |
+| `make load-test`, `make load-test-heavy` | 부하 |
+| `make tsan`, `make asan`, `make leak` | 데이터 경합, 메모리 오류, 누수(Docker) |
+| `make mutation` | 뮤테이션 테스트 |
+| `make verify-demo` | 데모 구성 회귀(test, flight, airports, notifications, edge-cases) |
 
-기능별 시연:
-
-```sh
-# 로컬 캐시 헤더 (첫 MISS, 두 번째 HIT)
-curl -i http://127.0.0.1:8080/style.css | grep -i x-cache
-curl -i http://127.0.0.1:8080/style.css | grep -i x-cache
-
-# 캐시 무효화 API는 아직 없음. TTL 만료로만 정리됨.
-# /api/cache/miss는 프록시 502 검증용 경로이며 캐시를 지우지 않음.
-
-# before/after는 관리 API로 전환 (UI에는 데모 컨트롤 없음)
-curl -X POST -d '{"lock":false}' http://127.0.0.1:8080/api/admin/mode  # before
-curl -X POST -d '{"lock":true}'  http://127.0.0.1:8080/api/admin/mode  # after
-
-# 출발/도착 시뮬레이션
-FLIGHT_TIME_MODE=sim FLIGHT_SIM_SPEED=3000 ./webserver
-# http://127.0.0.1:8080/ops.html
-
-# 게이트웨이 + 별도 백엔드 4종 (8085/8000/8002/8401/8402 사용)
-make integration-backends
-
-# Linux(epoll) 전체 회귀 — Docker 필요
-docker compose run --rm dev sh /workspace/tests/linux_check.sh
-```
-
-정리:
-
-```sh
-kill -TERM <pid>         # graceful shutdown, 종료 코드 0
-make reset-flights      # 예약 데이터 초기화 후 16편 시드로 다시 시작
-# 또는: rm -f data/flights.txt   (테스트는 FLIGHT_DATA_FILE=/dev/null 사용)
-```
-
-`integration-backends`는 8085, 8000, 8002, 8401, 8402 포트를 쓰므로 다른 서버가 해당 포트를 점유하고 있으면 먼저 정리해야 합니다.
+정리: `kill -TERM <pid>`(graceful shutdown, 종료 코드 0), `make reset-flights`(예약 데이터 초기화), `make demo-down`(데모 종료).
 
 ## 모듈과 디렉터리 구조
 
-모듈별 책임과 의존 규칙은 [docs/DESIGN.md §4](docs/DESIGN.md#4-모듈--의존--소유권--계약)에 있습니다. 파일은 같은 책임끼리 묶고, 아래 계층은 위 계층을 include하지 않습니다.
+모듈별 책임과 의존 규칙은 [docs/DESIGN.md §4](docs/DESIGN.md#4-모듈--의존--소유권--계약)에 있습니다.
 
 ```text
 src/ include/   main, tcpserver, worker, iomux, connection, config,
                 flight_*, proxy, cdn, http_parser, http_response, static_handler
-www/            flights.html/js, ops.html/js, 정적 자산
-conf/           tcpserver.conf(기본), backends.conf(게이트웨이)
-tests/          unit/, integration/
-docs/           REQUIREMENTS, DESIGN, DECISIONS, decisions/, iterations/,
-                agent/, records/, verify/, notes/
+www/            flights.html/js, pay.html/js, ops.html/js, 정적 자산
+conf/           tcpserver.conf(기본), backends.conf(데모 게이트웨이), backends.experimental.conf(실험용)
+tests/          unit/, integration/, backends/(Python 백엔드 서비스)
+docs/           REQUIREMENTS, DESIGN, DECISIONS, iterations/, agent/, records/, verify/, notes/, img/
 ```
-
-초기 단계의 "제안 구조"는 위 구조로 대체됐습니다.
-
 
 ## 문서 작성 원칙
 
