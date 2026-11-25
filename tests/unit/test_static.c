@@ -93,10 +93,10 @@ int main(void)
 
     /* 정상 디렉터리 index.html 은 그대로 서빙되어야 한다. */
     {
-        char sub[256], idx[256];
-        snprintf(sub, sizeof(sub), "%s/dir", root);
+        char sub[PATH_MAX + 32], idx[PATH_MAX + 32];
+        join2(sub, sizeof(sub), root, "/dir");
         mkdir(sub, 0700);
-        snprintf(idx, sizeof(idx), "%s/index.html", sub);
+        join2(idx, sizeof(idx), sub, "/index.html");
         f = fopen(idx, "w"); if (f) { fputs("<html>dir</html>", f); fclose(f); }
         r = rs("/dir", root);
         CHECK(r.status == 200 && r.mime && strcmp(r.mime, "text/html") == 0,

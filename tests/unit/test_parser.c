@@ -76,7 +76,7 @@ int main(void)
     {
         static const char pre[] = "GET / HTTP/1.1\r\nX-Pad: ";
         size_t n = sizeof(pre) - 1;
-        char big[9000 + sizeof(pre)];
+        char big[9000 + sizeof(pre) + 4];   /* pre + 패딩 + CRLFCRLF이 모두 들어가야 한다 */
         memcpy(big, pre, n);
         memset(big + n, 'p', 9000);
         memcpy(big + n + 9000, "\r\n\r\n", 4);

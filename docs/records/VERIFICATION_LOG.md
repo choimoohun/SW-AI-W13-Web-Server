@@ -572,3 +572,56 @@ TC3 NOT IMPLEMENTED / TC4 NOT IMPLEMENTED
 ### 여전히 미확인
 - Linux(Docker)에서 `make test` 재실행 — `test_static` 수정 확인 필요.
 - 부하 percentile(p50/p95/p99)은 미측정.
+
+## 2026-11-24 부하 percentile (macOS, `hey`)
+
+`hey -n 20000 -c <동시> http://127.0.0.1:<port>/health`, `WEB_WORKERS=1`(8092)과 `4`(8093).
+단위 ms. 첫 시도는 서버 기동 대기 중 `connection refused`가 나와 폐기하고, `/health` 200 확인 후 다시 측정했다.
+
+| 워커 | 동시 | RPS | p50 | p95 | p99 | 성공 | 에러 |
+|---|---|---|---|---|---|---|---|
+| 1 | 10 | 59542 | 0.10 | 0.30 | 0.50 | 20000 | 0 |
+| 1 | 100 | 52818 | 1.80 | 2.90 | 3.70 | 20000 | 0 |
+| 1 | 1000 | 11549 | 31.20 | 257.40 | 360.20 | 16155 | 3845 |
+| 4 | 10 | 52412 | 0.20 | 0.30 | 0.50 | 20000 | 0 |
+| 4 | 100 | 63174 | 1.50 | 2.70 | 3.50 | 20000 | 0 |
+| 4 | 1000 | 4734 | 62.10 | 835.50 | 2510.80 | 18097 | 1903 |
+
+동시 1000의 에러 내용: `EOF`(서버가 연결 슬롯 포화로 받자마자 닫음), `can't assign requested address`(맥 임시 포트 고갈), `connection reset by peer`. 서버 프로세스는 종료되지 않았고 부하 후 `/health` 200.
+
+## 2026-11-24 Linux(Docker, Debian bookworm) 재실행
+
+`test_parser.c`의 `big` 배열 3바이트 부족(UB)과 `test_static.c`의 `idx` 버퍼 `-Wformat-truncation`을 고친 뒤 돌렸다.
+이미지 `jg-w13-linux`(Dockerfile), 저장소를 `/workspace`로 마운트하고 `/tmp/wsl`에 복사해 실행.
+
+```
+=== make test ===
+cc -std=c11 -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -MMD -MP -o tests/bin/test_parser tests/unit/test_parser.c src/http_parser.c
+test_parser: all passed
+cc -std=c11 -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -MMD -MP -o tests/bin/test_static tests/unit/test_static.c src/static_handler.c
+test_static: all passed
+cc -std=c11 -Wall -Wextra -Werror -D_XOPEN_SOURCE=700 -Iinclude -MMD -MP -o tests/bin/test_route tests/unit/test_route.c src/config.c
+test_route: all checks passed
+TEST_EXIT=0
+
+=== make integration ===
+listening on port 8080 (doc_root=./www, workers=4)
+PASS  GET / -> 200
+PASS  GET /index.html -> 200
+PASS  GET /style.css -> 200
+PASS  GET /sample.txt -> 200
+PASS  GET /nope -> 404
+PASS  GET /../etc/passwd -> 403
+PASS  GET /%2e%2e/etc/passwd -> 403
+PASS  POST / (body) -> 405
+PASS  binary integrity (test.png)
+PASS  MIME image/png
+PASS  pipelined keep-alive: big file + file
+PASS  pipelined keep-alive: json + big file
+PASS  SIGTERM 종료 코드 0
+integration: all passed
+INTEGRATION_EXIT=0
+```
+
+- OS: Linux x86_64(Debian bookworm-slim, Docker). `epoll` 백엔드를 사용한다.
+- 정리: GAP §1의 "Linux에서 `make test` 실패"는 **해결**. macOS·Linux 모두 `make test`·`make integration` PASS.
