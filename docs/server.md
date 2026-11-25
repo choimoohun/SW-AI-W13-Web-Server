@@ -8,7 +8,9 @@
 flowchart TD
     Start["main: socket → bind → listen"] --> Accept["accept: 연결 수락"]
     Client[브라우저 또는 테스트 클라이언트] --> Accept
-    Accept --> Parse["handle_http_client: 요청 줄·헤더·본문 읽기"]
+    Accept -->|"프록시·예약 모드"| Queue["작업 큐 → 워커"]
+    Accept -->|"기본 실습 모드"| Parse["handle_http_client: 요청 줄·헤더·본문 읽기"]
+    Queue --> Parse
     Parse --> Route{"dispatch_request: 실행 모드와 경로"}
     Route -->|"정적 GET"| File["serve_static: 문서 루트 안에서 파일 열기"]
     Route -->|"일반 POST"| Echo["받은 본문을 응답 본문으로 사용"]
@@ -18,8 +20,8 @@ flowchart TD
     Echo --> Send
     Proxy --> Send
     Booking --> Send
-    Send --> Close["main: 이번 연결 FD 닫기"]
-    Close -->|"프록시·예약 모드"| Accept
+    Send --> Close["FD를 맡은 스레드가 연결 닫기"]
+    Close -->|"워커는 다음 작업 대기"| Queue
 ```
 
 | 단계 | 구현과 선택 이유 |
@@ -32,7 +34,7 @@ flowchart TD
 
 ### 연결과 파일의 정리 책임
 
-- `main()`은 연결을 처리할 때마다 `connfd`를 닫는다. 프록시와 예약 모드는 같은 `listenfd`에서 다음 연결을 받는다. 기본 실습 모드는 한 건을 처리한 뒤 `listenfd`를 닫고 종료한다.
+- 프록시와 예약 모드는 메인 스레드가 접속을 받고 워커가 처리한 `connfd`를 닫는다. 기본 실습 모드는 메인 스레드가 한 건을 직접 처리하고 두 FD를 닫는다. [작업 큐](concurrency/workers.md)
 - 프록시 함수는 새로 만든 백엔드 FD를 중계가 끝나거나 실패했을 때 닫는다.
 - 정적 파일 처리 함수는 탐색에 사용한 디렉터리 FD와 최종 파일 FD를 닫는다.
 - 서버가 응답 헤더를 보내기 전에 오류를 알면 `403`·`404`·`500` 등을 반환한다. 파일 응답을 시작한 뒤 읽기나 전송이 실패하면 연결을 닫는다.

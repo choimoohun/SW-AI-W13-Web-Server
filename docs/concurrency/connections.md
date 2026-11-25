@@ -1,19 +1,18 @@
-# 순차 연결 수락
+# 연결 수락과 전달
 
-[설계 목차](../design.md) · 1.5에서 사용한 연결 처리
+[설계 목차](../design.md) · [워커 풀](workers.md)
 
-프록시와 예약 모드에서 `main()`은 예매 페이지를 보낸 뒤 다음 TCP 연결에서 좌석 조회 요청을 받는다. 기본 실습 모드는 연결 한 건을 처리한 뒤 종료한다. [main.c](../../src/main.c)
+커널은 TCP 연결을 대기시키고, `accept()`가 돌아올 때 애플리케이션에서 쓸 통신용 FD를 넘긴다. 프록시 모드의 애플리케이션 큐에는 이 FD 번호가 들어간다.
 
 ```mermaid
 flowchart LR
-    Listen["listenfd 유지"] --> Accept["accept()"]
-    Accept --> Handle["connfd로 요청 한 건 처리"]
-    Handle --> Close["connfd 닫기"]
-    Close --> Accept
+    Handshake["TCP 핸드셰이크"] --> Kernel["커널에서 수락 대기"]
+    Kernel --> Accept["메인 스레드 · accept"]
+    Accept --> Queue["애플리케이션 큐 · connfd"]
+    Queue --> Handler["워커 · HTTP 요청 한 건"]
+    Handler --> Close["connfd 닫기"]
 ```
 
-- 첫 범위에서는 `Connection: close`를 유지한다. 매 요청은 새 연결에서 처리하고, 접속을 받는 `listenfd`는 서버가 종료할 때 닫는다.
-- 요청 처리 중 해당 클라이언트가 끊기면 이번 연결을 정리하고 다음 수락으로 돌아간다.
-- 이 단계에서는 두 번째 접속이 가능해진다. 첫 연결에서 클라이언트가 바이트를 보내지 않거나 서버가 쓰기에서 대기하면 다음 연결도 기다린다. 다른 연결에 먼저 응답하는 것은 [워커 풀](workers.md), 활성 연결의 대기 기한은 [안전한 종료](shutdown.md)에서 다룬다.
+기본 실습 모드는 [main.c](../../src/main.c)에서 연결 한 건을 처리한 뒤 종료한다. 프록시와 예약 모드는 [workers.c](../../src/workers.c)의 수락 루프를 사용한다. 프록시는 워커 4개가 연결 처리를 나눠 맡고, 예약 모드는 워커 한 개로 요청을 순차 처리한다. 각 HTTP 응답은 `Connection: close`를 사용한다.
 
-두 클라이언트가 차례로 성공하고 중간에 한 클라이언트가 끊겨도 다음 요청이 처리되면 완료다.
+접속과 종료 알림을 동시에 기다리는 방법은 [종료 설계](shutdown.md)에 있다.
