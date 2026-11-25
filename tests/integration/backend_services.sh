@@ -52,7 +52,7 @@ cat "$LOG".redis "$LOG".stocks "$LOG".db1 "$LOG".db2 "$LOG".pay | grep 'ulimit' 
 
 python3 -c "from dbms_demo.store import make_store; make_store('file', '$DATA').seed(50)" || true
 
-FLIGHT_DATA_FILE=/dev/null "$ROOT/webserver" -p 8085 -c "$ROOT/conf/backends.conf" >"$LOG.srv" 2>&1 &
+FLIGHT_DATA_FILE=/dev/null "$ROOT/webserver" -p 8085 -c "$ROOT/conf/backends.experimental.conf" >"$LOG.srv" 2>&1 &
 SRV=$!
 BASE=http://127.0.0.1:8085
 

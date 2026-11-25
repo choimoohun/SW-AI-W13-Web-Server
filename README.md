@@ -65,7 +65,7 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | `/api/airports/` | 공항 정보 서비스 `:8601`, `:8602` | **항공 서비스 기능**: 상세 화면의 출발·도착 공항 정보. 2대 Round-Robin, 한 대가 죽어도 그 칸만 안내 문구 |
 | `/api/mq/` | 메시지 큐 `:8700` | **항공 서비스 기능**: 결제 이벤트를 받아 알림 서비스로 넘긴다. consume lease(10초)·ack·재시도 |
 | `/api/notifications/` | 알림 서비스 `:8800` | **항공 서비스 기능**: "예약 확정" 알림을 저장하고 '내 예약'에 표시. MQ가 죽어도 결제는 성공 |
-| `/api/cache/`, `/api/stocks/`, `/api/orders/` | 이전 주차 mini-redis·mini-dbms | **실험용**: 별도 프로세스의 자원 제한·독립 재시작 시연 (`make integration-backends`, 옆 레포 필요) |
+| `/api/cache/`, `/api/stocks/`, `/api/orders/` | 이전 주차 mini-redis·mini-dbms | **실험용**: 별도 프로세스의 자원 제한·독립 재시작 시연. `conf/backends.experimental.conf` + `make integration-backends`(옆 레포 필요) |
 
 데모 실행(백엔드 포함):
 
