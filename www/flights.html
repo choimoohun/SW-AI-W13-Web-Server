@@ -13,6 +13,18 @@
   .brand span { color:var(--accent); }
   nav button { background:none; border:0; color:var(--muted); font-size:14px; padding:6px 0; cursor:pointer; border-bottom:2px solid transparent; }
   nav button.active { color:#fff; border-bottom-color:var(--accent); }
+
+  /* 오른쪽 위 상태 영역: 알림 토스트 + 메시지 큐 배지 */
+  #statusArea { margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+  #toastStack { position:relative; display:flex; flex-direction:column; gap:8px; align-items:flex-end; max-width:min(58vw, 560px); }
+  .notice-toast { background:#1c2b42; border:1px solid var(--accent); border-radius:8px;
+    padding:10px 14px; font-size:13px; line-height:1.5; box-shadow:0 6px 18px rgba(0,0,0,.35);
+    animation:jg-toast-in .18s ease-out; }
+  @keyframes jg-toast-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  #mqBadge { display:inline-flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap;
+    padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:#172136; color:var(--muted); }
+  #mqBadge.hot { border-color:#a35a12; background:#3a2410; color:#ffb25e; }
+
   main { max-width:1120px; margin:0 auto; padding:28px 24px 60px; }
   h2 { font-size:18px; margin:0 0 16px; }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:20px; }
@@ -36,6 +48,14 @@
   .empty { color:var(--muted); padding:20px 0; text-align:center; }
   .res { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); }
   .res:last-child { border-bottom:0; }
+  /* 결제된 예약의 알림 상태를 카드 테두리로 표시한다. 2초마다 다시 조회해 바뀐다. */
+  .res.waiting { border:2px solid #d29922; border-radius:8px; }
+  .res.noti-down { border:2px solid #f85149; border-radius:8px; }
+  .res.notified { border:2px solid #3fb950; border-radius:8px; }
+  .res .notice { margin-top:8px; font-size:12px; line-height:1.5; color:#ffb25e; }
+  .res.waiting .notice { color:#e3b341; }
+  .res.noti-down .notice { color:#ff7b72; }
+  .res.notified .notice { color:#7ee787; }
   .muted { color:var(--muted); font-size:13px; }
   .cancelled { text-decoration:line-through; color:var(--muted); }
   .timeline-item { border-left:2px solid var(--line); padding:0 0 12px 12px; font-size:13px; }
@@ -50,7 +70,11 @@
   .served-by { font-style:normal; color:#7ee787; margin-left:6px; }
   #toast { position:fixed; right:24px; bottom:24px; background:#1c2b42; border:1px solid var(--accent); padding:12px 18px; border-radius:8px; font-size:14px; display:none; }
   #toast.err { border-color:#f85149; }
-  @media (max-width:860px) { .grid { grid-template-columns:1fr; } }
+  @media (max-width:860px) {
+    .grid { grid-template-columns:1fr; }
+    header { flex-wrap:wrap; }
+    #statusArea { margin-left:0; width:100%; justify-content:flex-start; }
+  }
 </style>
 </head>
 <body>
@@ -60,6 +84,10 @@
     <button id="tabSearch" class="active">항공편 검색</button>
     <button id="tabMine">내 예약</button>
   </nav>
+  <div id="statusArea">
+    <div id="toastStack"></div>
+    <span id="mqBadge">메시지 큐 대기 0건</span>
+  </div>
 </header>
 
 <main>

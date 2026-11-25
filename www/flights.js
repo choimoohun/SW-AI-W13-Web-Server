@@ -9,6 +9,95 @@
   }
   var selected = null;
 
+  /* ---------- 오른쪽 위 상태 영역 ---------- */
+  var SHOWN_KEY = 'jg_shown_notices';   /* 이미 토스트로 띄운 알림 id (mq_id) */
+  var NOTICE_MS = 5000;                 /* 알림 토스트를 띄워 두는 시간 */
+  var POLL_MS = 2000;                   /* 알림·큐 통계 확인 주기 */
+
+  function shownIds() {
+    try { return JSON.parse(localStorage.getItem(SHOWN_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function remember(id) {
+    var ids = shownIds();
+    if (ids.indexOf(id) === -1) ids.push(id);
+    localStorage.setItem(SHOWN_KEY, JSON.stringify(ids));
+  }
+
+  /* 알림 문구에서 예약 번호를 되살려 쓴다: "🔔 예약 확정: 결제가 완료되어 예약 RS-0009 …" */
+  function toastNotice(text) {
+    var rid = '';
+    var m = /예약\s+([A-Za-z0-9-]+)/.exec(text);
+    if (m) rid = m[1];
+    var head = rid ? ('🔔 예약 확정: ' + rid) : '🔔 예약 확정';
+    var el = document.createElement('div');
+    el.className = 'notice-toast';
+    el.textContent = head + ' — ' + text;
+    var stack = $('toastStack');
+    if (!stack) return;
+    stack.appendChild(el);
+    window.setTimeout(function () {
+      if (el.parentNode !== stack) return;   /* 이미 지워진 토스트 */
+      el.style.opacity = '0';
+      window.setTimeout(function () { el.remove(); }, 200);
+    }, NOTICE_MS);
+  }
+
+  function setMqBadge(ready) {
+    var b = $('mqBadge');
+    if (!b) return;
+    var n = ready > 0 ? ready : 0;
+    b.textContent = '메시지 큐 대기 ' + n + '건';
+    b.className = n > 0 ? 'hot' : '';   /* 0이면 회색(기본), 1 이상이면 주황색 */
+  }
+
+  /* 내 예약의 알림을 2초마다 확인한다. 토스트와 예약 카드 테두리를 같이 갱신한다.
+     fetch는 502에서 예외를 던지지 않으므로 resp.status를 직접 검사한다. */
+  function fetchNotice(rid) {
+    return fetch('/api/notifications/by-reservation?rid=' + encodeURIComponent(rid))
+      .then(function (resp) {
+        if (!resp.ok) return { down: resp.status >= 500 };
+        return resp.json();
+      });
+  }
+
+  function cardFor(rid) {
+    return document.querySelector('#reservations .res[data-rid="' + rid + '"]');
+  }
+
+  function pollNotices() {
+    fetch('/api/reservations?client=' + encodeURIComponent(client))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = data.reservations || [];
+        var seen = shownIds();
+        list.forEach(function (res) {
+          if (res.cancelled) return;   /* 취소된 예약은 알림 대기가 아니다. */
+          fetchNotice(res.id)
+            .then(function (out) {
+              var card = cardFor(res.id);
+              if (card) applyNotice(card, out);
+              (out.notifications || []).forEach(function (n) {
+                if (seen.indexOf(n.mq_id) !== -1) return;
+                seen.push(n.mq_id);        /* 같은 주기라도 두 번 띄우지 않게 */
+                remember(n.mq_id);
+                toastNotice(n.text);
+              });
+            })
+            .catch(function () {
+              var card = cardFor(res.id);
+              if (card) applyNotice(card, { down: true });
+            });
+        });
+      })
+      .catch(function () { /* 예약 목록을 못 가져와도 알림 동작은 계속 */ });
+
+    fetch('/api/mq/stats?topic=reservation.paid')
+      .then(function (r) { return r.json(); })
+      .then(function (s) { setMqBadge(s.ready || 0); })
+      .catch(function () { setMqBadge(0); });
+  }
+
   function $(id) { return document.getElementById(id); }
 
   function toast(text, isErr) {
@@ -210,35 +299,37 @@
       .then(renderTimeline);
   }
 
-  /* 알림은 비동기(결제 -> MQ -> 알림 서비스)로 도착한다. 없어도 예약 표시는 유지한다. */
-  function loadNotice(parent, rid) {
-    fetch('/api/notifications/by-reservation?rid=' + encodeURIComponent(rid))
-      .then(function (resp) {
-        if (!resp.ok) return { down: resp.status >= 500 };
-        return resp.json();
-      })
-      .then(function (out) {
-        var d = document.createElement('div');
-        d.className = 'notice';
-        if (out && out.down) {
-          d.textContent = '알림 서비스 점검 중 — 결제·예약은 정상';
-        } else {
-          var list = (out && out.notifications) || [];
-          if (list.length === 0) {
-            d.textContent = '알림 대기 중 (메시지 큐 처리 전)';
-          } else {
-            var last = list[list.length - 1];
-            d.textContent = last.text + ' · ' + time(last.time);
-          }
-        }
-        parent.appendChild(d);
-      })
-      .catch(function () {
-        var d = document.createElement('div');
-        d.className = 'notice';
-        d.textContent = '알림 서비스 점검 중 — 결제·예약은 정상';
-        parent.appendChild(d);
-      });
+  /* 결제된 예약의 알림 상태를 카드 테두리·한 줄 문구로 나타낸다.
+     - 알림 API가 5xx(502) → 빨간 테두리: 결제는 됐고 메시지 큐에 대기 중
+     - 알림 있음             → 초록 테두리: 예약 확정 알림 도착 + 시각
+     - 결제됐고 알림 없음    → 주황 테두리: 메시지 큐 처리 전
+     상태가 같으면 DOM을 다시 만들지 않는다. */
+  function applyNotice(card, out) {
+    var state;
+    var text;
+    if (out && out.down) {
+      state = 'noti-down';
+      text = '결제 완료 · 알림 서비스 중지됨 (메시지 큐에 대기 중)';
+    } else {
+      var list = (out && out.notifications) || [];
+      if (list.length === 0) {
+        state = 'waiting';
+        text = '알림 대기 중 (메시지 큐 처리 전)';
+      } else {
+        state = 'notified';
+        text = '🔔 예약 확정 알림 도착 · ' + time(list[list.length - 1].time);
+      }
+    }
+    if (card.getAttribute('data-notice') === state) return;
+    card.setAttribute('data-notice', state);
+    card.classList.remove('waiting', 'noti-down', 'notified');
+    card.classList.add(state);
+    var prev = card.querySelector('.notice');   /* 이전 상태의 문구를 덮어쓴다. */
+    if (prev) prev.remove();
+    var d = document.createElement('div');
+    d.className = 'notice';
+    d.textContent = text;
+    card.appendChild(d);
   }
 
   function renderReservations(data) {
@@ -272,6 +363,7 @@
                 var days = Math.floor(left / 86400);
                 var el = document.createElement('div');
                 el.className = 'res';
+                el.setAttribute('data-rid', r.id);
                 el.innerHTML =
                   '<div class="' + (r.cancelled ? 'cancelled' : '') + '">' +
                     '<div class="code">' + r.flight_id + ' <span class="muted">' + r.id + '</span></div>' +
@@ -287,7 +379,6 @@
                       : '') +
                     '<button class="ghost" data-cancel="' + r.id + '">취소</button>');
                 box.appendChild(el);
-                loadNotice(el, r.id);
                 done();
               });
           })
@@ -353,4 +444,8 @@
     if ($('viewSearch').style.display !== 'none') loadFlights();
     else loadReservations();
   }, 15000);
+
+  /* 알림·메시지 큐 상태는 화면과 별개로 2초마다 갱신한다. */
+  pollNotices();
+  window.setInterval(pollNotices, POLL_MS);
 }());

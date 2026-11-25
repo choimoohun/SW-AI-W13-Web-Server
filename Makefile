@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases demo-up demo-down verify-demo pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases demo-up demo-down noti-up noti-down mq-stats verify-demo pr-review clean
 
 all: $(BIN)
 
@@ -110,6 +110,16 @@ demo-up:
 	@sh tests/integration/demo_up.sh
 demo-down:
 	@sh tests/integration/demo_down.sh
+
+# 알림 서비스(8800)만 끄고 다시 띄운다. data/demo.pids의 PID를 그대로 유지한다.
+noti-down:
+	@sh tests/integration/noti_down.sh
+noti-up:
+	@sh tests/integration/noti_up.sh
+
+# 메시지 큐 통계를 한 줄로. TOPIC은 바꿔서 쓸 수 있다: make mq-stats TOPIC=reservation.paid
+mq-stats:
+	@curl -s --max-time 5 "http://127.0.0.1:8085/api/mq/stats?topic=$(or $(TOPIC),reservation.paid)"; echo
 
 # 데모 구성에서 돌려야 하는 회귀 순서.
 verify-demo: $(BIN)
