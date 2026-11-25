@@ -30,7 +30,7 @@ done
 echo '=== 잘못된 메서드 / 버전 ==='
 code=$(curl -s -o /dev/null -w '%{http_code}' -X FOOBAR "$BASE/")
 case "$code" in 405|501) pass " 지원하지 않는 메서드 ($code)";; *) fail_case "메서드 ($code)";; esac
-resp=$(printf 'GET / HTTP/2.0\r\nHost: localhost\r\n\r\n' | nc -w 1 127.0.0.1 "$PORT" | head -1 || true)
+resp=$(printf 'GET / HTTP/2.0\r\nHost: localhost\r\n\r\n' | nc -w 1 127.0.0.1 "$PORT" | head -1 | tr -d '\r' || true)
 case "$resp" in *505*) pass "지원하지 않는 버전 ($resp)";; *) fail_case "버전 ($resp)";; esac
 
 echo '=== 매우 긴 URI / 큰 본문 ==='
@@ -38,7 +38,7 @@ LONG_URI=$(python3 -c 'print("a" * 3000)')
 code=$(curl -s -o /dev/null -w '%{http_code}' --path-as-is "$BASE/$LONG_URI")
 expect_code 414 "$code" '3000자 URI'
 printf 'POST /echo HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1048577\r\nConnection: close\r\n\r\nx' >"$REQ"
-resp=$(nc -w 2 127.0.0.1 "$PORT" <"$REQ" | head -1 || true)
+resp=$(nc -w 2 127.0.0.1 "$PORT" <"$REQ" | head -1 | tr -d '\r' || true)
 case "$resp" in *413*) pass "1MB 초과 본문 ($resp)";; *) fail_case "큰 본문 ($resp)";; esac
 
 # 본문 8192 바이트: 이전에는 수신 버퍼(8192)가 헤더+본문을 못 담아 431이 떴다.
