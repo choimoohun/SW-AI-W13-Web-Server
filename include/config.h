@@ -28,6 +28,7 @@ typedef struct {
     int keepalive_max;
     int backend_timeout_sec;
     int cdn_ttl_sec;
+    int proxy_queue_max;   /* 프록시 큐 상한. 넘기면 503 */
     cfg_route_t routes[CFG_MAX_ROUTES];
     int route_count;
 } server_config_t;
@@ -37,5 +38,10 @@ int config_load(int argc, char **argv, server_config_t *cfg);
 
 /* prefix와 가장 오래 일치하는 라우트 인덱스. 없으면 -1. */
 int config_match_route(const server_config_t *cfg, const char *uri, size_t uri_len);
+
+/* route->rewrite가 비어 있으면 원본 URI를, 아니면 prefix 뒤 경로를 rewrite로 바꿔 out에 쓴다.
+ * 반환은 NUL을 뺀 쓴 길이이며, 버퍼가 작으면 out_cap-1로 잘린다. */
+size_t config_apply_rewrite(const cfg_route_t *route, const char *uri, size_t uri_len,
+                            char *out, size_t out_cap);
 
 #endif /* CONFIG_H */

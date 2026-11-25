@@ -54,6 +54,21 @@ cat /tmp/jg_rr_$$.txt
 rr=$(grep -o '"server": [0-9]*' /tmp/jg_rr_$$.txt | tr '\n' ' ')
 contains "$rr" "8401" "백엔드 8401 사용"
 contains "$rr" "8402" "백엔드 8402 사용"
+# 분산 순서: 연속 요청은 반드시 다른 백엔드로 가야 한다(Round-Robin).
+seq_ok=1
+prev=""
+while read -r v; do
+    if [ -n "$prev" ] && [ "$v" = "$prev" ]; then seq_ok=0; fi
+    prev="$v"
+done <<EOF
+$(grep -o '"server": [0-9]*' /tmp/jg_rr_$$.txt | awk '{print $2}')
+EOF
+if [ $seq_ok -eq 1 ]; then echo "PASS  Round-Robin 순서(연속 요청 교대)"
+else echo "FAIL  Round-Robin 순서 (같은 백엔드 연속)"; fail=1; fi
+
+# rewrite: /api/rw/test -> 백엔드는 /v1/test 를 봄.
+body=$(curl -s "$BASE/api/rw/test")
+contains "$body" '"path": "/v1/test"' "rewrite prefix 교체"
 body=$(curl -s "$BASE/api/orders/test")
 contains "$body" '"xff": "127.0.0.1"' "X-Forwarded-For 값"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/cache/miss")

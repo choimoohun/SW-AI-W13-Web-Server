@@ -31,6 +31,8 @@ test:
 	@$(TESTBIN)/test_parser
 	$(CC) $(CFLAGS) -o $(TESTBIN)/test_static tests/unit/test_static.c src/static_handler.c
 	@$(TESTBIN)/test_static
+	$(CC) $(CFLAGS) -o $(TESTBIN)/test_route tests/unit/test_route.c src/config.c
+	@$(TESTBIN)/test_route
 
 # 기능(통합) 테스트: 서버를 띄우고 curl 로 정적 서빙 검증.
 integration: $(BIN)

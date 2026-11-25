@@ -178,18 +178,19 @@ int connection_feed(connection_t *c, const char *data, size_t len)
         {
             int route = config_match_route(c->cfg, req.uri, req.uri_len);
             if (route >= 0) {
-                if (proxy_submit(c->fd, &req, c->cfg, route,
-                                 c->peer_ip, c->worker_id) == 0) {
+                int rc = proxy_submit(c->fd, &req, c->cfg, route,
+                                      c->peer_ip, c->worker_id);
+                if (rc == 0) {
                     /* fd는 dup되어 프록시로 넘어감. 워커는 원본을 닫고 루프로 복귀. */
                     c->proxied = 1;
                     c->closing = 1;
                     c->recv_len = 0;
                     return 0;
                 }
-                resp_status = 502;
+                resp_status = (rc == -2) ? 503 : 502;
                 n = http_response_build_error(c->send_buf + off,
                                               sizeof(c->send_buf) - off,
-                                              502, keep_alive);
+                                              resp_status, keep_alive);
             }
         }
 

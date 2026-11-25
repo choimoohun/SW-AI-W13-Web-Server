@@ -57,6 +57,21 @@ printf 'GET / HTTP/1.1\r\nHost: localhost\r\n' | nc -w 1 127.0.0.1 "$PORT" >/dev
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/health")
 expect_code 200 "$code" '끊김 이후 서버 생존'
 
+echo '=== 클라이언트 RST(EPIPE) 회수 ==='
+python3 - "$PORT" <<'PY'
+import socket, struct, sys
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])))
+s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+             struct.pack("ii", 1, 0))   # 즉시 RST
+s.sendall(b"POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\nabc")
+s.close()                              # 응답을 읽지 않고 끊음 -> RST
+PY
+sleep 0.3
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$BASE/health")
+expect_code 200 "$code" 'RST 이후 서버 생존'
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$BASE/")
+expect_code 200 "$code" 'RST 이후 정상 요청'
+
 echo '=== 접근 로그 샘플 ==='
 grep '\[w' "$LOG" | head -3 || true
 

@@ -1,6 +1,17 @@
 #!/bin/sh
 # 결제 서비스 연동 시연: 별도 프로세스 + 자기 파일 DB + 중복 방지 키 + 환불 + 독립 재시작.
 set -u
+# 이전에 띄운 서버가 포트를 잡고 있으면 테스트가 그 서버와 통신해 엉뚱한 결과가 나온다.
+# (2026-11-24: 남아 있던 결제 서버 때문에 charge·종료 검사 FAIL) → 시작 전에 확인하고 멈춘다.
+if command -v lsof >/dev/null 2>&1; then
+    for p in 8500 8085; do
+        pids=$(lsof -nP -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | tr '\n' ' ')
+        if [ -n "$pids" ]; then
+            echo "포트 $p 사용 중 (PID: $pids) — 이전 서버를 먼저 끄세요: kill $pids"
+            exit 1
+        fi
+    done
+fi
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/jg_payment_XXXXXX")
 DATA="$TMP/payments.txt"

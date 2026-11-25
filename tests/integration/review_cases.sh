@@ -5,6 +5,7 @@
 # TC2 느린 클라이언트    : 한 연결이 요청을 덜 본낸 채 붙어 있어도 다른 요청은 정상
 # TC3 예약·결제 일관성   : 결제 실패 시 좌석 복원 (별도 백엔드 필요 → 정의만)
 # TC4 워커 장애 격리     : 워커 죽어도 서비스 지속 (미구현 → SKIP)
+# TC5 프록시 큐 상한     : 큐가 차면 503으로 즉시 거절
 #
 # 실행: make review-cases
 set -u
@@ -16,9 +17,13 @@ LOG=/tmp/jg_review_$$.log
 fail=0
 skip=0
 
-./webserver >"$LOG" 2>&1 &
+# TC5는 작은 큐 상한이 필요하므로 설정을 복사해 바꾼다.
+CONF=${REVIEW_CONF:-/tmp/jg_review_conf_$$.conf}
+sed 's/^proxy_queue_max = .*/proxy_queue_max = 4/' conf/tcpserver.conf > "$CONF"
+
+./webserver -c "$CONF" >"$LOG" 2>&1 &
 SRV=$!
-trap '[ -n "${SRV:-}" ] && kill -TERM "$SRV" 2>/dev/null || true' EXIT
+trap '[ -n "${SRV:-}" ] && kill -TERM "$SRV" 2>/dev/null || true; rm -f "$CONF"' EXIT
 
 i=0
 while [ $i -lt 50 ]; do
@@ -94,6 +99,28 @@ cat <<'TXT'
 현재 구조는 단일 프로세스 + 워커 스레드라 프로세스 격리가 없음 → 미구현.
 TXT
 echo 'TC4 NOT IMPLEMENTED'; skip=$((skip + 1))
+
+echo
+echo "=== TC5 프록시 큐 상한 (proxy_queue_max=4) ==="
+python3 tests/integration/fixtures/backend.py 8401 >/dev/null 2>&1 &
+B1=$!
+python3 tests/integration/fixtures/backend.py 8402 >/dev/null 2>&1 &
+B2=$!
+sleep 0.5
+seq 1 24 | xargs -P 24 -I{} curl -s -o /dev/null -w '%{http_code} %{time_total}\n' \
+    --max-time 12 "$BASE/api/orders/slow" > /tmp/jg_tc5_$$.txt
+cat /tmp/jg_tc5_$$.txt
+C503=$(grep -c '^503' /tmp/jg_tc5_$$.txt || true)
+FAST=$(awk '$1 == 503 && $2 < 1 { n++ } END { print n + 0 }' /tmp/jg_tc5_$$.txt)
+kill "$B1" "$B2" 2>/dev/null || true
+wait "$B1" "$B2" 2>/dev/null || true
+rm -f /tmp/jg_tc5_$$.txt
+echo "503 응답: $C503 / 그 중 1초 미만: $FAST"
+if [ "$C503" -ge 1 ] && [ "$FAST" -eq "$C503" ]; then
+    echo 'TC5 PASS'
+else
+    echo 'TC5 FAIL'; fail=$((fail + 1))
+fi
 
 echo
 echo "요약: FAIL=$fail, NOT IMPLEMENTED=$skip"

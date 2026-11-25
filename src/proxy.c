@@ -27,6 +27,7 @@
 #define UPSTREAM_BUF   8192
 #define PROXY_URI_CAP  2048
 #define PROXY_BODY_CAP 8192
+#define PROXY_QUEUE_MAX 256   /* 기본 상한. conf의 proxy_queue_max가 우선한다. */
 
 typedef struct proxy_job {
     int client_fd;
@@ -46,6 +47,7 @@ typedef struct proxy_job {
 
 static proxy_job_t *g_head;
 static proxy_job_t *g_tail;
+static int g_qcount;
 static pthread_mutex_t g_qmu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_cv = PTHREAD_COND_INITIALIZER;
 static pthread_t g_thread;
@@ -273,6 +275,7 @@ static void *proxy_thread_main(void *arg)
         j = g_head;
         g_head = j->next;
         if (g_head == NULL) g_tail = NULL;
+        g_qcount--;
         pthread_mutex_unlock(&g_qmu);
 
         process_job(j);
@@ -322,21 +325,8 @@ int proxy_submit(int client_fd, const http_request_t *req,
     j->method[j->method_len] = '\0';
 
     /* rewrite가 설정돼 있으면 prefix를 잘라내고 rewrite로 바꿔 백엔드에 전달. */
-    {
-        const cfg_route_t *route = &cfg->routes[route_index];
-        size_t plen = strlen(route->prefix);
-        if (route->rewrite[0] != '\0') {
-            size_t rest = req->uri_len > plen ? req->uri_len - plen : 0;
-            int n = snprintf(j->uri, sizeof(j->uri), "%s%.*s",
-                             route->rewrite, (int)rest, req->uri + plen);
-            j->uri_len = (n > 0 && (size_t)n < sizeof(j->uri))
-                             ? (size_t)n : sizeof(j->uri) - 1;
-        } else {
-            j->uri_len = req->uri_len < sizeof(j->uri) - 1
-                             ? req->uri_len : sizeof(j->uri) - 1;
-            memcpy(j->uri, req->uri, j->uri_len);
-        }
-    }
+    j->uri_len = config_apply_rewrite(&cfg->routes[route_index], req->uri, req->uri_len,
+                                      j->uri, sizeof(j->uri));
     j->uri[j->uri_len] = '\0';
 
     j->body_len = req->body_len < sizeof(j->body)
@@ -353,9 +343,19 @@ int proxy_submit(int client_fd, const http_request_t *req,
     }
 
     pthread_mutex_lock(&g_qmu);
+    {
+        int cap = (cfg->proxy_queue_max > 0) ? cfg->proxy_queue_max : PROXY_QUEUE_MAX;
+        if (g_qcount >= cap) {
+            pthread_mutex_unlock(&g_qmu);
+            close(j->client_fd);
+            free(j);
+            return -2;   /* 큐 포화: 호출부에서 503 */
+        }
+    }
     if (g_tail == NULL) g_head = j;
     else g_tail->next = j;
     g_tail = j;
+    g_qcount++;
     pthread_cond_signal(&g_cv);
     pthread_mutex_unlock(&g_qmu);
     return 0;

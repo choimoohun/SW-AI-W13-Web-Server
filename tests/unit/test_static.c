@@ -20,6 +20,16 @@ static static_file_t rs(const char *uri, const char *root)
     return static_handler_resolve(uri, strlen(uri), root);
 }
 
+/* snprintf 대신 memcpy로 이어 붙인다. gcc -Werror=format-truncation(Linux) 회피. */
+static void join2(char *dst, size_t cap, const char *a, const char *b)
+{
+    size_t na = strlen(a);
+    size_t nb = strlen(b);
+    if (na + nb + 1 > cap) { dst[0] = '\0'; return; }
+    memcpy(dst, a, na);
+    memcpy(dst + na, b, nb + 1);
+}
+
 int main(void)
 {
     /* mkdtemp 대신 mkdir + pid 기반 이름(포터블, macOS feature-macro 이슈 회피). */
@@ -60,14 +70,14 @@ int main(void)
      * 디렉터리 자체는 경계 안이라 통과하고, index.html 을 덧붙인 뒤에 링크를 따라간다. */
     {
         char abs_root[PATH_MAX];
-        char outside[256], sub[256], link[256];
+        char outside[PATH_MAX + 32], sub[PATH_MAX + 32], link[PATH_MAX + 32];
         /* 심볼릭 링크 대상은 절대경로여야 한다. 상대경로면 링크 위치 기준으로 풀려 엉뚱한 파일을 가리킨다. */
         if (realpath(root, abs_root) == NULL) abs_root[0] = '\0';
-        snprintf(outside, sizeof(outside), "%s_outside_secret.txt", abs_root);
+        join2(outside, sizeof(outside), abs_root, "_outside_secret.txt");
         f = fopen(outside, "w"); if (f) { fputs("secret", f); fclose(f); }
-        snprintf(sub, sizeof(sub), "%s/sub", root);
+        join2(sub, sizeof(sub), root, "/sub");
         mkdir(sub, 0700);
-        snprintf(link, sizeof(link), "%s/index.html", sub);
+        join2(link, sizeof(link), sub, "/index.html");
         if (symlink(outside, link) == 0) {
             r = rs("/sub", root);
             CHECK(r.status == 403, "dir index symlink outside -> 403");

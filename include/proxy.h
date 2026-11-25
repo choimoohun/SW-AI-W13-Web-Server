@@ -15,7 +15,7 @@
 int  proxy_start(void);
 void proxy_stop(void);
 
-/* 요청을 프록시 큐에 넣는다. 성공 0, 실패 -1.
+/* 요청을 프록시 큐에 넣는다. 성공 0, 일반 실패 -1(502), 큐 포화 -2(503).
  * 성공하면 원본 fd의 소유권은 프록시로 넘어가므로(evict된 연결은 워커가 정리) 호출자가
  * c->proxied를 설정하고 연결을 닫아야 한다. 요청 필드는 내부로 복사한다. */
 int proxy_submit(int client_fd, const http_request_t *req,

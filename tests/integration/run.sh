@@ -8,7 +8,12 @@ BASE="http://127.0.0.1:$PORT"
 
 ./webserver &
 SRV=$!
-trap 'kill -TERM $SRV 2>/dev/null; wait $SRV 2>/dev/null' EXIT
+SHUTDOWN_RC=0
+cleanup() {
+    kill -TERM "$SRV" 2>/dev/null || true
+    wait "$SRV" 2>/dev/null || SHUTDOWN_RC=$?
+}
+trap cleanup EXIT
 # 서버 준비 대기(ASAN 빌드는 시작이 느릴 수 있음) — 최대 ~10초 폴링
 ready=0
 i=0
@@ -95,6 +100,11 @@ if [ "$r" = "ok" ]; then echo "PASS  pipelined keep-alive: big file + file"; els
 r=$(pipe_check /health /pipeline_big.txt)
 if [ "$r" = "ok" ]; then echo "PASS  pipelined keep-alive: json + big file"; else echo "FAIL  pipelined keep-alive: json + big file -> $r"; fail=1; fi
 rm -f "$BIG"
+
+trap - EXIT   # 아래에서 직접 정리하므로 EXIT 트랩은 끈다.
+cleanup
+if [ "$SHUTDOWN_RC" = "0" ]; then echo "PASS  SIGTERM 종료 코드 0"
+else echo "FAIL  SIGTERM 종료 코드 $SHUTDOWN_RC"; fail=1; fi
 
 if [ "$fail" = 0 ]; then echo "integration: all passed"; else echo "integration: FAILED"; fi
 exit $fail

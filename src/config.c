@@ -49,6 +49,7 @@ static void defaults(server_config_t *cfg)
     cfg->keepalive_max = 100;
     cfg->backend_timeout_sec = 5;
     cfg->cdn_ttl_sec = 60;
+    cfg->proxy_queue_max = 256;
 }
 
 static void parse_route(server_config_t *cfg, const char *value)
@@ -126,6 +127,8 @@ static int load_file(server_config_t *cfg, const char *path)
             cfg->backend_timeout_sec = (int)strtol(value, NULL, 10);
         } else if (strcmp(key, "cdn_ttl") == 0) {
             cfg->cdn_ttl_sec = (int)strtol(value, NULL, 10);
+        } else if (strcmp(key, "proxy_queue_max") == 0) {
+            cfg->proxy_queue_max = (int)strtol(value, NULL, 10);
         } else if (strcmp(key, "route") == 0) {
             parse_route(cfg, value);
         }
@@ -159,6 +162,7 @@ int config_load(int argc, char **argv, server_config_t *cfg)
     if (cfg->keepalive_max < 1) cfg->keepalive_max = 100;
     if (cfg->backend_timeout_sec < 1) cfg->backend_timeout_sec = 5;
     if (cfg->cdn_ttl_sec < 1) cfg->cdn_ttl_sec = 60;
+    if (cfg->proxy_queue_max < 1) cfg->proxy_queue_max = 256;
     return 0;
 }
 
@@ -175,4 +179,24 @@ int config_match_route(const server_config_t *cfg, const char *uri, size_t uri_l
         }
     }
     return best;
+}
+
+size_t config_apply_rewrite(const cfg_route_t *route, const char *uri, size_t uri_len,
+                            char *out, size_t out_cap)
+{
+    if (out_cap == 0) return 0;
+
+    if (route->rewrite[0] != '\0') {
+        size_t plen = strlen(route->prefix);
+        size_t rest = uri_len > plen ? uri_len - plen : 0;
+        const char *restp = uri_len > plen ? uri + plen : uri + uri_len;
+        int n = snprintf(out, out_cap, "%s%.*s", route->rewrite, (int)rest, restp);
+        if (n <= 0) { out[out_cap - 1] = '\0'; return out_cap - 1; }
+        return (size_t)n < out_cap ? (size_t)n : out_cap - 1;
+    }
+
+    size_t n = uri_len < out_cap - 1 ? uri_len : out_cap - 1;
+    memcpy(out, uri, n);
+    out[n] = '\0';
+    return n;
 }
