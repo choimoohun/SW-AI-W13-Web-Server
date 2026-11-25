@@ -41,3 +41,7 @@ build.ninja
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local agent state
+/.omx/
+/.serena/

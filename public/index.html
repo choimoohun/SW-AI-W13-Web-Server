@@ -9,95 +9,245 @@
   <style>
     :root {
       color-scheme: light;
-      font-family: system-ui, "Malgun Gothic", sans-serif;
-      color: #192b28;
-      background: #f5f6f2;
-      --ink: #192b28;
-      --muted: #51645e;
-      --line: #e4eae3;
-      --green: #145c47;
-      --lime: #cdf48c;
+      font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo",
+        "Malgun Gothic", "맑은 고딕", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--page-background);
+      --page-background: #F2F4F6;
+      --surface: #FFFFFF;
+      --text-primary: #191F28;
+      --text-secondary: #4E5968;
+      --border: #E5E8EB;
+      --accent: #3182F6;
+      --selected: #E8F3FF;
+      --action: #1B64DA;
+      --action-hover: #1554BD;
+      --seat-border: #B8C5D5;
+      --unavailable: #F2F4F6;
+      --space-1: 8px;
+      --space-2: 12px;
+      --space-3: 16px;
+      --space-4: 24px;
+      --space-5: 32px;
+      --card-radius: 20px;
+      --button-radius: 12px;
+      --card-padding: clamp(var(--space-3), 3.2vw, var(--space-5));
     }
+
     * { box-sizing: border-box; }
-    body { margin: 0; }
-    h1, h2, p { margin: 0; }
+    body, h1, h2, p, dl, dd { margin: 0; }
     button { font: inherit; }
-    .page { width: min(calc(100% - 48px), 1040px); margin: 0 auto; padding: 46px 0 48px; }
-    .heading { margin-bottom: 26px; }
-    h1 { font-size: clamp(2.15rem, 5vw, 3.35rem); line-height: 1.1; letter-spacing: -.065em; }
-    .intro { margin-top: 11px; color: var(--muted); line-height: 1.55; word-break: keep-all; text-wrap: balance; }
-    h2 { font-size: 1.32rem; line-height: 1.25; letter-spacing: -.04em; }
+    .page {
+      width: min(1120px, calc(100% - 2 * var(--space-3)));
+      margin-inline: auto;
+      padding-block: clamp(var(--space-5), 6vw, 72px);
+    }
+    .heading { margin-bottom: var(--space-4); }
+    h1, h2 { line-height: 1.2; letter-spacing: -.035em; }
+    h1 { font-size: clamp(1.75rem, 4vw, 2rem); font-weight: 800; }
+    h2 { font-size: 1.5rem; font-weight: 750; }
+    .intro, .seat-count {
+      margin-top: var(--space-1);
+      color: var(--text-secondary);
+      overflow-wrap: anywhere;
+    }
+
+    .trip, .card {
+      min-width: 0;
+      padding: var(--card-padding);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      background: var(--surface);
+      box-shadow: 0 6px 22px rgb(25 31 40 / 4%);
+    }
     .trip {
-      position: relative; isolation: isolate; overflow: hidden;
-      margin-bottom: 22px; padding: 28px 34px 32px; border-radius: 27px;
-      background: radial-gradient(ellipse at 88% 12%, #235747, transparent 63%), #142d2a;
-      color: #f9fff6;
+      margin-bottom: var(--space-3);
+      background:
+        linear-gradient(110deg, var(--action), var(--accent), #A7D1FF) top / 100% 4px no-repeat,
+        radial-gradient(ellipse at 100% 0, var(--selected), transparent 65%),
+        var(--surface);
     }
-    .trip::after {
-      content: ""; position: absolute; z-index: -1; pointer-events: none;
-      width: 65%; height: 160%; right: -30%; top: -40%; transform: rotate(31deg);
-      background: repeating-linear-gradient(90deg, #d5efc016 0 1px, transparent 1px 20px);
+    .trip-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      color: var(--text-secondary);
+      font-size: .9375rem;
     }
-    .trip-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 14px; color: #d1e5da; font-size: .88rem; }
-    .train { padding: 6px 10px; border-radius: 8px; background: var(--lime); color: #193123; font-weight: 800; }
-    .route { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: clamp(10px, 4vw, 42px); align-items: center; margin-top: 26px; }
-    .station:last-child { text-align: right; }
+    .train {
+      padding: 4px var(--space-2);
+      border-radius: var(--space-1);
+      background: var(--selected);
+      color: var(--action);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .route {
+      display: grid;
+      grid-template-areas: "departure arrival" "track track";
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2) var(--space-3);
+      align-items: center;
+      margin-top: var(--space-4);
+    }
+    .station { grid-area: departure; overflow-wrap: anywhere; }
+    .station:last-child { grid-area: arrival; text-align: right; }
     .station strong, .station time { display: block; }
-    .station strong { font-size: clamp(1.45rem, 4.5vw, 2.45rem); line-height: 1.12; letter-spacing: -.05em; }
-    .station time { margin-top: 7px; color: #d1e5da; font-size: clamp(.85rem, 2vw, 1.02rem); font-variant-numeric: tabular-nums; }
-    .track { display: grid; grid-template-columns: 1fr auto 1fr; gap: 9px; align-items: center; color: #d1e5da; font-size: .82rem; white-space: nowrap; }
-    .track::before, .track::after { content: ""; height: 1px; background: #82b19d; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 22px; align-items: start; }
-    .card { padding: 27px; background: #fff; border: 1px solid var(--line); border-radius: 25px; box-shadow: 0 8px 28px #153b2d09; }
-    .seat-count { margin-top: 7px; color: var(--muted); font-size: .9rem; }
-    .cabin { margin-top: 20px; padding: 15px; border: 1px solid #ebeee7; border-radius: 19px; background: #f8faf6; }
-    .seat-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px minmax(0, 1fr); gap: 10px 8px; }
+    .station strong {
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -.035em;
+    }
+    .station time {
+      margin-top: var(--space-1);
+      color: var(--action);
+      font-size: clamp(1.0625rem, 2.8vw, 1.375rem);
+      font-weight: 750;
+    }
+    .track {
+      grid-area: track;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: var(--space-1);
+      color: var(--text-secondary);
+      font-size: .875rem;
+      text-align: center;
+    }
+    .track::before, .track::after {
+      content: "";
+      border-top: 2px dotted var(--seat-border);
+    }
+    .station time, .track, #fare { font-variant-numeric: tabular-nums; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-3);
+      align-items: start;
+    }
+    .seat-count { font-size: .9375rem; }
+    .cabin {
+      margin-top: var(--space-3);
+      padding: var(--space-2);
+      border: 1px solid var(--border);
+      border-radius: var(--space-3);
+      background: #F8FAFC;
+    }
+    .seat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) var(--space-2) minmax(0, 1fr);
+      gap: var(--space-1);
+    }
     .seat:nth-child(3n) { grid-column: 4; }
     .seat {
-      display: grid; place-content: center; gap: 4px; min-width: 0; min-height: 78px;
-      padding: 6px; border: 1px solid #dce8de; border-radius: 13px 13px 17px 17px;
-      background: #fff; color: #205444; cursor: pointer; font-weight: 780;
-      box-shadow: inset 0 -3px #edf3eb; transition: background .16s, border-color .16s, transform .16s;
+      display: grid;
+      place-content: center;
+      gap: 4px;
+      min-inline-size: 44px;
+      min-block-size: clamp(64px, 10vw, 88px);
+      padding: var(--space-1) 4px;
+      border: 1px solid var(--seat-border);
+      border-radius: var(--button-radius);
+      background: var(--surface);
+      color: var(--text-primary);
+      box-shadow: inset 0 -3px var(--border);
+      cursor: pointer;
+      font-weight: 750;
+      line-height: 1.25;
+      text-align: center;
+      overflow-wrap: anywhere;
+      transition: background .16s, border-color .16s, box-shadow .16s;
     }
-    .seat span { font-size: .75rem; font-weight: 500; }
-    .seat:hover:not(:disabled) { background: #eaf5ed; border-color: #8ab7a1; transform: translateY(-2px); }
-    .seat[aria-pressed="true"], .seat[aria-pressed="true"]:hover {
-      background: var(--green); border-color: var(--green); color: #fff; box-shadow: inset 0 -3px #103f32;
+    .seat span { color: var(--text-secondary); font-size: .8125rem; font-weight: 500; }
+    .seat:hover:not(:disabled) { border-color: var(--accent); background: #F5F9FF; }
+    .seat[aria-pressed="true"], .seat[aria-pressed="true"]:hover:not(:disabled) {
+      border-color: var(--action);
+      background: var(--selected);
+      color: var(--action);
+      box-shadow: inset 0 0 0 1px var(--action), inset 0 -3px #C7DFFF;
     }
-    .seat:disabled { background: #edf0eb; border-color: #e5e9e2; color: #5b6860; box-shadow: none; }
-    .seat:focus-visible, .primary:focus-visible { outline: 3px solid #286d58; outline-offset: 3px; }
-    .summary { display: grid; gap: 16px; }
-    .summary-route { padding: 12px 14px; border-radius: 12px; background: #f3f7ef; color: #275344; font-weight: 750; }
-    dl { display: grid; gap: 10px; margin: 0; }
-    dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-    dt { color: var(--muted); }
-    dd { margin: 0; font-weight: 750; text-align: right; }
-    .total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 13px; }
-    .total dd { color: var(--green); font-size: 1.27rem; }
+    .seat[aria-pressed="true"] span { color: var(--action); }
+    .seat:disabled {
+      border-color: var(--border);
+      background: var(--unavailable);
+      color: var(--text-secondary);
+      box-shadow: none;
+      cursor: default;
+    }
+    .seat:focus-visible, .primary:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .summary { display: grid; gap: var(--space-3); }
+    .summary-route {
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--button-radius);
+      background: var(--selected);
+      color: var(--action);
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+    dl { display: grid; gap: var(--space-1); }
+    dl div {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 4px var(--space-2);
+    }
+    dt { color: var(--text-secondary); }
+    dd { margin-inline-start: auto; font-weight: 750; text-align: end; }
+    .total {
+      margin-top: var(--space-1);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--border);
+    }
+    .total dd { color: var(--text-primary); font-size: 1.375rem; }
     .primary {
-      width: 100%; padding: 13px 16px; border: 0; border-radius: 13px;
-      background: var(--lime); color: #1d3c24; cursor: pointer; font-weight: 800;
+      width: 100%;
+      min-height: 48px;
+      padding: var(--space-2) var(--space-3);
+      border: 0;
+      border-radius: var(--button-radius);
+      background: var(--action);
+      color: var(--surface);
+      cursor: pointer;
+      font-weight: 750;
       transition: background .16s, transform .16s;
     }
-    .primary:hover:not(:disabled) { background: #b9e875; }
-    .primary:active:not(:disabled) { transform: scale(.98); }
-    .primary:disabled { background: #eef2e9; color: #566358; cursor: default; }
-    .note, .message { color: var(--muted); font-size: .83rem; line-height: 1.5; word-break: keep-all; }
+    .primary:hover:not(:disabled) { background: var(--action-hover); }
+    .primary:active:not(:disabled) { transform: translateY(1px); }
+    .primary:disabled { background: var(--border); color: var(--text-secondary); cursor: default; }
+    .note, .message { color: var(--text-secondary); font-size: .875rem; overflow-wrap: anywhere; }
     .message:empty { display: none; }
-    .message { color: var(--green); font-weight: 700; }
-    @media (max-width: 680px) {
-      .page { width: calc(100% - 32px); padding: 30px 0 38px; }
-      .heading { margin-bottom: 18px; }
-      .grid { grid-template-columns: 1fr; gap: 14px; }
-      .trip { margin-bottom: 14px; padding: 20px; border-radius: 20px; }
-      .card { padding: 19px; border-radius: 20px; }
-      .route { margin-top: 22px; }
-      .cabin { padding: 11px; }
-      .seat-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 14px minmax(0, 1fr); }
+    .message { color: var(--action); font-weight: 700; }
+
+    @media (min-width: 600px) {
+      .page { width: min(1120px, calc(100% - 2 * var(--space-4))); }
+      .route {
+        grid-template-areas: "departure track arrival";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: var(--space-4);
+      }
+      .cabin { padding: var(--space-3); }
+      .seat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) var(--space-4) minmax(0, 1fr);
+        gap: var(--space-2);
+      }
+    }
+    @media (min-width: 900px) {
+      .heading, .trip { margin-bottom: var(--space-4); }
+      .grid { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--space-4); }
     }
     @media (prefers-reduced-motion: reduce) {
       .seat, .primary { transition: none; }
-      .seat:hover:not(:disabled), .primary:active:not(:disabled) { transform: none; }
+      .primary:active:not(:disabled) { transform: none; }
     }
   </style>
 </head>
@@ -120,15 +270,15 @@
     <div class="grid">
       <section class="card" aria-labelledby="seats-title">
         <h2 id="seats-title">좌석 선택</h2>
-        <p class="seat-count">6석 중 4석 선택 가능</p>
+        <p class="seat-count" id="seat-count">좌석을 불러오는 중이에요.</p>
         <div class="cabin">
           <div class="seat-grid">
-            <button type="button" class="seat" data-seat="1A" aria-pressed="false">1A<span>창가</span></button>
-            <button type="button" class="seat" disabled>1B<span>예약됨</span></button>
-            <button type="button" class="seat" data-seat="1C" aria-pressed="false">1C<span>통로</span></button>
-            <button type="button" class="seat" data-seat="2A" aria-pressed="false">2A<span>창가</span></button>
-            <button type="button" class="seat" data-seat="2B" aria-pressed="false">2B<span>통로</span></button>
-            <button type="button" class="seat" disabled>2C<span>예약됨</span></button>
+            <button type="button" class="seat" data-seat="1A" data-position="창가" aria-pressed="false" disabled>1A<span>창가</span></button>
+            <button type="button" class="seat" data-seat="1B" data-position="중간" aria-pressed="false" disabled>1B<span>중간</span></button>
+            <button type="button" class="seat" data-seat="1C" data-position="통로" aria-pressed="false" disabled>1C<span>통로</span></button>
+            <button type="button" class="seat" data-seat="2A" data-position="창가" aria-pressed="false" disabled>2A<span>창가</span></button>
+            <button type="button" class="seat" data-seat="2B" data-position="중간" aria-pressed="false" disabled>2B<span>중간</span></button>
+            <button type="button" class="seat" data-seat="2C" data-position="통로" aria-pressed="false" disabled>2C<span>통로</span></button>
           </div>
         </div>
       </section>
@@ -141,7 +291,7 @@
           <div><dt>좌석</dt><dd id="selected-seat">선택 전</dd></div>
           <div class="total"><dt>예상 금액</dt><dd id="fare">—</dd></div>
         </dl>
-        <button type="button" class="primary" id="confirm" disabled>선택 확인</button>
+        <button type="button" class="primary" id="confirm" disabled>예약하기</button>
         <p class="message" id="message" role="status"></p>
         <p class="note">시간과 요금은 실습용이며 실제 예매는 접수되지 않아요.</p>
       </aside>
@@ -149,27 +299,89 @@
   </main>
   <script>
     const buttons = document.querySelectorAll("[data-seat]");
+    const seatCount = document.querySelector("#seat-count");
     const selectedSeat = document.querySelector("#selected-seat");
     const fare = document.querySelector("#fare");
     const confirm = document.querySelector("#confirm");
     const message = document.querySelector("#message");
+    let trainId = null;
+    let available = new Set();
     let choice = null;
+    let pending = false;
+
+    function renderSeats() {
+      for (const button of buttons) {
+        const isAvailable = available.has(button.dataset.seat);
+        button.disabled = pending || !isAvailable;
+        button.setAttribute("aria-pressed", String(choice === button.dataset.seat));
+        button.querySelector("span").textContent =
+          trainId && !isAvailable ? "예약됨" : button.dataset.position;
+      }
+      if (trainId) seatCount.textContent = buttons.length + "석 중 " + available.size + "석 선택 가능";
+      selectedSeat.textContent = choice || "선택 전";
+      fare.textContent = choice ? "59,800원" : "—";
+      confirm.disabled = pending || !choice;
+    }
+
+    async function refreshSeats() {
+      const response = await fetch("/api/seats", { cache: "no-store" });
+      if (!response.ok) throw new Error("좌석 조회 실패");
+      const data = await response.json();
+      const openSeats = data.seats.filter(seat => seat.available).map(seat => seat.id);
+      available = new Set(openSeats);
+      trainId = data.trainId;
+      if (!available.has(choice)) choice = null;
+      renderSeats();
+    }
 
     for (const button of buttons) {
       button.addEventListener("click", () => {
-        choice = choice === button ? null : button;
-        for (const seat of buttons) {
-          seat.setAttribute("aria-pressed", String(seat === choice));
-        }
-        selectedSeat.textContent = choice ? choice.dataset.seat : "선택 전";
-        fare.textContent = choice ? "59,800원" : "—";
-        confirm.disabled = !choice;
+        choice = choice === button.dataset.seat ? null : button.dataset.seat;
+        renderSeats();
         message.textContent = "";
       });
     }
 
-    confirm.addEventListener("click", () => {
-      if (choice) message.textContent = choice.dataset.seat + " 좌석을 선택했어요.";
+    confirm.addEventListener("click", async () => {
+      if (pending || !choice) return;
+      const seatId = choice;
+      pending = true;
+      renderSeats();
+      message.textContent = "예약을 확인하는 중이에요.";
+      try {
+        const response = await fetch("/api/reservations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trainId, seatId }),
+        });
+        if (response.status === 201) {
+          available.delete(seatId);
+          choice = null;
+          message.textContent = seatId + " 좌석을 예약했어요.";
+        } else if (response.status === 409) {
+          available.delete(seatId);
+          choice = null;
+          message.textContent = "이미 예약된 좌석이에요. 다른 좌석을 골라 주세요.";
+          await refreshSeats().catch(() => {});
+        } else {
+          throw new Error("예약 응답 실패");
+        }
+      } catch {
+        choice = null;
+        message.textContent = "예약 결과를 확인하지 못했어요. 좌석 상태를 확인해 주세요.";
+        await refreshSeats().catch(() => {
+          available.clear();
+          trainId = null;
+          seatCount.textContent = "좌석을 불러오지 못했어요. 페이지를 새로고침해 주세요.";
+        });
+      } finally {
+        pending = false;
+        renderSeats();
+      }
+    });
+
+    refreshSeats().catch(() => {
+      seatCount.textContent = "좌석을 불러오지 못했어요. 페이지를 새로고침해 주세요.";
     });
   </script>
 </body>
