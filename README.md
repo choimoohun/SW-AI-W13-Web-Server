@@ -51,9 +51,10 @@ sequenceDiagram
     W->>E: epoll_wait() → 잠듦
 
     C->>K: 연결 요청 (handshake)
+    K->>K: 연결 수립 → 커넥션 소켓을 accept 대기열에 넣음
     K->>E: 콜백: listen fd를 준비 목록에 넣음
     E->>W: 워커 깨움, listen fd 전달
-    W->>K: accept() → conn fd
+    W->>K: accept() → 대기열에서 꺼내 conn fd 받음
     W->>W: conn fd 논블로킹 설정
     W->>E: conn fd 등록
     W->>E: epoll_wait() → 잠듦
