@@ -60,9 +60,9 @@ sequenceDiagram
 
     C->>K: 요청 바이트 전송
     K->>E: 콜백: conn fd를 준비 목록에 넣음
-    E->>W: 워커 깨움, 준비된 fd만 전달
+    E->>W: 워커 깨움, 준비된 fd만 전달 (events 배열)
     W->>K: conn fd 읽기 → 버퍼에 이어 붙임
-    W->>W: 요청 완성 시 처리
+    W->>W: 요청 완성 시 처리, 아니면 배열의 다음 fd로
     W->>E: epoll_wait() → 잠듦
 ```
 
