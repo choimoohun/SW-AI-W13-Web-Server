@@ -37,7 +37,7 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | [EXT04_PAYMENT_SERVICE.md](docs/iterations/EXT04_PAYMENT_SERVICE.md) | 결제 서비스 분리, 중복 방지 키·환불·화면 흐름 (확장) |
 | [DECISIONS.md](docs/DECISIONS.md) | 구현 과정에서 실제로 확정한 결정 기록 |
 | [notes/iomux.md](docs/notes/iomux.md) | I/O 멀티플렉싱·이벤트 루프를 고른 이유와 대안 비교(`epoll`/`kqueue`/`poll`) |
-| [notes/http-network-concepts.md](docs/notes/http-network-concepts.md) | HTTP/네트워크 개념 메모 |
+| [notes/runtime-internals.md](docs/notes/runtime-internals.md) | 런타임 동작·네트워크 개념 |
 | [DESIGN.md](docs/DESIGN.md) | 아키텍처, 이벤트 루프 동작 순서, 실제 동작 원리 |
 | [TEAM_RULES.md](docs/TEAM_RULES.md) | 팀이 확정한 규칙만 |
 
@@ -95,6 +95,18 @@ flowchart TB
 
 현행 구조와 그 근거는 [`DESIGN.md`](docs/DESIGN.md), AI에게 질의하고 실행으로 검증해 채택한 것은 [`AI_QA_LOG.md`](docs/agent/AI_QA_LOG.md)에 있습니다.
 
+### 왜 Reverse Proxy이지, Forward Proxy가 아닌가
+
+| | Forward Proxy | Reverse Proxy (우리 선택) |
+|---|---|---|
+| 누가 쓰나 | 클라이언트 측이 자기 트래픽을 보냄 | 서버 측이 들어오는 요청을 백엔드로 넘김 |
+| 숨기는 대상 | 클라이언트 정체 | 백엔드 구성(IP·포트·수) |
+| 부하 분산 | 해당 없음 | 여러 백엔드에 Round-Robin |
+| 우리 과제에서 | 브라우저 설정 문제라 C 서버 일과가 아님 | `/api/*` → 8401/8402 분산, rewrite — FR-07 |
+
+우리는 들어오는 `/api/*`를 내부 백엔드로 중계하는 게 필요합니다. 그래서 Reverse Proxy입니다.
+Forward Proxy(선택 항목)는 구현하지 않았고 [`REQUIREMENTS.md` FR-08](docs/REQUIREMENTS.md)을 범위 밖으로 정했습니다.
+
 ## 기술 영역 및 학습 목표
 
 이 프로젝트를 통해 아래의 핵심 기술 영역들을 깊이 있게 다루고 검증합니다.
@@ -130,14 +142,15 @@ flowchart TB
 
 ### 마일스톤별 검증 요약
 
-- 1~4(TCP·파서·응답·정적 파일): `make` exit 0, `GET /` 200, `/nope` 404, `/../etc/passwd`와 `/%2e%2e/etc/passwd` 403, `/test.png` 바이트 일치, MIME 매핑, `POST /` 405, `kill -TERM` 종료 코드 0.
-- 5(견고함): `make test`·`make asan` 통과, Docker valgrind 누수 0.
-- 6(워커 풀·이벤트 루프): keep-alive `200 200`, slow client가 다른 요청을 막지 않음, 100동시 통과.
-- 7(항공편 도메인): after 201 1건/409 99건, before 초과 예약 재현, 재시작 후 예약 유지, `make tsan` after 0건.
-- 8(요구사항 마무리): Date/Server·`/health`·`/echo`·`-p/-r/-c`, 게이트웨이 RR/XFF/502, 접근 로그, `X-Cache` HIT.
-- 9~10(별도 백엔드·결제): `ulimit` 자원 제한 차등, 백엔드 종료 시 200/502 혼재 후 재시작 복구, 결제 충전·중복 방지 키·환불·독립 재시작.
+| 마일스톤 | 확인 |
+|---|---|
+| 1~4 TCP·파서·응답·정적 파일 | `make`, 200/404/403, PNG 바이트 일치, MIME, 종료 코드 0 |
+| 5 견고함 | `make test`·`make asan`, Docker valgrind 누수 0 |
+| 6 동시성 | keep-alive, slow client 비차단, 100동시 통과 |
+| 7 항공편 | before/after 재현, 재시작 후 예약 유지, `make tsan` after 0건 |
+| 8~10 마무리·별도 백엔드·결제 | 프록시 RR/XFF/502, 접근 로그, `X-Cache` HIT, 결제 충전·환불 |
 
-실행 명령은 아래 "로컬에서 돌려보는 방법"에 모아 두었고, 상세 기록은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
+실행 명령은 아래 "로컬에서 돌려보는 방법"에, 상세 출력은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
 
 ## 로컬에서 돌려보는 방법
 
@@ -165,18 +178,6 @@ WEB_WORKERS=4 ./webserver  # 워커 4개 (기본값)
 - `http://127.0.0.1:8080/flights.html` — 항공편 예약/취소/내 예약/운항 이력
 - `http://127.0.0.1:8080/ops.html` — 출발·도착 추적 콘솔
 - `http://127.0.0.1:8080/health`, `/echo`, `/api/flights`
-
-실제 실행 예시(8086 포트):
-
-```text
-/health          200 application/json
-/                200 text/html
-/flights.html    200 text/html
-/ops.html        200 text/html
-/api/flights     200 application/json
-/echo            200
-SIGTERM 전송 후 종료
-```
 
 검증 명령:
 
@@ -232,46 +233,21 @@ make reset-flights      # 예약 데이터 초기화 후 16편 시드로 다시 
 
 `integration-backends`는 8085, 8000, 8002, 8401, 8402 포트를 쓰므로 다른 서버가 해당 포트를 점유하고 있으면 먼저 정리해야 합니다.
 
-## 파일 분리 기준
+## 모듈과 디렉터리 구조
 
-함수 하나마다 파일을 만들지 않고, 같은 책임을 수행하는 함수들을 모듈 하나에 묶습니다.
-
-- `tcpserver`: TCP 서버 소켓 생성과 클라이언트 접속 수락
-- `connection`: 클라이언트 연결별 데이터와 상태 관리
-- `http_parser`: 수신한 HTTP 요청 해석
-- `http_response`: HTTP 응답 생성 및 전송
-- `static_handler`: 요청 경로에 대응하는 정적 파일 처리
-
-## 현재 디렉터리 구조
+모듈별 책임과 의존 규칙은 [docs/DESIGN.md §4](docs/DESIGN.md#4-모듈--의존--소유권--계약)에 있습니다. 파일은 같은 책임끼리 묶고, 아래 계층은 위 계층을 include하지 않습니다.
 
 ```text
-include/   iomux, worker, connection, config, flight_*, proxy, cdn, http_*
-src/       main, tcpserver, worker, iomux, connection, config, flight_*, proxy, cdn, http_*
-www/       flights.html/js, ops.html/js, 정적 자산
-conf/      tcpserver.conf (포트·워커·라우트·TTL)
-tests/     unit/, integration/, integration/fixtures/
-verify/     VERIFICATION_MATRIX.md, TRACEABILITY.md, AUTO_FINDINGS.md, design_reviews/
-docs/       REQUIREMENTS.md, DESIGN.md, DECISIONS.md, decisions/, iterations/, agent/, records/, notes/, design_reviews/
+src/ include/   main, tcpserver, worker, iomux, connection, config,
+                flight_*, proxy, cdn, http_parser, http_response, static_handler
+www/            flights.html/js, ops.html/js, 정적 자산
+conf/           tcpserver.conf(기본), backends.conf(게이트웨이)
+tests/          unit/, integration/
+docs/           REQUIREMENTS, DESIGN, DECISIONS, decisions/, iterations/,
+                agent/, records/, verify/, notes/
 ```
 
-## 모듈 책임 (현재)
-
-| 모듈 | 책임 |
-|---|---|
-| `main` | 설정 로드, 리스닝 소켓 생성, 워커 풀·프록시 스레드 시작/종료 |
-| `tcpserver` | 소켓 생성·bind·listen, graceful shutdown |
-| `worker` | 워커별 이벤트 루프, 이벤트당 accept 1건, 유휴 정리 |
-| `iomux` | epoll(Linux)/kqueue(macOS)/poll 백엔드 추상화 |
-| `connection` | 비동기 feed/flush 상태 머신, keep-alive, 접근 로그 |
-| `flight_store` | 항공편·예약·타임라인, 항공편별 락, 스냅샷 파일 저장 |
-| `flight_api` | `/api/*` 라우팅, 최소 JSON 직렬화, `/health`·`/echo` |
-| `flight_clock` | real/sim 시계, 자동 출발·도착 전이 |
-| `proxy` | 경로 기반 게이트웨이 + Round-Robin 로드밸런서(전용 스레드) |
-| `cdn` | 정적 자산 TTL 캐시, `X-Cache` HIT/MISS |
-| `static_handler` | 경로 검증, MIME, 정적 파일/캐시 서빙 |
-| `http_response` | Date/Server/Cache-Control/ETag 포함 응답 직렬화 |
-
-초기 단계의 "제안 구조"는 위 현재 구조로 대체됐습니다.
+초기 단계의 "제안 구조"는 위 구조로 대체됐습니다.
 
 
 ## 문서 작성 원칙

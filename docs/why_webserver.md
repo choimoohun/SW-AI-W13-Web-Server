@@ -36,7 +36,7 @@
 - TCP 패킷 손실이 모든 스트림을 멈춘다. HTTP/3 QUIC 영역.
 - 매 요청마다 같은 헤더를 반복 전송한다. HPACK 영역.
 - 서버를 늘리면 세션 공유가 필요하다. 세션 서버·Redis·토큰 영역이며 아직 구현하지 않았다.
-  다음 과제는 [docs/agent/DAILY_SCOPE.md](../agent/DAILY_SCOPE.md).
+  다음 과제는 [docs/agent/DAILY_SCOPE.md](agent/DAILY_SCOPE.md).
 - TLS 종료, 인증, 호출 제한. 앞단 장비의 일이라 별도 과제로 보류했다.
 
 `확인`이 비어 있거나 추가 필요인 행은 아직 증명하지 못한 것입니다.

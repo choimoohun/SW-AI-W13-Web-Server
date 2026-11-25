@@ -11,13 +11,13 @@
 | 무엇으로 검증하나, 통과했나 | [verify/VERIFICATION_MATRIX.md](verify/VERIFICATION_MATRIX.md) |
 | 요구사항이 어느 코드로 갔나 | [verify/TRACEABILITY.md](verify/TRACEABILITY.md) |
 | 실제 실행 결과 | [records/VERIFICATION_LOG.md](records/VERIFICATION_LOG.md) |
-| 개념 설명(커널·소켓·파일 I/O) | [notes/runtime-internals.md](notes/runtime-internals.md), [notes/iomux.md](notes/iomux.md) |
+| 개념 설명(커널·소켓) | [notes/runtime-internals.md](notes/runtime-internals.md), [notes/iomux.md](notes/iomux.md) |
 
 ## 1. 문제 정의
 
 자세한 배경은 [REQUIREMENTS.md — 이 프로젝트가 푸는 중심 문제](REQUIREMENTS.md#이-프로젝트가-푸는-중심-문제)에 있습니다. 설계를 이끈 문제는 넷입니다.
 
-1. **느린 클라이언트 하나가 전체를 막는다.** 동시에 100개 이상을 받아야 한다. (FR-06)
+1. **느린 클라이언트(slow client) 하나가 전체를 막는다.** 동시에 100개 이상을 받아야 한다. (FR-06)
 2. **여러 요청이 같은 좌석을 동시에 고친다.** 초과 예약이 나면 안 된다. (FR-05)
 3. **서비스가 한 프로세스에 묶이면** 배포·장애·확장이 같이 묶인다. 느린 업스트림이 서버 전체를 막아서도 안 된다. (FR-07, NFR-03)
 4. **C에는 GC가 없다.** 메모리·fd를 누가 해제하는지 정하지 않으면 누수와 double-close가 쌓인다. (NFR-01, NFR-02)
@@ -96,7 +96,6 @@ flowchart TB
 | 업스트림 호출은 전용 프록시 스레드 + 큐, `dup()`로 fd 소유권 이전 | 3 (NFR-03) | [D22](decisions/STEP05_CONCURRENCY_DECISIONS.md) | [매트릭스 FR-07](verify/VERIFICATION_MATRIX.md) |
 | 캐시·DB·결제는 별도 프로세스, 예약·좌석은 C 서버 안 | 3 (FR-07) | [D27·D28](decisions/STEP06_FLIGHT_DEMO_DECISIONS.md) | [매트릭스 별도 백엔드·결제](verify/VERIFICATION_MATRIX.md) |
 | 정적 파일: `realpath` 경계 검사, MIME, 미니 CDN(TTL) | FR-04 | [보안 정책](DECISIONS.md#보안-정책), [D17](decisions/STEP04_STATIC_FILE_DECISIONS.md) | [매트릭스 FR-04](verify/VERIFICATION_MATRIX.md) |
-| 네트워크 I/O는 논블로킹, 파일 I/O는 청크 단위 동기 | 1 (FR-06), 제약 C-02 | [notes/runtime-internals.md](notes/runtime-internals.md) | [매트릭스 FR-06](verify/VERIFICATION_MATRIX.md) |
 | 파서는 fd를 모르는 순수 함수, `consumed`로 요청 경계 확정 | FR-02 | [D3](decisions/STEP02_HTTP_PARSER_DECISIONS.md) | [매트릭스 FR-02](verify/VERIFICATION_MATRIX.md) |
 | 리소스마다 해제 주체 하나 (§4) | 4 (NFR-01·02) | §4 | [매트릭스 NFR-01·02](verify/VERIFICATION_MATRIX.md) |
 
@@ -158,7 +157,7 @@ Layer 3  main
 
 | 단계 | 무엇을 했나 | 원본 기록 |
 |---|---|---|
-| ① 초안 | STEP1~4 범위의 모듈 스텁과 호출 순서를 잡고 검토. 동시성은 별도 판정으로 미룸 | [records/DESIGN_REVIEW_2026-11-21.md](records/DESIGN_REVIEW_2026-11-21.md), [iterations/](iterations/) |
+| ① 초안 | STEP1~4 범위의 모듈 스텁과 호출 순서를 잡고 검토. 동시성은 별도 판정으로 미룸 | [records/reviews/DESIGN_REVIEW_2026-11-21.md](records/reviews/DESIGN_REVIEW_2026-11-21.md), [iterations/](iterations/) |
 | ② 직접 학습 | 소켓 식별, 멀티플렉싱 개념을 먼저 공부 (AI 문답 아님) | [study/study_log.md](../study/study_log.md) |
 | ③ AI 문답 | 설계 질문을 AI에 묻고, 실행으로 확인한 것만 채택·기각 | [agent/AI_QA_LOG.md](agent/AI_QA_LOG.md) |
 | ④ 검증 루프 | 실행하다 드러난 결함을 고치고 같은 명령으로 재검증 | [verify/VERIFICATION_MATRIX.md — 검증에서 잡은 문제](verify/VERIFICATION_MATRIX.md#검증에서-잡은-문제), [records/VERIFICATION_LOG.md](records/VERIFICATION_LOG.md) |
@@ -172,28 +171,13 @@ Layer 3  main
 | `poll`이면 충분한가 | 준비된 fd만 받는 epoll/kqueue가 연결 증가에 유리 | epoll/kqueue + poll 폴백 (D9·D21) |
 | 한 이벤트에 accept를 여러 번 해도 되나 | 한 워커가 독점해 동시성 데모가 사라짐 | 이벤트당 1건 (D10) |
 | HTTP 메시지 큐가 필요한가 | 요구사항에 없음, 워커↔프록시 작업 큐로 충분 → 기각 | 인메모리 작업 큐만 |
-| 정적 파일 I/O를 진짜 비동기화해야 하나 | 병목은 디스크가 아니라 좌석 락 → 범위 밖 | 청크 동기 읽기 유지 |
 
 전체 질의와 근거는 [AI_QA_LOG.md](agent/AI_QA_LOG.md)에 있습니다.
 
-### ④ 검증 루프에서 잡아 고친 것 — 문제가 나올 때마다 한 층씩
+### ④ 검증 루프에서 잡아 고친 것
 
-| 층 | 실행하다 드러난 문제 | 그래서 바꾼 설계 |
-|---|---|---|
-| L0 기반 (STEP1~4) | 경로 탈출, 바이너리 손상, MIME 누락 | `realpath` 경계 검사, 청크 전송, parser / static / response 분리 |
-| L1 동시성 (STEP5) | 단일 accept 루프가 100요청을 직렬 처리 → 좌석 경쟁이 재현조차 안 됨 | 워커 + `iomux`, 공유 listen fd, 이벤트당 accept 1건 |
-| L1 연결 | keep-alive에서 `consumed`를 안 지워 다음 요청이 섞임 | `connection_feed()` 버퍼 정리 계약 (§4) |
-| L2 도메인 (STEP6) | 저장 파일이 0건으로 로드됨 (`split_fields()` 포인터) | 필드 파서 수정, `data/flights.txt` 영속 저장 |
-| L2 락 | `memset`이 초기화된 뮤텍스를 지움 / 락 안 파일 쓰기가 예약을 막음 | 락 초기화 순서 변경, 스냅샷 후 락 밖 `rename()` |
-| 빌드 | 헤더 의존성이 없어 구조체 레이아웃 불일치 → KE999 404 | `-MMD -MP` (D25) |
-| L3 게이트웨이 (FR-07) | `trim()` 버그로 모든 라우트 404 | `memmove`로 버퍼 정리 |
-| L3 게이트웨이 | 프록시의 blocking `recv()`가 워커를 멈춤 → 느린 업스트림이 `/health`까지 막음 (이벤트 루프 안의 블로킹 호출) | 전용 프록시 스레드 + 큐 (D22) |
-| L4 캐시·관측 | `X-Cache`만 있고 캐시 정책 헤더가 없음 | `Cache-Control`/`ETag`, `Date`/`Server`, 접근 로그 |
-| L4 검증 | valgrind가 `epoll_pwait` 이벤트 배열 OOB 검출 | 배열 256 + `min(max, cap)` |
-| 이식성 | Linux에서 `usleep` 미선언으로 `-Werror` 실패 | `nanosleep()` |
-| L5 백엔드 | 한 오리진에 모든 도메인 → 독립 배포·자원 제한 불가 | 라우트로 mini-redis·mini-dbms·결제를 별도 프로세스 연결 (D27·D28) |
-
-증상·원인·재검증 명령은 [VERIFICATION_MATRIX.md — 검증에서 잡은 문제](verify/VERIFICATION_MATRIX.md#검증에서-잡은-문제)에 있습니다.
+실행 중 드러난 문제·원인·수정·재검증 명령은 [records/ERROR_FIX_HISTORY.md](records/ERROR_FIX_HISTORY.md)에 모아 둡니다.
+이 과정에서 확정된 구조 변화는 §3 표와 `DECISIONS.md`에 남았습니다.
 
 구현하지 않기로 한 것도 결정으로 남겼습니다: HTTP/2·TLS는 앞단 게이트웨이에서 종료(D26), chunked 요청 본문은 501(D3).
 
