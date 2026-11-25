@@ -16,6 +16,8 @@
 
 ## 연결 처리 흐름
 
+> 5단계에서 메서드 판정(`method == GET?`)이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로, 6단계에서 `accept()` 반복이 [스레드 풀](../concurrency/design.md#구조)로 바뀌었습니다. 아래는 4단계 기준입니다.
+
 서버는 `./build/httpd <port> <root>`로 실행합니다. 리스닝과 `accept()` 반복은 [보완한 순차 에코 서버](../tcp-socket-server/functions.md#echoserveric)와 같고, `echo()` 자리에 `handle_connection()`이 들어갑니다.
 
 ```mermaid
@@ -29,7 +31,7 @@ flowchart TD
     F -->|"CLOSED"| Z["http_request_free 후 반환"]
     F -->|"BAD"| G["http_send_error(400)"]
     F -->|"OK"| H["http_parse_head"]
-    H -->|"400, 505"| G2["http_send_error(status)"]
+    H -->|"400, 501, 505"| G2["http_send_error(status)"]
     H -->|"0"| I["http_read_body"]
     I -->|"CLOSED"| Z
     I -->|"NOMEM"| G4["http_send_error(500)"]
@@ -50,6 +52,20 @@ flowchart TD
 
 요청 하나에 응답 하나를 보낸 뒤 연결을 닫습니다. 응답 헤더의 `Connection: close`가 이것을 클라이언트에게 알립니다([응답 생성의 설계 결정](../http-response/design.md#설계-결정)).
 
+### 연결 시간 제한
+
+`accept()` 직후 `connfd`에 `SO_RCVTIMEO`와 `SO_SNDTIMEO`를 5초(`CONN_TIMEOUT_SEC`)로 겁니다. 순차 서버라 요청을 덜 보내고 멈춘 클라이언트나 응답을 읽지 않는 클라이언트 하나가 다른 연결을 모두 막기 때문입니다.
+
+| 상황 | 결과 |
+| --- | --- |
+| `read()`가 5초 동안 바이트를 하나도 받지 못함 | -1과 `EAGAIN`. RIO는 `EINTR`만 다시 시도하므로 `HTTP_READ_CLOSED`가 되어 응답 없이 닫습니다 |
+| `write()`가 5초 동안 1바이트도 보내지 못함 | `rio_writen()`이 -1. 헤더를 보낸 뒤라면 응답이 잘린 채 닫습니다 |
+| `setsockopt()` 실패 | 표준 오류에 출력하고 시간 제한 없이 처리합니다. 요청 처리 자체는 가능하기 때문입니다 |
+
+- 제한은 `read()`, `write()` 호출마다 따로 걸립니다. 5초 안에 1바이트씩 흘려 보내는 클라이언트는 막지 못합니다. 근본 해결은 동시 요청 처리 단계입니다.
+- 5초는 순차 서버에서 다른 클라이언트가 기다리는 최대 시간이기도 하므로 짧게 잡았습니다.
+- 다른 방법과 비교는 [1~4단계 리뷰의 미룬 결정](../reviews/stage-1-4-deferred-decisions.md#a-느린-클라이언트가-서버-전체를-막음)에 있습니다.
+
 ## URL 접미사 해석
 
 교재 11.5.2의 규칙을 따릅니다. 접미사의 맨 앞 `/`는 리눅스 루트가 아니라 정적 루트 디렉터리입니다.
@@ -57,7 +73,7 @@ flowchart TD
 | 단계 | 처리 | 예: 루트 `/srv/www` |
 | --- | --- | --- |
 | 1 | `?`가 있으면 그 앞까지만 씁니다. 정적 파일에는 인자가 없습니다 | `/style.css?v=2` → `/style.css` |
-| 2 | 경로 조각 중 `..`이 있으면 403입니다 | `/../etc/passwd` → 403 |
+| 2 | 경로 조각 중 `..`, `.`, 빈 조각(`//`)이 있으면 403입니다(5단계에서 `.`과 빈 조각 추가) | `/../etc/passwd`, `//cgi-bin/x` → 403 |
 | 3 | 루트 뒤에 붙입니다 | `/style.css` → `/srv/www/style.css` |
 | 4 | `/`로 끝나면 `index.html`을 붙입니다 | `/` → `/srv/www/index.html` |
 | 5 | 결과가 `MAXLINE`을 넘으면 400입니다 | |
@@ -76,18 +92,18 @@ flowchart TD
 
 | 상황 | 상태 | 판정 위치 |
 | --- | --- | --- |
-| 경로에 `..` 조각 | 403 | `static_resolve_path()` |
+| 경로에 `..`, `.`, 빈 조각(`//`) | 403 | `static_resolve_path()` |
 | 만든 경로가 `MAXLINE` 초과 | 400 | `static_resolve_path()` |
 | `open()` 실패, `errno`가 `ENOENT` 또는 `ENOTDIR` | 404 | `static_serve()` |
 | `open()` 실패, `errno`가 `EACCES` | 403 | `static_serve()` |
 | `open()` 실패, `errno`가 `ENAMETOOLONG` | 400 | `static_serve()` |
-| `open()`의 다른 실패, `fstat()` 실패 | 500 | `static_serve()` |
+| `open()`의 다른 실패, `fstat()` 실패, `O_NONBLOCK`을 지우는 `fcntl()` 실패 | 500 | `static_serve()` |
 | 일반 파일이 아님(디렉터리 등) | 403 | `static_serve()` |
 | 파일을 열고 크기를 얻음 | 200 | `static_serve()` |
 
 `/dir/`처럼 `/`로 끝나는 요청에 `index.html`이 없으면 `open()`이 `ENOENT`이므로 404입니다. `/dir`처럼 `/` 없이 디렉터리를 요청하면 일반 파일이 아니므로 403입니다.
 
-루트에는 일반 파일과 디렉터리만 둔다고 가정합니다. FIFO 같은 특수 파일은 `open()`에서 멈출 수 있고, 순차 서버라 다른 연결까지 멈춥니다.
+FIFO를 `O_RDONLY`로 열면 쓰는 쪽이 나타날 때까지 `open()`이 막히고, 순차 서버라 다른 연결까지 멈춥니다. 그래서 `O_RDONLY | O_NONBLOCK`으로 엽니다. POSIX에서 이 플래그로 연 FIFO는 쓰는 쪽이 없어도 곧바로 반환하므로 `fstat()`이 일반 파일이 아님을 보고 403을 보냅니다. 일반 파일이면 `fcntl()`로 `O_NONBLOCK`을 지운 뒤 읽습니다. 5단계부터는 워커가 fork한 CGI에 이 파일이 새지 않도록 `O_CLOEXEC`도 붙여 `O_RDONLY | O_NONBLOCK | O_CLOEXEC`로 엽니다([동적 요청 처리](../dynamic-request/design.md#스레드-풀에서-생기는-문제와-대책)).
 
 읽기 권한은 직접 비트를 검사하지 않고 `open()`의 `EACCES`로 판단합니다. 커널이 소유자와 그룹까지 따져 판정하므로 서버를 실행한 사용자 기준의 결과가 나옵니다.
 
@@ -103,38 +119,46 @@ flowchart TD
 
 ## 파일 구성
 
+`httpd`의 전체 파일 구성과 빌드는 이 절에서 관리합니다. 5~7단계에서 추가한 파일은 오른쪽에 단계를 적었습니다.
+
 ```text
 .
 ├── CMakeLists.txt        타깃과 테스트 추가
 ├── src/
-│   ├── httpd.c            main, handle_connection
+│   ├── httpd.c            main, handle_connection (6단계부터 worker)
 │   ├── http_request.h/.c  요청 파싱
 │   ├── http_response.h/.c 응답 생성
-│   └── static_file.h/.c   MIME, 경로 해석, 파일 송신
+│   ├── static_file.h/.c   MIME, 경로 해석, 파일 송신
+│   ├── cgi.h/.c           CGI 실행 (5단계)
+│   ├── conn_queue.h/.c    연결 대기열 (6단계)
+│   └── proxy.h/.c         리버스 프록시 (7단계)
 └── tests/
     ├── test_http_request.c
     ├── test_http_response.c
-    └── test_static_file.c
+    ├── test_static_file.c
+    ├── test_cgi.c         (5단계)
+    ├── test_conn_queue.c  (6단계)
+    └── test_proxy.c       (7단계)
 ```
 
 | 파일 | 의존 | 산출물 |
 | --- | --- | --- |
-| `http_request.c`, `http_response.c`, `static_file.c` | `csapp.h`(RIO, `MAXLINE`) | 정적 라이브러리 `http` |
+| `http_request.c`, `http_response.c`, `static_file.c`, `cgi.c`, `conn_queue.c`, `proxy.c` | `csapp.h`(RIO, `MAXLINE`), pthread | 정적 라이브러리 `http` |
 | `httpd.c` | `http`, `csapp` | 실행 파일 `httpd` |
-| `tests/test_*.c` | `http`, `csapp` | 단위 테스트 실행 파일 세 개 |
+| `tests/test_*.c` | `http`, `csapp` | 단위 테스트 실행 파일 여섯 개 |
 
 ## 빌드 설계
 
-기존 `CMakeLists.txt`의 `echoclient` 타깃 뒤에 추가합니다.
+기존 `CMakeLists.txt`의 `echoclient` 타깃 뒤에 추가합니다. pthread는 `csapp` 타깃이 `Threads::Threads`로 이미 연결합니다.
 
 ```cmake
-add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c)
+add_library(http STATIC src/http_request.c src/http_response.c src/static_file.c src/cgi.c src/conn_queue.c src/proxy.c)
 target_link_libraries(http PUBLIC csapp)
 
 add_executable(httpd src/httpd.c)
 target_link_libraries(httpd PRIVATE http)
 
-foreach(name test_http_request test_http_response test_static_file)
+foreach(name test_http_request test_http_response test_static_file test_cgi test_conn_queue test_proxy)
     add_executable(${name} tests/${name}.c)
     target_link_libraries(${name} PRIVATE http)
     add_test(NAME ${name} COMMAND ${name})

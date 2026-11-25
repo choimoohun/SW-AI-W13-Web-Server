@@ -15,6 +15,7 @@
 | R03c | R03a와 같되 `size`를 R01 헤더 길이로 | -1. 끝 NUL 자리가 없어 잘림 |
 | R04 | `pipe()`로 만든 쓰기 끝에 `http_send_error(fd, 404)` 후 읽기 끝에서 전부 읽음 | 반환 0. 받은 바이트가 R01 형식의 404 헤더(`Content-Length: 49`)와 49바이트 본문 `<html><body><h1>404 Not found</h1></body></html>\n`의 연결과 같음 |
 | R05 | `pipe()`로 만든 쓰기 끝에 `http_send_error(fd, 302)` 후 읽기 끝에서 읽음 | -1. 읽기 끝은 바로 EOF(보낸 바이트 없음) |
+| R09 | `http_status_text(502)`, `(504)`, `http_format_head(..., 504, ...)` (7단계) | `"Bad gateway"`, `"Gateway timeout"`, 응답 줄 `HTTP/1.1 504 Gateway timeout` |
 
 R04는 소켓 대신 파이프를 씁니다. `http_send_error()`는 디스크립터에 쓰기만 하므로 파이프로도 송신 바이트를 그대로 확인할 수 있습니다. 응답은 파이프 버퍼(Linux 기본 64KiB)보다 작아 읽기 전에 써도 막히지 않습니다.
 

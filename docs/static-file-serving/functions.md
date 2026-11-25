@@ -25,8 +25,10 @@
 | 함수 | 설명 | 입력 | 출력 |
 | --- | --- | --- | --- |
 | `const char *mime_type(const char *path)` | 위 표에서 확장자에 맞는 MIME 타입을 찾습니다. 순수 함수입니다. | `path`: 파일 경로 | MIME 타입 문자열 상수. `NULL`을 반환하지 않음 |
-| `int static_resolve_path(const char *root, const char *uri, char *path, size_t size)` | [design.md의 URL 접미사 해석](./design.md#url-접미사-해석) 다섯 단계로 디스크 경로를 만듭니다. 파일 시스템에 접근하지 않는 순수 함수입니다. | `root`: CLI로 받은 루트. `uri`: `http_parse_head()`가 검사한 `/`로 시작하는 URI. `path`, `size`: 결과 버퍼(`MAXLINE`) | 성공 0, `path`에 경로. `..` 조각이면 403, 결과가 `size`를 넘으면 400 |
-| `int static_serve(int fd, const char *path)` | 파일을 열어 [상태 코드 판정](./design.md#상태-코드-판정)을 한 뒤, 200이면 `http_send_head()`와 본문을 보내고, 아니면 `http_send_error()`를 보냅니다. 연 파일은 반환 전에 닫습니다. | `fd`: 연결 소켓. `path`: `static_resolve_path()`의 결과. 파일 시스템 | 응답을 끝까지 보냈으면 0. 송신 실패(`EPIPE` 등), 본문 전송 중 `read()` 실패, `Content-Length`만큼 읽기 전의 EOF면 -1. 어느 경우든 연결은 닫지 않음 |
+| `int static_has_bad_segments(const char *uri)` | `?` 앞 경로에서 정확히 `..`, `.`, 빈 조각(`//`)을 찾습니다. `static_resolve_path()`와 7단계 프록시 분기가 함께 씁니다. | `uri`: `/`로 시작하는 URI | 있으면 1, 없으면 0 |
+| `int static_resolve_path(const char *root, const char *uri, char *path, size_t size)` | [design.md의 URL 접미사 해석](./design.md#url-접미사-해석) 다섯 단계로 디스크 경로를 만듭니다. 파일 시스템에 접근하지 않는 순수 함수입니다. | `root`: CLI로 받은 루트. `uri`: `http_parse_head()`가 검사한 `/`로 시작하는 URI. `path`, `size`: 결과 버퍼(`MAXLINE`) | 성공 0, `path`에 경로. `..`, `.`, 빈 조각(`//`)이 있으면 403, 결과가 `size`를 넘으면 400 |
+| `int static_serve(int fd, const char *path)` | 파일을 `O_RDONLY \| O_NONBLOCK \| O_CLOEXEC`로 열어 [상태 코드 판정](./design.md#상태-코드-판정)을 한 뒤, 200이면 `http_send_head()`와 본문을 보내고, 아니면 `http_send_error()`를 보냅니다. 연 파일은 반환 전에 닫습니다. | `fd`: 연결 소켓. `path`: `static_resolve_path()`의 결과. 파일 시스템 | 응답을 끝까지 보냈으면 0. 송신 실패(`EPIPE` 등), 본문 전송 중 `read()` 실패, `Content-Length`만큼 읽기 전의 EOF면 -1. 어느 경우든 연결은 닫지 않음 |
+| `int static_errno_status(int err)` | `open()`이나 `stat()`이 남긴 `errno`를 상태 코드로 바꿉니다. 5단계에서 [CGI 실행 검사](../dynamic-request/functions.md#static-함수)도 함께 쓰도록 공개했습니다. 순수 함수입니다. | `err`: `errno` 값 | `ENOENT`, `ENOTDIR` 404, `EACCES` 403, `ENAMETOOLONG` 400, 그 밖 500 |
 
 ### static_serve의 본문 전송
 
@@ -51,6 +53,8 @@ while (left > 0) {
 본문은 `fstat()`으로 얻은 크기만큼만 보냅니다. 헤더를 보낸 뒤 다른 프로세스가 파일을 늘리면 늘어난 부분은 보내지 않습니다. 파일이 줄어 `Content-Length`만큼 읽기 전에 EOF가 오면 -1을 반환하고, 호출자가 연결을 닫아 클라이언트는 본문이 잘렸음을 알 수 있습니다.
 
 ## httpd.c
+
+> 5~7단계에서 `main`은 스레드 풀과 `--route` 인자 처리로, `handle_connection()`은 프록시·CGI·정적 분기로 바뀌었습니다. 현재 모습은 [동시 요청 처리 함수 명세](../concurrency/functions.md#httpdc)에 있습니다. 아래는 4단계 기준입니다.
 
 | 함수 | 설명 | 입력 | 출력 |
 | --- | --- | --- | --- |

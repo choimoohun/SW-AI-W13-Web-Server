@@ -13,6 +13,8 @@ const char *http_status_text(int status)
     case 404: return "Not found";
     case 500: return "Internal server error";
     case 501: return "Not implemented";
+    case 502: return "Bad gateway";
+    case 504: return "Gateway timeout";
     case 505: return "HTTP version not supported";
     default: return NULL;
     }

@@ -37,4 +37,4 @@
 ## 주의할 점
 
 - `http_send_error()`는 연결을 닫지 않습니다. 닫는 일은 [연결 처리](../static-file-serving/design.md#연결-처리-흐름)가 한 곳에서 합니다.
-- `http_send_head()`의 버퍼 `MAXLINE`(8192)은 헤더 다섯 줄에 충분합니다. `content_type`은 [MIME 표](../static-file-serving/functions.md#mime-타입-표)의 상수만 들어오므로 길이가 정해져 있습니다.
+- `http_send_head()`의 버퍼 `MAXLINE`(8192)은 헤더 다섯 줄에 충분합니다. `content_type`은 [MIME 표](../static-file-serving/functions.md#mime-타입-표)의 상수이거나, 5단계 CGI가 출력한 값입니다. CGI 값은 `cgi_parse_output()`이 256바이트 미만으로 제한하므로 넘치지 않습니다([동적 요청 처리](../dynamic-request/design.md#cgi에-넘기는-것과-받는-것)). 넘치면 아무것도 보내지 않고 -1을 반환하므로, 새 호출자도 길이를 미리 제한해야 합니다.

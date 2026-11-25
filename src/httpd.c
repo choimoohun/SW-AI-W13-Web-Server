@@ -1,12 +1,25 @@
 /*
- * httpd.c - 순차 정적 파일 웹 서버 (CS:APP3e 11.6 Tiny 기반)
- * 설계: docs/static-file-serving/design.md
+ * httpd.c - 스레드 풀 웹 서버 (CS:APP3e 11.6 Tiny와 12.5.5 prethreaded 서버 기반)
+ * 설계: docs/static-file-serving/design.md, docs/dynamic-request/design.md, docs/concurrency/design.md,
+ *       docs/reverse-proxy/design.md
  */
+#include "cgi.h"
+#include "conn_queue.h"
 #include "http_request.h"
 #include "http_response.h"
+#include "proxy.h"
 #include "static_file.h"
 
-static void handle_connection(int connfd, const char *root)
+#define NWORKERS 8
+#define CONN_TIMEOUT_SEC 5 /* docs/static-file-serving/design.md#연결-시간-제한 */
+#define CGI_PREFIX "/cgi-bin/"
+
+static conn_queue queue;
+static proxy_router router;
+static const char *root;
+static volatile sig_atomic_t stop;
+
+static void handle_connection(int connfd)
 {
     rio_t rio;
     http_request req = {0};
@@ -34,43 +47,130 @@ static void handle_connection(int connfd, const char *root)
             http_send_error(connfd, 500);
         goto out;
     }
-    if (strcmp(req.method, "GET") != 0) {
+    /* 프록시 경로도 "/api/../admin"처럼 접두사를 벗어나는 URI를 백엔드에 넘기지 않게 먼저 막습니다.
+       shortcut: "%2e%2e"는 디코딩하지 않아 통과함. 백엔드가 디코딩 뒤 정규화하면 접두사 격리가 깨지므로 그때 거부 추가 */
+    if (static_has_bad_segments(req.uri)) {
+        http_send_error(connfd, 403);
+        goto out;
+    }
+    proxy_route *route = proxy_router_match(&router, req.uri);
+    int dynamic = !route && strncmp(req.uri, CGI_PREFIX, strlen(CGI_PREFIX)) == 0;
+    int allowed = strcmp(req.method, "GET") == 0 || ((route || dynamic) && strcmp(req.method, "POST") == 0);
+    if (!allowed) {
         http_send_error(connfd, 501);
+        goto out;
+    }
+    if (route) {
+        proxy_serve(connfd, &router, route, &req, buf, len);
+        goto out;
+    }
+    /* "/cgi-bin/dir/"에 static_resolve_path()가 index.html을 붙여 실행하지 않도록 디렉터리 요청은 막습니다. */
+    if (dynamic && req.uri[strcspn(req.uri, "?") - 1] == '/') {
+        http_send_error(connfd, 403);
         goto out;
     }
     if ((rc = static_resolve_path(root, req.uri, path, sizeof path)) != 0) {
         http_send_error(connfd, rc);
         goto out;
     }
-    static_serve(connfd, path);
+    if (dynamic)
+        cgi_serve(connfd, path, &req);
+    else
+        static_serve(connfd, path);
 out:
     http_request_free(&req);
+}
+
+static void *worker(void *arg)
+{
+    (void)arg;
+    int connfd;
+    while ((connfd = conn_queue_pop(&queue)) >= 0) {
+        handle_connection(connfd);
+        close(connfd);
+    }
+    return NULL;
+}
+
+static void on_stop(int sig)
+{
+    (void)sig;
+    stop = 1;
 }
 
 int main(int argc, char **argv)
 {
     int listenfd, connfd;
-    socklen_t clientlen;
-    struct sockaddr_storage clientaddr;
+    pthread_t tid[NWORKERS];
+    sigset_t stop_signals;
 
-    if (argc != 3) {
-        fprintf(stderr, "usage: %s <port> <root>\n", argv[0]);
-        exit(0);
+    if (argc < 3) {
+        fprintf(stderr, "usage: %s <port> <root> [--route <prefix>=<host:port>[,<host:port>...]]...\n", argv[0]);
+        exit(1);
+    }
+    root = argv[2];
+    proxy_router_init(&router, PROXY_DEFAULT_TIMEOUT_MS);
+    for (int i = 3; i < argc; i += 2) {
+        char err[512];
+        if (strcmp(argv[i], "--route") != 0 || i + 1 == argc) {
+            fprintf(stderr, "%s: expected --route <prefix>=<host:port>[,...], got '%s'\n", argv[0], argv[i]);
+            exit(1);
+        }
+        if (proxy_router_add_spec(&router, argv[i + 1], err, sizeof err) < 0) {
+            fprintf(stderr, "%s: %s\n", argv[0], err);
+            exit(1);
+        }
     }
 
     /* 끊긴 소켓에 쓸 때 프로세스가 죽지 않고 EPIPE를 받도록 합니다. */
     Signal(SIGPIPE, SIG_IGN);
+    /* 교재 Signal()과 달리 SA_RESTART 없이 등록해야 막혀 있던 accept()가 EINTR로 깨어납니다. */
+    struct sigaction sa = {.sa_handler = on_stop};
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGINT, &sa, NULL) < 0 || sigaction(SIGTERM, &sa, NULL) < 0)
+        unix_error("sigaction error");
 
     listenfd = Open_listenfd(argv[1]);
-    while (1) {
-        clientlen = sizeof(struct sockaddr_storage);
-        connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
+    fcntl(listenfd, F_SETFD, FD_CLOEXEC);
+    if (conn_queue_init(&queue) < 0)
+        app_error("conn_queue_init failed");
+
+    /* 종료 신호가 accept()의 main에만 가도록, 막아 둔 채 워커를 만들어 막힌 상태를 물려줍니다. */
+    sigemptyset(&stop_signals);
+    sigaddset(&stop_signals, SIGINT);
+    sigaddset(&stop_signals, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &stop_signals, NULL);
+    for (int i = 0; i < NWORKERS; i++)
+        Pthread_create(&tid[i], NULL, worker, NULL);
+    pthread_sigmask(SIG_UNBLOCK, &stop_signals, NULL);
+
+    /* shortcut: stop 검사와 accept() 사이에 신호가 오면 다음 연결이 올 때까지, 대기열이 가득 차 push에서 기다리면
+       워커가 자리를 낼 때까지 종료가 늦어짐. 앞의 경우는 신호를 한 번 더 보내면 끝남 */
+    while (!stop) {
+        connfd = accept(listenfd, NULL, NULL);
         if (connfd < 0) {
             if (errno == EINTR || errno == ECONNABORTED)
                 continue;
             unix_error("Accept error");
         }
-        handle_connection(connfd, argv[2]);
-        Close(connfd);
+        /* 워커가 fork한 CGI에 다른 손님의 연결이 새지 않게 합니다.
+           shortcut: accept()와 fcntl() 사이에 워커가 fork하면 샘. 그 CGI가 끝날 때까지 FIN이 늦어질 뿐이라 둠 */
+        fcntl(connfd, F_SETFD, FD_CLOEXEC);
+        /* 멈춘 클라이언트가 워커를 붙잡지 않게 read/write마다 시간 제한을 겁니다.
+           shortcut: 호출마다의 제한이라 바이트를 흘려 보내는 클라이언트는 워커 하나를 오래 잡음 */
+        struct timeval tv = {.tv_sec = CONN_TIMEOUT_SEC};
+        if (setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0 ||
+            setsockopt(connfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv) < 0)
+            fprintf(stderr, "setsockopt timeout: %s\n", strerror(errno));
+        conn_queue_push(&queue, connfd);
     }
+
+    /* 새 연결은 받지 않고, 이미 받은 연결은 워커가 모두 응답한 뒤 끝냅니다. */
+    close(listenfd);
+    conn_queue_close(&queue);
+    for (int i = 0; i < NWORKERS; i++)
+        Pthread_join(tid[i], NULL);
+    conn_queue_destroy(&queue);
+    proxy_router_destroy(&router);
+    return 0;
 }

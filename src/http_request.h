@@ -35,7 +35,8 @@ int http_read_head(rio_t *rp, char *buf, size_t size, size_t *len);
 
 /*
  * http_read_head()가 만든 헤더 블록 buf(len바이트)를 파싱해 req의 body를 뺀 필드를 채웁니다.
- * 성공하면 0, 형식 오류나 크기 초과면 400, HTTP/1.0과 HTTP/1.1이 아닌 HTTP 버전이면 505를 반환합니다.
+ * 성공하면 0, 형식 오류나 크기 초과, 값이 다른 Content-Length 중복이면 400,
+ * Transfer-Encoding 헤더가 있으면 501, HTTP/1.0과 HTTP/1.1이 아닌 HTTP 버전이면 505를 반환합니다.
  * 실패하면 req의 필드 값은 정의되지 않습니다. 소켓을 쓰지 않고 할당하는 자원도 없습니다.
  */
 int http_parse_head(const char *buf, size_t len, http_request *req);

@@ -13,12 +13,24 @@
 const char *mime_type(const char *path);
 
 /*
+ * uri의 '?' 앞 경로 조각 중 정확히 ".."이나 "."이 있거나 빈 조각("//")이 있으면 1, 없으면 0을 반환합니다.
+ * "a..b"처럼 점이 섞인 이름은 허용합니다. 부수 효과와 할당하는 자원이 없습니다.
+ */
+int static_has_bad_segments(const char *uri);
+
+/*
  * '/'로 시작하는 uri를 root 아래 디스크 경로로 바꿔 path(size바이트)에 NUL로 끝내 씁니다.
  * '?' 뒤는 버리고, '/'로 끝나면 "index.html"을 붙입니다.
- * 성공하면 0, 경로 조각 중 정확히 ".."이 있으면 403, 결과가 size에 들어가지 않으면 400을 반환합니다.
+ * 성공하면 0, 경로 조각 중 정확히 ".."이나 "."이 있거나 빈 조각("//")이 있으면 403, 결과가 size에 들어가지 않으면 400을 반환합니다.
  * 실패하면 path의 내용은 정의되지 않습니다. 파일 시스템에 접근하지 않고 할당하는 자원도 없습니다.
  */
 int static_resolve_path(const char *root, const char *uri, char *path, size_t size);
+
+/*
+ * open()이나 stat()이 남긴 errno를 응답 상태 코드로 바꿉니다. ENOENT, ENOTDIR은 404, EACCES는 403,
+ * ENAMETOOLONG은 400, 그 밖은 500을 반환합니다. 부수 효과는 없습니다.
+ */
+int static_errno_status(int err);
 
 /*
  * path를 열어 일반 파일이면 200 헤더와 파일 내용을 fd로 보내고, 아니면 상태 코드(404, 403, 400, 500)에

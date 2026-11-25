@@ -29,6 +29,9 @@ printf 'secret\n' > /tmp/www/secret.html && chmod 000 /tmp/www/secret.html
 | S02 | 루트 `/srv/www`로 `static_resolve_path()`에 `/`, `/style.css?v=2`, `/a..b.html` | 셋 다 0. `/srv/www/index.html`, `/srv/www/style.css`, `/srv/www/a..b.html` |
 | S03 | 루트 `/srv/www`로 `/../etc/passwd`, `/a/..`, `/a/../b` | 셋 다 403 |
 | S04 | `size`를 16으로 두고 `/style.css` | 400. 결과 `/srv/www/style.css`가 버퍼보다 김 |
+| S15 | 임시 디렉터리에 `mkfifo()`로 만든 FIFO를 `socketpair()`의 한쪽 끝으로 `static_serve()` | 막히지 않고 `HTTP/1.1 403`으로 시작하는 응답. 5초 안에 끝나지 않으면 `alarm()`으로 실패 |
+| S17 | 루트 `/srv/www`로 `//cgi-bin/x`, `/./cgi-bin/x`, `/cgi-bin//x`, 그리고 `/dir/`, `/.hidden` | 앞의 셋은 403, 뒤의 둘은 0. [CGI 소스 노출](../dynamic-request/design.md#접두사-검사와-경로-정규화) 방지 |
+| S18 | `static_has_bad_segments()`에 `/api/a..b`, `/api?x=/../`, `/api/../x`, `/api/./x`, `//api` (7단계) | 앞의 둘은 0, 뒤의 셋은 1. `?` 뒤는 검사하지 않음. [리버스 프록시](../reverse-proxy/design.md)가 라우팅 전에 같은 검사를 씀 |
 
 ## 정상 응답
 
@@ -53,6 +56,12 @@ printf 'secret\n' > /tmp/www/secret.html && chmod 000 /tmp/www/secret.html
 - S13은 `root`로 실행하면 권한 비트를 무시하고 파일이 열려 `200`이 되므로 일반 사용자로 실행합니다. `nobody`가 `./build/httpd`를 실행하지 못하면 `httpd`를 `/tmp`에 복사해 실행합니다.
 - 파일 없음(404)은 [응답 생성 테스트 R06](../http-response/test-cases.md#기능-테스트)가 확인합니다.
 - 500(본문 할당 실패, `open()`과 `fstat()`의 예외적 실패)은 테스트로 재현하기 어려우므로 코드 리뷰로 확인합니다. 500 응답의 바이트 형식은 R04와 같은 `http_send_error()` 경로라 따로 확인하지 않습니다.
+
+## 시간 제한
+
+| ID | 절차 | 기대 결과 |
+| --- | --- | --- |
+| S16 | 터미널 B에서 `(printf 'POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\nhello'; sleep 30) \| nc localhost 15213`을 띄운 채, 터미널 C에서 `time curl -s -o /dev/null -w '%{http_code}\n' http://localhost:15213/` | 터미널 C가 6초 안에 `200`. 터미널 B는 약 5초 뒤 응답 없이 서버가 연결을 닫음 |
 
 ## 메모리
 

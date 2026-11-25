@@ -85,18 +85,18 @@ sequenceDiagram
     participant S as echoserveri
 
     S->>K: open_listenfd, LISTEN 상태
-    S->>K: Accept 대기
+    S->>K: accept 대기
     C->>K: open_clientfd, connect
     K-->>S: 3-way handshake 완료, connfd 반환
     User->>C: Fgets로 한 줄
     C->>S: Rio_writen
-    S->>S: Rio_readlineb로 줄 단위 수신
-    S->>C: Rio_writen으로 같은 바이트 송신
+    S->>S: rio_readlineb로 줄 단위 수신
+    S->>C: rio_writen으로 같은 바이트 송신
     C->>User: Rio_readlineb 후 Fputs
     User->>C: EOF(Ctrl+D)
     C->>K: Close, FIN 송신
-    S->>S: Rio_readlineb가 0 반환, Close(connfd)
-    S->>K: 다음 Accept 대기
+    S->>S: rio_readlineb가 0 반환, Close(connfd)
+    S->>K: 다음 accept 대기
 ```
 
 ## 파일 구성
