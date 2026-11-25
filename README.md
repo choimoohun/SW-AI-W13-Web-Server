@@ -34,6 +34,8 @@ CTest에 단위 테스트 6개(`test_http_request`, `test_http_response`, `test_
 
 ## 실행
 
+`./build/httpd`는 네이티브 빌드 경로입니다. Docker에서는 `docker compose run --rm dev sh` 셸 안에서 먼저 `cmake -S . -B build && cmake --build build`를 실행합니다.
+
 ```sh
 ./build/httpd <port> <root> [--route <prefix>=<host:port>[,<host:port>...]]...
 

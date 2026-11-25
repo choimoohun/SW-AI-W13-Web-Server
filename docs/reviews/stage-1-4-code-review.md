@@ -115,6 +115,8 @@ setsockopt(connfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
 
 ## 다음 단계 설계
 
+> 이 절은 리뷰 당시의 제안입니다. 실제 구현은 [동적 요청 처리](../dynamic-request/design.md)와 [리버스 프록시](../reverse-proxy/design.md) 설계를 따릅니다. 예를 들어 CGI 본문은 입력 파이프가 아니라 `mkstemp()` 임시 파일로 넘깁니다.
+
 ### CGI
 
 Tiny처럼 `200 OK`를 먼저 보내지 않고, CGI 출력을 파이프로 받아 자식의 종료 상태를 본 뒤 상태 코드를 정한다. HTTP 상태 줄은 맨 앞에 오고, 이미 보낸 바이트는 되돌릴 수 없기 때문이다. 아래는 아직 구현하지 않은 제안 순서다.

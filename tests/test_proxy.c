@@ -164,6 +164,8 @@ static void test_request_head(void)
     assert(proxy_format_request_head(&req, sneaky, strlen(sneaky), v4, out, sizeof out) == -1);
     const char bare_cr[] = "GET / HTTP/1.1\r\nX-A: 1\rX-B: 2\r\n\r\n";
     assert(proxy_format_request_head(&req, bare_cr, strlen(bare_cr), v4, out, sizeof out) == -1);
+    const char ctl[] = "GET / HTTP/1.1\r\nX-A: 1\x01\r\n\r\n";
+    assert(proxy_format_request_head(&req, ctl, strlen(ctl), v4, out, sizeof out) == -1);
     assert(proxy_format_request_head(&req, raw, strlen(raw), v4, out, 40) == -1);
     const char plain[] = "GET / HTTP/1.1\r\n\r\n";
     make_req(&req, "GET", "/x\rX-Evil: 1", 0); /* 요청 줄로 우회한 단독 CR */
@@ -211,6 +213,7 @@ static void test_response_head(void)
         "HTTP/1.1 200 OK\r\nX: 1\r\n", /* 빈 줄 없음 */
         "HTTP/1.1 200\rInjected: 1\r\n\r\n",    /* 상태 줄 안의 단독 CR */
         "HTTP/1.1 200 OK\rInjected: 1\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nX-A: 1\x7f\r\n\r\n", /* 헤더 값의 DEL */
     };
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
         assert(filter(bad[i], out, &status, &has_cl, &cl) == -1);

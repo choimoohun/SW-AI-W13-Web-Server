@@ -15,9 +15,9 @@
 | P05 | `/` 추가 | `/apiv2` → `/`, `/api/v2/x`는 여전히 `/api/v2` |
 | P06 | 백엔드 4개 라우트에 스레드 8개가 100번씩 `proxy_route_next()` | 백엔드마다 정확히 200번 |
 | P07 | hop-by-hop 헤더가 섞인 GET 헤더 변환 | `HTTP/1.0` 요청 줄, URI·쿼리 유지, `Connection`·`Keep-Alive`·`Proxy-Connection`·`TE`·`Upgrade`·`Expect`·`X-Secret`(Connection 토큰) 제거, `Authorization`·`Accept` 유지, `Host: 127.0.0.1:8001`, `Connection: close` |
-| P08 | 중복 `Content-Length` POST, 빈 POST, `Transfer-Encoding : chunked`(이름 뒤 공백), 헤더 값의 단독 `\r`, 작은 버퍼, URI 안의 단독 `\r` | `Content-Length` 하나, IPv6 Host는 `[::1]:8002`, 빈 POST는 `Content-Length: 0`, 나머지 넷은 -1 |
+| P08 | 중복 `Content-Length` POST, 빈 POST, `Transfer-Encoding : chunked`(이름 뒤 공백), 헤더 값의 단독 `\r`·`\x01`, 작은 버퍼, URI 안의 단독 `\r` | `Content-Length` 하나, IPv6 Host는 `[::1]:8002`, 빈 POST는 `Content-Length: 0`, 나머지 다섯은 -1 |
 | P09 | 정상 응답 헤더 200/404/204/304 | 상태 코드 반환, hop-by-hop 제거, `Content-Length` 하나, `Connection: close` |
-| P10 | 1xx, `Transfer-Encoding`, 값이 다른·음수·빈 `Content-Length`, `HTTP/2`, 두·네 자리 상태, 600, 쓰레기, 잘못된 이름, 빈 줄 없음, 상태 줄 안의 단독 `\r` | 모두 -1 |
+| P10 | 1xx, `Transfer-Encoding`, 값이 다른·음수·빈 `Content-Length`, `HTTP/2`, 두·네 자리 상태, 600, 쓰레기, 잘못된 이름, 빈 줄 없음, 상태 줄 안의 단독 `\r`, 헤더 값의 DEL | 모두 -1 |
 | P11 | 백엔드 2대에 GET 3번, 이진 POST 1번 | b1, b2, b1, b2 순서. 백엔드가 받은 요청은 `HTTP/1.0`, `Connection: close`, 원래 `Host` 없음. POST 본문 5바이트(NUL, CR 포함) 그대로 |
 | P12 | 길이 없는 100,000바이트 응답 | 본문 100,000바이트 그대로, 반환 0 |
 | P13 | 닫힌 포트 | 150ms 안에 `502 Bad gateway` |
@@ -47,9 +47,9 @@ mkdir -p /tmp/front && echo front > /tmp/front/index.html
 | F02 | `curl -s http://127.0.0.1:8000/` | `front`. 라우트가 없으면 기존 정적 서빙 |
 | F03 | `curl -s -w '%{http_code}' http://127.0.0.1:8000/down` | 곧바로 `502`, 서버 `stderr`에 `phase=connect ... Connection refused` |
 | F04 | `curl --path-as-is http://127.0.0.1:8000/api/../x`, `curl -X PUT .../api/who.txt`, `.../api/nope` | 403, 501, 백엔드의 404 그대로 |
-| F05 | 프록시를 끄고, 연결만 받고 응답하지 않는 리스너를 포트 8010에 띄운 뒤 `./build/httpd 8000 /tmp/front --route /mute=127.0.0.1:8010`으로 다시 띄워 `curl http://127.0.0.1:8000/mute`. 리스너는 `listen()` 뒤 `accept()`만 반복하는 C 프로그램 몇 줄로 만듦 | 약 5초 뒤 `504`, `stderr`에 `phase=read_head` |
+| F05 | `kill %3`으로 프록시를 끄고 `./build/httpd 8010 /tmp & kill -STOP $!`로 멈춘 리스너를 만든 뒤(멈춰도 커널이 연결은 받아 줌) `./build/httpd 8000 /tmp/front --route /mute=127.0.0.1:8010 &`, `curl -s -w '%{http_code}' http://127.0.0.1:8000/mute` | 약 5초 뒤 `504`, `stderr`에 `phase=read_head` |
 | F06 | `./build/httpd 1 /tmp --route nope`, `--bogus x`, 인자 1개 | 원인 출력 후 종료 코드 1 |
-| F07 | `/api/who.txt`에 `curl` 50개 동시 | `be1` 25개, `be2` 25개 |
+| F07 | `seq 50 \| xargs -P50 -I{} curl -s http://127.0.0.1:8000/api/who.txt \| sort \| uniq -c` | `be1` 25개, `be2` 25개 |
 | F08 | `wrk -t2 -c20 -d2s http://127.0.0.1:8000/api/who.txt` | `Socket errors`, `Non-2xx` 없음. 끝날 때 `wrk`가 끊은 연결의 `phase=stream ... Broken pipe` 기록은 정상 |
 | F09 | 프록시에 `kill -TERM` | 종료 코드 0 |
 | F10 | `-fsanitize=address,undefined`로 빌드해 `ctest` | 6개 통과, sanitizer 보고 없음 |

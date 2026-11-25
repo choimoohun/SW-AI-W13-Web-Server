@@ -256,9 +256,10 @@ static int filter_headers(const char *head, size_t len, int request, char *out, 
         size_t n = (size_t)(nl - 1 - p);
         if (n == 0)
             return 0; /* 빈 줄 */
-        /* 값 안의 단독 '\r'은 백엔드에 따라 줄 끝으로 읽혀 헤더를 몰래 끼워 넣을 수 있습니다. */
-        if (memchr(p, '\r', n))
-            return -1;
+        /* 단독 '\r' 같은 제어 문자는 받는 쪽에 따라 줄 끝으로 읽혀 헤더를 몰래 끼워 넣을 수 있습니다(RFC 9110 5.5). */
+        for (size_t i = 0; i < n; i++)
+            if (((unsigned char)p[i] < 0x20 && p[i] != '\t') || p[i] == 0x7f)
+                return -1;
         const char *colon = memchr(p, ':', n);
         if (!colon || colon == p)
             return -1;

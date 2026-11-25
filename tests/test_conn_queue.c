@@ -1,6 +1,7 @@
 /* test_conn_queue.c - conn_queue.c 단위 테스트 (docs/concurrency/test-cases.md) */
 #undef NDEBUG
 #include <assert.h>
+#include <sched.h>
 #include <time.h>
 
 #include "conn_queue.h"
@@ -62,10 +63,15 @@ static void test_full_blocks_push(void) /* C04 */
     pthread_t t;
     assert(conn_queue_init(&q) == 0);
     assert(pthread_create(&t, NULL, push_full_plus_one, NULL) == 0);
-    nanosleep(&(struct timespec){.tv_nsec = 100 * 1000 * 1000}, NULL);
-    pthread_mutex_lock(&q.lock);
-    assert(q.count == CONN_QUEUE_CAP); /* 마지막 push는 자리를 기다림 */
-    pthread_mutex_unlock(&q.lock);
+    /* 고정 시간 대신 대기열이 찰 때까지 기다립니다. 마지막 push는 자리를 기다리므로 넘치지 않습니다. */
+    for (;;) {
+        pthread_mutex_lock(&q.lock);
+        int full = q.count == CONN_QUEUE_CAP;
+        pthread_mutex_unlock(&q.lock);
+        if (full)
+            break;
+        sched_yield();
+    }
     assert(conn_queue_pop(&q) == 0);
     assert(pthread_join(t, NULL) == 0);
     assert(q.count == CONN_QUEUE_CAP);

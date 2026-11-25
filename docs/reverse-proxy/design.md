@@ -168,7 +168,7 @@ sequenceDiagram
 | 단계 | 실패 조건 | 클라이언트 응답 |
 | --- | --- | --- |
 | 요청 파싱·검증 | 잘못된 구문 / `Transfer-Encoding` 요청 / `.`,`..`,`//` / 불허 메서드 | `400` / `501` / `403` / `501` |
-| 요청 헤더 변환 (`proxy_format_request_head()` 실패) | token이 아닌 헤더 이름, 헤더 값의 단독 `\r`, URI의 제어 문자, 출력 버퍼 초과 | `400 Bad request` |
+| 요청 헤더 변환 (`proxy_format_request_head()` 실패) | token이 아닌 헤더 이름, 헤더 값의 HTAB 외 제어 문자(단독 `\r`, DEL 포함), URI의 제어 문자, 출력 버퍼 초과 | `400 Bad request` |
 | 요청 파싱 (후속) | 중복 `Host`, `GET *` | `400`. 1차 구현에서는 중복 `Host`를 덮어쓰고(프록시는 어차피 다시 씀) `*`는 기존처럼 `400` |
 | 업스트림 연결 | `ECONNREFUSED`, `EHOSTUNREACH`, `ENETUNREACH`, `socket()` 실패 | `502 Bad gateway` |
 | 업스트림 연결 | `poll()` 타임아웃, `SO_ERROR == ETIMEDOUT` | `504 Gateway timeout` |
@@ -269,7 +269,7 @@ sequenceDiagram
 4. **[`src/http_request.c`](../../src/http_request.c)** *(수정, 후속)*
    - **변경 내용:**
      - `parse_request_line()`: `uri[0] != '/'` 검사에 `!(strcmp(method_tok, "OPTIONS") == 0 && ulen == 1 && uri[0] == '*')` 예외를 추가해 `OPTIONS *`만 통과시키고 `GET *` 등은 `400` 유지.
-     - `parse_header_line()`: 헤더 이름 각 바이트가 RFC 9110 `tchar`인지 검사(공백·제어문자 포함 시 `400`), 값 내부의 단독 `\r` 거부(`400`), `Host` 헤더 중복 등장 시 `400`(이미 설정됐는지 플래그로 추적).
+     - `parse_header_line()`: 헤더 이름 각 바이트가 RFC 9110 `tchar`인지 검사(공백·제어문자 포함 시 `400`), 값의 HTAB 외 제어 문자(단독 `\r`, DEL 포함) 거부(`400`, `proxy.c`의 `filter_headers()`와 같은 기준), `Host` 헤더 중복 등장 시 `400`(이미 설정됐는지 플래그로 추적).
      - (1차 구현에서 완료) Line 118의 `Transfer-Encoding` `shortcut:` 주석을 리버스 프록시 비목표 결정에 맞게 갱신.
    - **이유:** 프록시가 원본 헤더를 백엔드로 전달할 때 잘못된 헤더명·중복 `Host`로 인한 요청 밀반입을 막고, 미룬 결정 C(`OPTIONS *`)를 닫습니다.
 
