@@ -3,7 +3,6 @@
 * **Author:** choimoohun
 * **Date:** 2026-11-25
 * **Status:** Final (Ready for Review)
-* **Predecessor RFC:** [docs/designs/reverse-proxy.md](../designs/reverse-proxy.md)
 
 ## The Problem
 
@@ -30,7 +29,7 @@
 | `proxy.h/.c`, `--route`, 라운드로빈, `502`/`504`, `static_has_bad_segments()`, `test_proxy` | 포함 | 과제 필수(라우팅, 로드 밸런싱, 백엔드 타임아웃) |
 | 요청 헤더 이름 `tchar` 검사 | 포함(프록시 안에서만) | `Transfer-Encoding : chunked`처럼 이름 뒤 공백으로 파서를 피한 줄이 백엔드에 전달되는 요청 밀반입을 막습니다. `proxy_format_request_head()`가 `-1`을 반환하고 `httpd`는 `400`을 보냅니다 |
 | `connection[256]` 확장, `OPTIONS *` → `501`, 중복 `Host` `400` | 후속 | 프록시는 클라이언트 `Host`를 버리고 다시 쓰므로 영향이 없습니다. 긴 `Connection` 값은 지금처럼 `400` |
-| `accept()` `EMFILE`/`ENFILE` 백오프 | 후속 | 6단계부터 있던 동작이며 프록시와 무관 |
+| `accept()` `EMFILE`/`ENFILE` 백오프 | 후속 | 6단계부터 있던 동작이며 프록시와 무관. 구현할 때 `continue`만 넣으면 대기 연결이 커널 큐에 남아 `accept()`가 즉시 다시 실패하며 CPU 100%로 돎. 짧은 `nanosleep` 뒤 재시도 |
 | 메서드 검사를 본문 읽기 앞으로 이동 | 후속 | 기존 분기 순서를 유지합니다. 프록시 경로도 본문을 읽은 뒤 `GET`/`POST`를 검사합니다 |
 
 ## Goals
@@ -121,7 +120,7 @@ sequenceDiagram
 
 ### 3. 업스트림 연결 (`proxy_connect`) — `csapp.c:open_clientfd` 미사용
 
-[`src/csapp.c`](../../src/csapp.c)의 `open_clientfd()`는 무제한 블로킹 `connect()`(~127초), `FD_CLOEXEC` 누락, `errno` 덮어쓰기 문제가 있으므로 사용하지 않습니다. POSIX.1-2008 전용 헬퍼 `proxy_connect(const proxy_backend *b, int timeout_ms, int *err_status)`를 다음 순서로 구현합니다.
+[`src/csapp.c`](../../src/csapp.c)의 `open_clientfd()`는 무제한 블로킹 `connect()`(~127초), `FD_CLOEXEC` 누락, `errno` 덮어쓰기 문제가 있으므로 사용하지 않습니다. POSIX.1-2008 전용 헬퍼 `proxy_connect(const proxy_backend *b, int timeout_ms, int *err_status)`를 다음 순서로 구현합니다. `_POSIX_C_SOURCE=200809L`과 `CMAKE_C_EXTENSIONS OFF`에서는 `SOCK_CLOEXEC`, `SOCK_NONBLOCK`, `accept4()`가 컴파일되지 않으므로 `socket()` 뒤에 `fcntl()`로 플래그를 따로 붙입니다.
 
 1. `socket(b->family, b->socktype, b->protocol)` 호출 직후 `fcntl(fd, F_SETFD, FD_CLOEXEC)`으로 동시 CGI `fork()` 누수를 차단합니다(Stage 6의 `accept()`와 동일한 `shortcut:` 틈을 주석에 명시).
 2. `fcntl(fd, F_GETFL)` → `fcntl(fd, F_SETFL, fl | O_NONBLOCK)`으로 논블로킹 전환 후 `connect(fd, (const struct sockaddr *)&b->addr, b->addrlen)`을 호출합니다.
@@ -141,7 +140,7 @@ sequenceDiagram
   - 출력 버퍼 크기는 `MAXLINE + 1024`로 잡아 클라이언트 헤더가 8 KiB에 가까워도 주입 헤더 때문에 잘리지 않게 합니다(초과 시 `502` 또는 `400`으로 안전 실패).
   - 헤더 전송 후 `req->content_length > 0`이면 `rio_writen(upfd, req->body, req->content_length)`로 본문을 전송합니다(쓰기 실패 시 `errno`가 `EAGAIN`/`EWOULDBLOCK`이면 `504`, `EPIPE`/`ECONNRESET` 등 기타는 `502`).
 - **응답 헤더 버퍼링·검증과 본문 스트리밍 (2단계 전환):**
-  1. **헤더 단계 (`proxy_read_response_head` + `proxy_filter_response_head`):** `rio_readinitb(&up_rio, upfd)`로 백엔드 응답 헤더를 빈 줄 `\r\n\r\n`까지 최대 `MAXLINE`바이트 읽습니다. `rio_readlineb()` 호출 전 `errno = 0`을 초기화해 `n == 0`(조기 EOF → `502`)과 `n < 0 && (EAGAIN || EWOULDBLOCK)`(시간 초과 → `504`)을 정확히 분리합니다.
+  1. **헤더 단계 (`http_read_head` + `proxy_filter_response_head`):** `rio_readinitb(&up_rio, upfd)` 뒤 기존 `http_read_head()`로 백엔드 응답 헤더를 빈 줄 `\r\n\r\n`까지 최대 `MAXLINE`바이트 읽습니다. 이 함수는 EOF와 읽기 오류를 모두 `HTTP_READ_CLOSED`로 돌려주고 `rio_read()`는 EOF에서 `errno`를 지우지 않으므로, 호출 전 `errno = 0`으로 두어 조기 EOF(`errno == 0` → `502`)와 시간 초과(`EAGAIN`/`EWOULDBLOCK` → `504`)를 구분합니다.
      - 상태 줄은 `HTTP/1.0` 또는 `HTTP/1.1` + 3자리 상태 코드(`200..599`)를 요구합니다(`1xx` 또는 구문 오류는 `502`).
      - 헤더 중 `Transfer-Encoding`이 존재하거나, `Content-Length` 형식이 잘못됐거나, 서로 다른 값의 중복 `Content-Length`가 있으면 `502`를 반환합니다.
      - 정적·동적 hop-by-hop 헤더를 제거하고 `Connection: close\r\n`을 덧붙여 클라이언트에 한 번에 송신합니다.
@@ -223,7 +222,7 @@ sequenceDiagram
 
 ### 9. URI 접두사 제거(Prefix Stripping) 및 매 요청 DNS 해석
 
-* *Rejected by author:* 접두사 제거(`/api/users` → `/users`)는 `/api?a=1`의 빈 경로 변환(`/?a=1`)과 백엔드 `Location` 리다이렉트 경로 불일치를 유발하므로 원본 URI 유지가 단순합니다. 매 요청 `getaddrinfo()` 호출은 POSIX.1-2008에서 타임아웃을 걸 수 없어 워커가 무기한 막힐 수 있고 잘못된 백엔드 주소를 시작 시점에 잡지 못하므로, 시작 시 1회 해석·캐시로 고정했습니다.
+* *Rejected by author:* 접두사 제거(`/api/users` → `/users`)는 `/api?a=1`의 빈 경로 변환(`/?a=1`)과 백엔드 `Location` 리다이렉트 경로 불일치를 유발하므로 원본 URI 유지가 단순합니다. 매 요청 `getaddrinfo()` 호출은 POSIX.1-2008에서 타임아웃을 걸 수 없어 워커가 무기한 막힐 수 있고 잘못된 백엔드 주소를 시작 시점에 잡지 못하므로, 시작 시 1회 해석·캐시로 고정했습니다. 대가로 백엔드 IP가 바뀌면 서버를 다시 시작해야 합니다.
 
 ## Detailed Implementation
 
