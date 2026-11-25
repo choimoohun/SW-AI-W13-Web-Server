@@ -47,24 +47,18 @@ sequenceDiagram
     participant E as 커널 (epoll)
     participant W as 워커
 
-    W->>E: listen fd 등록
-    W->>E: epoll_wait() → 잠듦
+    W->>E: listen fd 등록 → 잠듦
 
-    C->>K: 연결 요청 (handshake)
-    K->>K: 연결 수립 → 커넥션 소켓을 accept 대기열에 넣음
-    K->>E: 콜백: listen fd를 준비 목록에 넣음
-    E->>W: 워커 깨움, listen fd 전달
-    W->>K: accept() → 대기열에서 꺼내 conn fd 받음
-    W->>W: conn fd 논블로킹 설정
-    W->>E: conn fd 등록
-    W->>E: epoll_wait() → 잠듦
+    C->>K: 연결 요청
+    K->>E: 연결 수립 → listen fd를 준비 목록에
+    E->>W: 워커 깨움 (events 배열)
+    W->>K: accept() → conn fd 받음
+    W->>E: conn fd 논블로킹 설정 후 등록 → 잠듦
 
-    C->>K: 요청 바이트 전송
-    K->>E: 콜백: conn fd를 준비 목록에 넣음
-    E->>W: 워커 깨움, 준비된 fd만 전달 (events 배열)
-    W->>K: conn fd 읽기 → 버퍼에 이어 붙임
-    W->>W: 요청 완성 시 처리, 아니면 배열의 다음 fd로
-    W->>E: epoll_wait() → 잠듦
+    C->>K: 요청 바이트
+    K->>E: conn fd를 준비 목록에
+    E->>W: 워커 깨움 (events 배열)
+    W->>K: 읽어서 버퍼에 쌓기 → 요청 완성 시 처리
 ```
 
 - **잠들었다가 깨어남:** 할 일이 없으면 잠들고, 새 연결이나 바이트가 오면 커널이 깨웁니다.
