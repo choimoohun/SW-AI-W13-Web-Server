@@ -137,7 +137,7 @@ sequenceDiagram
   - `http_request`에 힙 헤더 배열을 추가하지 않고 `handle_connection()`의 스택 버퍼 `(raw_head, raw_len)`을 그대로 입력받습니다.
   - 요청 줄은 `<req->method> <req->uri> HTTP/1.0\r\n`으로 작성합니다(`HTTP/1.0`으로 내려 HTTP/1.1 백엔드가 `Transfer-Encoding: chunked`나 `100 Continue`를 보내지 않게 방지).
   - 원본 헤더 줄들에서 hop-by-hop 헤더, 기존 `Host`, 기존 `Content-Length`를 제외한 나머지 end-to-end 헤더(`Content-Type`, `Authorization`, `Cookie`, `Accept`, `User-Agent`, `X-*` 등)를 복사하고, `Host: <b->host>:<b->port>\r\n`, `Connection: close\r\n`, 그리고 `req->content_length > 0 || POST`일 때 단일 `Content-Length: %zu\r\n`과 빈 줄 `\r\n`을 붙여 출력합니다.
-  - 출력 버퍼 크기는 `MAXLINE + 1024`로 잡아 클라이언트 헤더가 8 KiB에 가까워도 주입 헤더 때문에 잘리지 않게 합니다(초과 시 `502` 또는 `400`으로 안전 실패).
+  - 출력 버퍼 크기는 `MAXLINE + 1024`로 잡아 클라이언트 헤더가 8 KiB에 가까워도 주입 헤더 때문에 잘리지 않게 합니다(초과 시 `-1`을 반환하고 `proxy_serve()`가 `400`을 보냅니다).
   - 헤더 전송 후 `req->content_length > 0`이면 `rio_writen(upfd, req->body, req->content_length)`로 본문을 전송합니다(쓰기 실패 시 `errno`가 `EAGAIN`/`EWOULDBLOCK`이면 `504`, `EPIPE`/`ECONNRESET` 등 기타는 `502`).
 - **응답 헤더 버퍼링·검증과 본문 스트리밍 (2단계 전환):**
   1. **헤더 단계 (`http_read_head` + `proxy_filter_response_head`):** `rio_readinitb(&up_rio, upfd)` 뒤 기존 `http_read_head()`로 백엔드 응답 헤더를 빈 줄 `\r\n\r\n`까지 최대 `MAXLINE`바이트 읽습니다. 이 함수는 EOF와 읽기 오류를 모두 `HTTP_READ_CLOSED`로 돌려주고 `rio_read()`는 EOF에서 `errno`를 지우지 않으므로, 호출 전 `errno = 0`으로 두어 조기 EOF(`errno == 0` → `502`)와 시간 초과(`EAGAIN`/`EWOULDBLOCK` → `504`)를 구분합니다.
@@ -176,7 +176,7 @@ sequenceDiagram
 | 본문 스트리밍 (헤더 전송 후) | 백엔드 오류·타임아웃 또는 클라이언트 `EPIPE` | 추가 상태 줄 없음, 양쪽 소켓 즉시 종료 |
 
 - **관측성:** `400`/`502`/`504` 및 헤더 송신 후 스트리밍 중단 시 `fprintf(stderr, "proxy error: backend=%s:%s phase=%s status=%d errno=%d (%s) bytes_sent=%zu\n", ...)` 한 줄로 원인·단계·백엔드를 기록합니다. `phase`는 `format`, `connect`, `send`, `read_head`, `stream` 중 하나입니다.
-- **자원·종료 한계:** 워커당 추가 스택은 `up_rio`(8 KiB)와 재사용 버퍼 1개(`MAXLINE + 1024`, ~9 KiB)로 총 ~60 KiB 이내를 유지합니다. 공유 워커 8개 구조 특성상 응답 없는 백엔드 1대에 요청이 집중되면 워커 풀이 포화될 수 있으며, `SIGTERM` 시 진행 중인 프록시 요청 1건의 순차 타임아웃(연결+쓰기+읽기)만큼 종료가 지연될 수 있습니다.
+- **자원·종료 한계:** 프록시 경로의 추가 스택은 `up_rio`(8 KiB), `head[MAXLINE]`(8 KiB), `buf[PROXY_HEAD_BUF]`(~9 KiB)로 약 25 KiB이며, 기존 `handle_connection()` 프레임(~41 KiB)과 `stream_body()` 청크 버퍼(8 KiB)를 합쳐 워커 전체 스택은 ~74 KiB 전후입니다(Linux 기본 스레드 스택 8 MiB 이내). 공유 워커 8개 구조 특성상 응답 없는 백엔드 1대에 요청이 집중되면 워커 풀이 포화될 수 있으며, `SIGTERM` 시 진행 중이거나 대기열에 쌓인 프록시 요청의 호출별 타임아웃만큼 종료가 지연될 수 있습니다.
 
 ## Alternatives Considered
 
@@ -282,7 +282,7 @@ sequenceDiagram
 7. **[`src/httpd.c`](../../src/httpd.c)** *(수정)*
    - **변경 내용:**
      - 파일 정적 상태에 `static proxy_router router;` 추가.
-     - `main()`에서 `argc < 3`이면 usage 출력 후 `exit(1)`. `proxy_router_init(&router, PROXY_DEFAULT_TIMEOUT_MS)` 호출 뒤 `argv[3..argc-1]`을 순회해 `--route <spec>` 인자를 `proxy_router_add_spec()`으로 등록(알 수 없는 플래그, 값 누락, 규칙 오류 시 `stderr` 출력 → `proxy_router_destroy(&router)` → `exit(1)`).
+     - `main()`에서 `argc < 3`이면 usage 출력 후 `exit(1)`. `proxy_router_init(&router, PROXY_DEFAULT_TIMEOUT_MS)` 호출 뒤 `argv[3..argc-1]`을 순회해 `--route <spec>` 인자를 `proxy_router_add_spec()`으로 등록(알 수 없는 플래그, 값 누락, 규칙 오류 시 `stderr` 출력 후 `exit(1)`).
      - 종료 경로에서 `Pthread_join` 완료 후 `proxy_router_destroy(&router)` 호출.
      - (후속) `accept()`의 `EMFILE`/`ENFILE` 백오프. 1차 구현에서는 기존처럼 `unix_error()`로 종료합니다.
      - `handle_connection()` 순서: `http_parse_head` 성공 → `http_read_body(&rio, &req)` → `static_has_bad_segments(req.uri)`이면 `403` → `route = proxy_router_match(&router, req.uri)` → `dynamic = (route == NULL && strncmp(req.uri, CGI_PREFIX, ...) == 0)` → 메서드 검사(`GET || ((route || dynamic) && POST)`, 불허 시 `501`) → `route`가 있으면 `proxy_serve(connfd, &router, route, &req, buf, len)`, 아니면 기존 CGI/정적 분기. 메서드 검사를 본문 읽기 앞으로 옮기는 것은 후속입니다.
@@ -304,7 +304,7 @@ sequenceDiagram
      - **P07~P08 (요청 헤더 변환):** `HTTP/1.0` 요청 줄과 원본 URI+쿼리 유지, 정적 hop-by-hop(`Keep-Alive`, `Proxy-Connection`, `TE`, `Upgrade`, `Expect`) 및 동적 `Connection: X-Secret, Foo` 토큰 제거, `Host` 덮어쓰기, `Connection: close` 삽입, `Authorization`/`Content-Type` 유지, 중복 `Content-Length` 정규화 및 빈 `POST`의 `Content-Length: 0`, 버퍼 초과 시 `-1`.
      - **P09~P10 (응답 헤더 검증):** 정상 `200`/`204`/`304`/`404` 통과 및 `Connection: close` 삽입, `100 Continue`/`Transfer-Encoding: chunked`/잘못된 상태 줄/충돌 `Content-Length`/빈 줄 누락 거부(`-1`).
      - **P11~P12 (루프백 `GET`/`POST` 및 라운드로빈 E2E):** 모의 백엔드 2대에 교대로 전달, 이진 `POST` 본문 전달, 대용량 응답(>64 KiB) 스트리밍.
-     - **P13~P16 (장애·타임아웃·경계):** 닫힌 포트(`ECONNREFUSED`) → 즉시 `502`(재시도 없음 확인), 조기 EOF/깨진 응답/`Transfer-Encoding` 응답 → `502`, 응답 지연 백엔드 → `200ms` 후 `504`, `Content-Length` 송신 후 연결을 안 닫는 백엔드 → 5초 대기 없이 즉시 완료, 헤더 송신 후 백엔드 중단 → 추가 `502` HTML 미첨부, 연결 타임아웃 `poll()` 경로 검증.
+     - **P13~P17 (장애·타임아웃·경계):** 닫힌 포트(`ECONNREFUSED`) → 즉시 `502`, 조기 EOF/깨진 응답/`Transfer-Encoding` 응답 → `502`, 응답 지연 백엔드 → `200ms` 후 `504`, `Content-Length` 송신 후 연결을 안 닫는 백엔드 → 타임아웃(`200ms`) 대기 없이 즉시 완료, 헤더 송신 후 백엔드 중단 → 추가 `502` HTML 미첨부(연결 단계의 `poll()` 시간 초과는 루프백 재현 불가로 단위 테스트에서 제외, [test-cases.md](./test-cases.md) 참고).
 
 10. **[`tests/test_http_request.c`](../../tests/test_http_request.c)** *(수정, 후속)*
     - **변경 내용:** Line 71의 `Connection` 길이 초과 테스트를 256바이트 경계로 갱신하고, `OPTIONS *` 통과, `GET *` → `400`, 잘못된 헤더명(`Bad Name: 1`) → `400`, 중복 `Host` → `400` 단언을 추가합니다.

@@ -22,5 +22,5 @@
 | --- | --- | --- |
 | `int main(int argc, char **argv)` | 신호 등록, 리스닝 소켓, 대기열, 워커 8개를 만든 뒤 `stop`이 설 때까지 `accept()`한 연결에 `FD_CLOEXEC`와 시간 제한을 붙여 대기열에 넣습니다. 그 뒤 [안전한 종료](./design.md#안전한-종료) 순서로 끝냅니다. | 인자가 3개보다 적거나 `--route` 규칙이 잘못되면 원인 출력 후 `exit(1)`(7단계). 신호로 끝나면 0 |
 | `static void *worker(void *arg)` | 대기열에서 연결을 꺼내 `handle_connection()` 후 닫기를 반복합니다. | `conn_queue_pop()`이 -1이면 `NULL`을 반환하고 끝남 |
-| `static void handle_connection(int connfd)` | 4단계와 같고, 본문을 읽은 뒤 [요청 분기](../dynamic-request/design.md#요청-분기)로 정적과 CGI를 가릅니다. 정적 루트는 전역 `root`에서 읽습니다. | 없음. `connfd`는 닫지 않음 |
+| `static void handle_connection(int connfd)` | 4단계와 같고, 본문을 읽은 뒤 경로 조각 검사를 거쳐 [리버스 프록시](../reverse-proxy/design.md#1-전체-요청-흐름과-컴포넌트-구조)(7단계)와 [요청 분기](../dynamic-request/design.md#요청-분기)(CGI·정적)로 가릅니다. 정적 루트는 전역 `root`에서 읽습니다. | 없음. `connfd`는 닫지 않음 |
 | `static void on_stop(int sig)` | `stop = 1`만 합니다. | 없음 |
