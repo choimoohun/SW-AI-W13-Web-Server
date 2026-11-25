@@ -47,13 +47,11 @@ mkdir -p /tmp/front && echo front > /tmp/front/index.html
 | F02 | `curl -s http://127.0.0.1:8000/` | `front`. 라우트가 없으면 기존 정적 서빙 |
 | F03 | `curl -s -w '%{http_code}' http://127.0.0.1:8000/down` | 곧바로 `502`, 서버 `stderr`에 `phase=connect ... Connection refused` |
 | F04 | `curl --path-as-is http://127.0.0.1:8000/api/../x`, `curl -X PUT .../api/who.txt`, `.../api/nope` | 403, 501, 백엔드의 404 그대로 |
-| F05 | `kill %3`으로 프록시를 끄고(F09에서 껐으면 생략) `./build/httpd 8010 /tmp & sleep 1; kill -STOP $!`로 멈춘 리스너를 만든 뒤(멈춰도 커널이 연결은 받아 줌) `./build/httpd 8000 /tmp/front --route /mute=127.0.0.1:8010 &`, `curl -s -w '%{http_code}' http://127.0.0.1:8000/mute` | 약 5초 뒤 `504`, `stderr`에 `phase=read_head` |
 | F06 | `./build/httpd 1 /tmp --route nope`, `--bogus x`, 인자 1개 | 원인 출력 후 종료 코드 1 |
 | F07 | `seq 50 \| xargs -P50 -I{} curl -s http://127.0.0.1:8000/api/who.txt \| sort \| uniq -c` | `be1` 25개, `be2` 25개 |
 | F08 | `wrk -t2 -c20 -d2s http://127.0.0.1:8000/api/who.txt` | `Socket errors`, `Non-2xx` 없음. 끝날 때 `wrk`가 끊은 연결의 `phase=stream ... Broken pipe` 기록은 정상 |
 | F09 | 프록시에 `kill -TERM` | 종료 코드 0 |
+| F05 | `./build/httpd 8010 /tmp & sleep 1; kill -STOP $!`로 멈춘 리스너를 만든 뒤(`sleep`은 포트가 열릴 때까지, 멈춰도 커널이 연결은 받아 줌) `./build/httpd 8000 /tmp/front --route /mute=127.0.0.1:8010 &`, `curl -s -w '%{http_code}' http://127.0.0.1:8000/mute` | 약 5초 뒤 `504`, `stderr`에 `phase=read_head` |
 | F10 | `-fsanitize=address,undefined`로 빌드해 `ctest` | 6개 통과, sanitizer 보고 없음 |
-
-F05는 앞단 프록시를 `/mute` 라우트만 있는 것으로 바꾸므로 F07, F08, F09를 마친 뒤 마지막에 실행합니다.
 
 F10: 커널의 `vm.mmap_rnd_bits`가 큰 Docker Desktop에서는 ASan 바이너리가 시작하자마자 `AddressSanitizer:DEADLYSIGNAL`을 반복하며 멈춥니다. 이 프로젝트 코드와 무관하며 기존 `test_cgi`도 같습니다. `docker run --security-opt seccomp=unconfined ...` 안에서 `setarch "$(uname -m)" -R ctest`로 ASLR을 끄고 실행합니다.
