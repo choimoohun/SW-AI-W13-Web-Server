@@ -1,5 +1,15 @@
 # C POSIX 웹 서버 — 항공편 예약 서비스 (Team C)
 
+## 팀원
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/onekindalpha"><img src="https://github.com/onekindalpha.png?size=100" width="100" alt="김은기"/><br/><b>김은기</b></a><br/>onekindalpha</td>
+    <td align="center"><a href="https://github.com/jye-1123"><img src="https://github.com/jye-1123.png?size=100" width="100" alt="지영은"/><br/><b>지영은</b></a><br/>jye-1123</td>
+    <td align="center"><a href="https://github.com/choimoohun"><img src="https://github.com/choimoohun.png?size=100" width="100" alt="최무헌"/><br/><b>최무헌</b></a><br/>choimoohun</td>
+  </tr>
+</table>
+
 ## MOTO
 실제 구현 및 동작 원리를 알자, 주위의 불편함을 개선하자 
 
