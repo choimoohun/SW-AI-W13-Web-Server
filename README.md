@@ -34,6 +34,7 @@
 아래는 워커 하나가 연결을 받고 요청을 처리하는 흐름입니다.
 
 ```mermaid
+%%{init: {'themeVariables': {'noteBkgColor': '#fff3b0', 'noteTextColor': '#000000', 'noteBorderColor': '#b08900'}}}%%
 sequenceDiagram
     participant C as 클라이언트
     participant K as 커널 (TCP·소켓 버퍼)
