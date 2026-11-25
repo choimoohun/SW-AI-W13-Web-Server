@@ -1,6 +1,6 @@
 # HTTP 응답 생성 설계
 
-과제의 HTTP 응답 생성 항목을 CS:APP 3판 11.5.3의 응답 형식으로 구현할 때의 흐름과 결정입니다. 이 모듈은 응답 줄과 헤더를 만들어 보내고, 오류 응답 전체를 만들어 보냅니다. 정상 응답의 본문은 [정적 파일 서빙](../static-file-serving/design.md)이 보냅니다.
+과제의 HTTP 응답 생성 항목을 CS:APP 3판 11.5.3의 응답 형식으로 구현할 때의 흐름과 결정입니다. 이 모듈은 응답 줄과 헤더를 만들어 보내고, 오류 응답 전체를 만들어 보냅니다. 정상 응답의 본문은 [정적 파일 서빙](../static-file-serving/design.md)과 [동적 요청 처리](../dynamic-request/design.md)가 보냅니다.
 
 - 함수별 입력과 출력: [functions.md](./functions.md)
 - 검증 절차: [test-cases.md](./test-cases.md)
@@ -27,7 +27,7 @@ Connection: close\r\n
 | 응답 줄의 버전 | 항상 `HTTP/1.1`을 씁니다 | 서버는 자기가 따르는 버전을 응답 줄에 적습니다. 요구사항 예시도 `HTTP/1.1 200 OK`입니다 |
 | `Connection: close`를 항상 명시 | 모든 응답에 넣고, 보낸 뒤 연결을 닫습니다 | HTTP/1.1은 지속 연결이 기본이므로 명시하지 않으면 클라이언트는 연결이 유지된다고 봅니다. 이 단계는 [응답마다 연결을 닫습니다](../http-request-parsing/design.md#판정-규칙) |
 | `Content-Length`를 항상 명시 | 오류 응답을 포함한 모든 응답에 넣습니다 | 본문의 끝을 바이트 수로 알립니다. 글자 수가 아니라 바이트 수입니다 |
-| 헤더와 본문 분리 | `http_send_head()`는 헤더까지만 보냅니다 | 파일 본문은 크기가 크고 이진 데이터이므로 문자열 버퍼에 담지 않고 정적 파일 모듈이 나눠 보냅니다 |
+| 헤더와 본문 분리 | `http_send_head()`는 헤더까지만 보냅니다 | 파일 본문은 크기가 크고 이진 데이터이므로 문자열 버퍼에 담지 않고 정적 파일 모듈이 나눠 보냅니다. CGI 본문은 CGI 모듈이 보냅니다 |
 | 형식 함수와 송신 함수 분리 | `http_format_head()`는 버퍼에 쓰기만 하고, `http_send_head()`가 그것을 `rio_writen()`으로 보냅니다 | 응답 바이트를 소켓 없이 단위 테스트합니다 |
 | 버퍼 작성 | `snprintf()` 한 번으로 헤더 전체를 쓰고 반환값으로 잘림을 확인합니다 | 교재 `clienterror()`의 `sprintf(buf, "%s...", buf)`는 원본과 대상이 겹쳐 정의되지 않은 동작입니다 |
 | 송신 오류 | 래퍼 `Rio_writen` 대신 `rio_writen()`의 반환값을 봅니다 | 클라이언트가 먼저 끊으면 `EPIPE`가 옵니다. `SIGPIPE`는 서버 시작 시 무시합니다([TCP 소켓 서버의 보완](../tcp-socket-server/design.md#보완한-지점)) |
@@ -38,12 +38,12 @@ Connection: close\r\n
 
 | 코드 | 상태 메시지 | 쓰는 상황 | 정하는 곳 |
 | --- | --- | --- | --- |
-| 200 | OK | 파일을 찾아 보냄 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정) |
-| 400 | Bad request | 요청 형식 오류, 크기 초과 | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정) |
-| 403 | Forbidden | `..` 경로, 일반 파일이 아님, 읽기 권한 없음 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정) |
-| 404 | Not found | 파일 없음 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정) |
-| 500 | Internal server error | 헤더를 보내기 전의 서버 내부 실패 | [요청 파싱](../http-request-parsing/design.md#판정-규칙)(본문 할당 실패), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정) |
-| 501 | Not implemented | GET이 아닌 메서드 | [연결 처리 흐름](../static-file-serving/design.md#연결-처리-흐름) |
+| 200 | OK | 파일을 찾아 보냄, CGI가 0으로 끝남 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 400 | Bad request | 요청 형식 오류, 크기 초과 | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 403 | Forbidden | `..`, `.`, `//` 경로, 일반 파일이 아님, 읽기 권한 없음, CGI 실행 권한 없음, CGI 디렉터리 요청 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 404 | Not found | 파일이나 CGI 프로그램 없음 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 500 | Internal server error | 헤더를 보내기 전의 서버 내부 실패, CGI 실패 | [요청 파싱](../http-request-parsing/design.md#판정-규칙)(본문 할당 실패), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 501 | Not implemented | `Transfer-Encoding` 헤더, 허용하지 않은 메서드(GET 외. `/cgi-bin/`은 POST도 허용) | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [요청 분기](../dynamic-request/design.md#요청-분기) |
 | 505 | HTTP version not supported | `HTTP/1.0`, `HTTP/1.1`이 아닌 버전 | [요청 파싱](../http-request-parsing/design.md#판정-규칙) |
 
 상태 메시지는 교재 그림 11.25의 표기를 따릅니다. 500은 그림에 없으므로 같은 표기 방식으로 `Internal server error`라고 씁니다.
@@ -61,7 +61,7 @@ flowchart TD
     C -->|"-1"| X["-1 반환, 호출자가 연결 닫기"]
     C -->|"n"| D["rio_writen(fd, buf, n)"]
     D -->|"-1"| X
-    D -->|"n"| E["0 반환, 본문은 정적 파일 모듈이 송신"]
+    D -->|"n"| E["0 반환, 본문은 정적 파일이나 CGI 모듈이 송신"]
     F["오류 응답"] --> G["http_send_error(fd, status)"]
     G -->|"상태 메시지 없음"| X
     G -->|"표에 있는 코드"| H["오류 본문 작성"]

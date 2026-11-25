@@ -33,6 +33,16 @@ static void test_parse(void)
     assert(cgi_parse_output(cr_type, strlen(cr_type), &type, &head_len) == -1);
     char empty[] = "";
     assert(cgi_parse_output(empty, 0, &type, &head_len) == -1);
+
+    /* 값 길이 경계: CGI_MAX_CONTENT_TYPE - 1바이트는 받고, CGI_MAX_CONTENT_TYPE바이트는 거부 */
+    char value[CGI_MAX_CONTENT_TYPE + 1], out[CGI_MAX_CONTENT_TYPE + 32];
+    memset(value, 'a', CGI_MAX_CONTENT_TYPE);
+    value[CGI_MAX_CONTENT_TYPE] = '\0';
+    snprintf(out, sizeof out, "Content-Type: %s\r\n\r\nx", value + 1);
+    assert(cgi_parse_output(out, strlen(out), &type, &head_len) == 0);
+    assert(strlen(type) == CGI_MAX_CONTENT_TYPE - 1);
+    snprintf(out, sizeof out, "Content-Type: %s\r\n\r\nx", value);
+    assert(cgi_parse_output(out, strlen(out), &type, &head_len) == -1);
 }
 
 static char dir[] = "/tmp/test_cgiXXXXXX";
@@ -83,6 +93,7 @@ static void test_serve(void)
     make_script("noexec", "exit 0\n", 0644);
     make_script("hang", "sleep 30\n", 0755);
     make_script("linger", "printf 'Content-Type: text/plain\\r\\n\\r\\nx'\nexec >&-\nsleep 30\n", 0755);
+    make_script("big", "printf 'Content-Type: text/plain\\r\\n\\r\\n'\nhead -c 2000000 /dev/zero\n", 0755);
 
     /* D04: 환경 변수와 본문이 CGI에 전달되고 출력이 200 본문이 됨 */
     serve("echo", "POST", "/cgi-bin/echo?x=1&y=2", "abc", resp, sizeof resp);
@@ -117,8 +128,12 @@ static void test_serve(void)
     assert(strncmp(resp, "HTTP/1.1 500", 12) == 0);
     assert(time(NULL) - start < CGI_TIMEOUT_SEC + 3);
 
+    /* D15: 출력이 CGI_MAX_OUTPUT을 넘으면 죽이고 500 */
+    serve("big", "GET", "/cgi-bin/big", NULL, resp, sizeof resp);
+    assert(strncmp(resp, "HTTP/1.1 500", 12) == 0);
+
     char path[64];
-    for (const char **n = (const char *[]){"echo", "fail", "noexec", "hang", "linger", NULL}; *n; n++) {
+    for (const char **n = (const char *[]){"echo", "fail", "noexec", "hang", "linger", "big", NULL}; *n; n++) {
         snprintf(path, sizeof path, "%s/%s", dir, *n);
         unlink(path);
     }

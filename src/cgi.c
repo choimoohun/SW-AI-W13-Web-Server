@@ -22,8 +22,9 @@ int cgi_parse_output(char *out, size_t len, const char **type, size_t *head_len)
         char *eol = (nl > line && nl[-1] == '\r') ? nl - 1 : nl;
         if (eol == line) { /* 빈 줄: 헤더 끝 */
             *head_len = (size_t)(nl + 1 - out);
-            /* 빈 값이나 줄 중간의 '\r'은 응답 헤더를 깨뜨리므로 없는 것으로 봅니다. */
-            if (*type == NULL || **type == '\0' || strchr(*type, '\r') != NULL)
+            /* 빈 값이나 줄 중간의 '\r'은 응답 헤더를 깨뜨리고, 너무 긴 값은 http_send_head()의 버퍼를 넘칩니다. */
+            if (*type == NULL || **type == '\0' || strchr(*type, '\r') != NULL ||
+                strlen(*type) >= CGI_MAX_CONTENT_TYPE)
                 return -1;
             return 0;
         }

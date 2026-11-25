@@ -25,6 +25,8 @@
 
 허용되지 않은 메서드는 501입니다. 경로는 정적 파일과 같은 `static_resolve_path()`로 만들어 `..` 차단과 `?` 제거를 그대로 씁니다. 따라서 `/cgi-bin/adder?3&4`는 `<root>/cgi-bin/adder`를 실행합니다.
 
+`?` 앞이 `/`로 끝나는 CGI 요청(`/cgi-bin/`, `/cgi-bin/dir/`)은 `static_resolve_path()`를 부르기 전에 403으로 거부합니다. 이 함수는 `/`로 끝나면 `index.html`을 붙이므로, 그대로 두면 디렉터리 요청이 `<root>/cgi-bin/index.html`을 실행하려 합니다. 디렉터리는 실행할 프로그램이 아니므로, `index.html`을 붙이지 않았을 때 `check_program()`이 내릴 결과와 같은 403을 보냅니다.
+
 ## CGI 실행 흐름
 
 ```mermaid
@@ -47,10 +49,12 @@ flowchart TD
 | --- | --- |
 | 환경 변수 | `REQUEST_METHOD`, `QUERY_STRING`(URI의 `?` 뒤, 없으면 빈 문자열), `CONTENT_LENGTH`(본문 바이트 수, 없으면 0) |
 | 표준 입력 | 요청 본문. 본문이 없으면 빈 입력 |
-| 표준 출력 | 헤더 줄들, 빈 줄, 본문. 헤더에 비어 있지 않은 `Content-Type`이 있어야 합니다(RFC 3875 6.3.1). 값에 `\r`이 섞이면 응답 헤더가 깨지므로 없는 것으로 봅니다 |
+| 표준 출력 | 헤더 줄들, 빈 줄, 본문. 헤더에 비어 있지 않은 `Content-Type`이 있어야 합니다(RFC 3875 6.3.1). 값에 `\r`이 섞이면 응답 헤더가 깨지므로 없는 것으로 봅니다. 값이 256바이트(`CGI_MAX_CONTENT_TYPE`) 이상이어도 없는 것으로 봅니다 |
 | 표준 오류 | 서버의 표준 오류를 그대로 물려받습니다. CGI의 오류 메시지는 서버 로그에 섞입니다 |
 
 CGI가 출력한 헤더 중 `Content-Type`만 응답에 옮기고, 상태 줄과 `Content-Length`, `Connection`은 서버가 [응답 생성](../http-response/design.md)의 `http_send_head()`로 붙입니다. 헤더 형식을 한 곳에서만 만들기 위해서입니다.
+
+`http_send_head()`는 헤더를 `MAXLINE`(8192바이트) 버퍼에 만들고, 넘치면 아무것도 보내지 않고 -1을 반환합니다. 이 실패는 송신 실패와 구별되지 않으므로 `cgi_serve()`가 500으로 바꿔 보낼 수 없고, 응답 없이 연결이 닫힙니다. 그래서 `Content-Type` 값의 길이를 `cgi_parse_output()`에서 미리 제한해 형식 오류(500)로 처리합니다. 256바이트는 RFC 6838의 타입과 하위 타입 상한(각 127자)에 `; charset=utf-8` 같은 매개변수가 들어갈 여유를 둔 값입니다.
 
 ## 스레드 풀에서 생기는 문제와 대책
 

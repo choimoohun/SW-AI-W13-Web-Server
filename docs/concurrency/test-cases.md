@@ -4,7 +4,7 @@
 
 ## 준비
 
-[동적 요청 처리 테스트의 준비](../dynamic-request/test-cases.md#준비)에 이어 2초 걸리는 CGI를 만듭니다. 터미널 A에서 `./build/httpd 15213 /tmp/www`로 서버를 실행합니다.
+[동적 요청 처리 테스트의 준비](../dynamic-request/test-cases.md#준비)에 이어 2초 걸리는 CGI와 자기 디스크립터를 출력하는 CGI를 만듭니다. 터미널 A에서 `./build/httpd 15213 /tmp/www`로 서버를 실행합니다.
 
 ```sh
 cat > /tmp/www/cgi-bin/slow <<'EOF'
@@ -12,8 +12,15 @@ cat > /tmp/www/cgi-bin/slow <<'EOF'
 sleep 2
 printf 'Content-Type: text/plain\r\n\r\nslow done\n'
 EOF
-chmod 755 /tmp/www/cgi-bin/slow
+cat > /tmp/www/cgi-bin/fds <<'EOF'
+#!/bin/sh
+printf 'Content-Type: text/plain\r\n\r\n'
+ls -l /proc/$$/fd
+EOF
+chmod 755 /tmp/www/cgi-bin/slow /tmp/www/cgi-bin/fds
 ```
+
+`fds`는 CGI 셸이 물려받은 디스크립터를 `/proc`에서 읽으므로 Linux(Docker 포함)에서만 동작합니다. 다른 프로세스를 찾을 필요가 없어 `pgrep`(`procps`)은 쓰지 않습니다.
 
 ## 단위 테스트
 
@@ -34,7 +41,7 @@ chmod 755 /tmp/www/cgi-bin/slow
 | C06 | `/cgi-bin/slow`에 `curl` 8개를 동시에 보내고 전체 시간을 잼 | 8개 모두 `slow done`, 약 2초. 순차라면 16초 |
 | C07 | `wrk -t4 -c50 -d3s http://localhost:15213/` | `Socket errors`, `Non-2xx` 없음 |
 | C08 | `/cgi-bin/slow`에 `curl`을 보내고 0.5초 뒤 `kill -TERM <서버 pid>` | `curl`이 `slow done`을 받고, 서버가 종료 코드 0으로 끝남 |
-| C09 | 서버가 떠 있는 동안 `ls -l /proc/$(pgrep -f cgi-bin/slow | head -1)/fd`로 `slow` CGI의 디스크립터를 봄 | 0, 1, 2와 셸이 스크립트를 읽으려고 연 파일만 있음. 소켓(`socket:[...]`)이 없음 |
+| C09 | C05의 `nc`를 띄워 다른 손님의 연결을 열어 둔 채 `curl -s http://localhost:15213/cgi-bin/fds` | 0(`/dev/null`), 1(파이프), 2와 셸이 스크립트를 읽으려고 연 파일만 있음. 소켓(`socket:[...]`)이 없음 |
 | C10 | Debug 빌드에 `-fsanitize=address,undefined`를 켜고 C05~C08 | sanitizer 보고 없음. 종료 시 LeakSanitizer 보고 없음 |
 
 C06은 C05의 느린 연결이 워커 하나를 잡고 있는 동안 돌리면 워커 7개로 8개를 처리하므로 약 4초가 걸립니다. 따로 실행합니다.

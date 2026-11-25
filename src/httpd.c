@@ -50,6 +50,11 @@ static void handle_connection(int connfd)
         http_send_error(connfd, 501);
         goto out;
     }
+    /* "/cgi-bin/dir/"에 static_resolve_path()가 index.html을 붙여 실행하지 않도록 디렉터리 요청은 막습니다. */
+    if (dynamic && req.uri[strcspn(req.uri, "?") - 1] == '/') {
+        http_send_error(connfd, 403);
+        goto out;
+    }
     if ((rc = static_resolve_path(root, req.uri, path, sizeof path)) != 0) {
         http_send_error(connfd, rc);
         goto out;

@@ -79,7 +79,7 @@ flowchart TD
     G -->|"아니요"| A0
     G -->|"예"| H["HTTP_READ_OK"]
     H --> I["http_parse_head(buf, len, req)"]
-    I -->|"400 또는 505"| E2["오류 응답"]
+    I -->|"400, 501, 505"| E2["오류 응답"]
     I -->|"0"| J["http_read_body(rio, req)"]
     J -->|"HTTP_READ_CLOSED"| X
     J -->|"HTTP_READ_NOMEM"| E3["500"]

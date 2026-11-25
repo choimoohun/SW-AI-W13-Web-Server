@@ -6,7 +6,7 @@
 
 | 함수 | 설명 | 입력 | 출력 |
 | --- | --- | --- | --- |
-| `int cgi_parse_output(char *out, size_t len, const char **type, size_t *head_len)` | CGI 출력에서 빈 줄까지의 헤더를 줄 단위로 읽어 `Content-Type` 값을 찾습니다. 헤더 이름은 대소문자를 구분하지 않고, 값 앞의 공백과 탭은 건너뜁니다. 줄 끝은 `\r\n`과 `\n`을 모두 받습니다. 소켓과 프로세스를 쓰지 않는 순수 함수입니다. | `out`, `len`: CGI 출력 전체 | 성공 0, `*type`은 `out` 안의 NUL로 끝낸 값, `*head_len`은 본문 시작 위치. 빈 줄이 없거나 `Content-Type`이 없거나, 값이 비었거나 `\r`이 섞이면 -1. 헤더 줄의 줄 끝을 NUL로 바꿈 |
+| `int cgi_parse_output(char *out, size_t len, const char **type, size_t *head_len)` | CGI 출력에서 빈 줄까지의 헤더를 줄 단위로 읽어 `Content-Type` 값을 찾습니다. 헤더 이름은 대소문자를 구분하지 않고, 값 앞의 공백과 탭은 건너뜁니다. 줄 끝은 `\r\n`과 `\n`을 모두 받습니다. 소켓과 프로세스를 쓰지 않는 순수 함수입니다. | `out`, `len`: CGI 출력 전체 | 성공 0, `*type`은 `out` 안의 NUL로 끝낸 값, `*head_len`은 본문 시작 위치. 빈 줄이 없거나 `Content-Type`이 없거나, 값이 비었거나 `\r`이 섞이거나 `CGI_MAX_CONTENT_TYPE`(256)바이트 이상이면 -1. 헤더 줄의 줄 끝을 NUL로 바꿈 |
 | `int cgi_serve(int fd, const char *path, const http_request *req)` | [CGI 실행 흐름](./design.md#cgi-실행-흐름)대로 프로그램을 실행하고 응답을 보냅니다. | `fd`: 연결 소켓. `path`: `static_resolve_path()`의 결과. `req`: 메서드, URI, 본문 | 응답을 끝까지 보냈으면 0, 송신 실패면 -1. 자식은 반환 전에 회수, 파이프와 임시 파일은 닫음. `fd`는 닫지 않음 |
 
 ### cgi_serve의 상태 코드
@@ -18,7 +18,7 @@
 | 출력 버퍼 할당, 임시 파일, `pipe()`, `fork()` 실패 | 500 |
 | 5초 동안 출력 없음, 출력 1MiB 초과, EOF 뒤 5초 안에 끝나지 않음 | 500. 프로세스 그룹을 `SIGKILL` |
 | 0이 아닌 종료 코드, 신호로 종료, `execve()` 실패(127) | 500 |
-| 출력에 빈 줄이 없음, `Content-Type`이 없거나 비었거나 `\r`이 섞임 | 500 |
+| 출력에 빈 줄이 없음, `Content-Type`이 없거나 비었거나 `\r`이 섞이거나 256바이트 이상 | 500 |
 | 0으로 종료, 형식이 맞음 | 200. `Content-Type`은 CGI 값, `Content-Length`는 빈 줄 뒤 바이트 수 |
 
 ### static 함수
