@@ -48,20 +48,25 @@ sequenceDiagram
     participant E as 커널 (epoll)
     participant W as 워커
 
-    W->>E: epoll_ctl(ADD, listen fd)
+    Note over K,W: listen fd = 새 연결을 받는 입구 (서버에 1개)<br/>conn fd = 클라이언트 한 명과 대화하는 통로 (연결마다 1개)
+
+    W->>E: listen fd 등록 (새 연결 오면 깨워 줘)
     W->>E: epoll_wait() → 잠듦
 
-    Note over C,K: 새 연결: 커널이 처리
+    Note over C,K: 연결 맺기는 커널이 처리 (워커는 계속 잠듦)
     C->>K: SYN
     K-->>C: SYN+ACK
     C->>K: ACK
     Note over K: 연결 완성 → accept 대기열
 
     K->>E: 콜백: listen fd를 준비 목록에 넣음
-    E->>W: 워커 깨움, events 배열에 listen fd
-    W->>K: accept() → conn fd (논블로킹)
-    W->>E: epoll_ctl(ADD, conn fd, 읽기)
-    W->>E: epoll_wait() → 잠듦
+    E->>W: 워커 깨움 + 준비된 fd만 전달 (events)
+    Note over W: listen fd가 있음 → 새 연결이 왔다
+
+    W->>K: accept() → 연결을 꺼내 conn fd 받음
+    W->>W: conn fd를 논블로킹으로 (바이트가 덜 와도 안 기다림)
+    W->>E: conn fd 등록 (바이트 오면 깨워 줘)
+    W->>E: epoll_wait() → 다시 잠듦
 ```
 
 - **잠들었다가 깨어남:** 할 일이 없으면 잠들고, 새 연결이나 바이트가 오면 커널이 깨웁니다.
