@@ -115,12 +115,14 @@
       '<div class="muted">출발 ' + time(f.depart_epoch) + ' · 도착 ' + time(f.arrive_epoch) + '</div>' +
       '<div class="muted">운항 상태: ' + statusText(f) + '</div>' +
       '<div class="muted">잔여 좌석: ' + f.seat_left + ' / ' + f.seat_total + '</div>' +
+      '<div id="airportInfo" class="airport-info"></div>' +
       '<div class="fields" style="margin-top:16px">' +
         '<label>승객 이름<input id="pName" maxlength="60" placeholder="홍길동"></label>' +
         '<label>연락처<input id="pContact" maxlength="60" placeholder="010-1234-5678"></label>' +
       '</div>' +
       '<button id="reserveBtn" class="primary" style="margin-top:14px"' +
         (f.seat_left <= 0 ? ' disabled' : '') + '>예약하기</button>';
+    loadAirportInfo(f);
     restoreDraft(f.id);
     $('pName').oninput = function () { saveDraft(f.id); };
     $('pContact').oninput = function () { saveDraft(f.id); };
@@ -138,6 +140,34 @@
         renderPaymentPanel(r.reservation.id, f, r.reservation);
       });
     };
+  }
+
+  // 공항 정보는 별도 백엔드(공항 정보 서비스 2대)가 준다. 게이트웨이가 Round-Robin으로 나눠 보내므로
+  // 응답한 서버(A/B)를 같이 표시한다. 그 서비스가 죽어도 이 칸만 안내 문구로 바뀌고 예약은 그대로 된다.
+  function loadAirportInfo(f) {
+    var box = $('airportInfo');
+    if (!box) return;
+    box.innerHTML = '<div class="muted">공항 정보를 불러오는 중…</div>';
+    function one(label, code) {
+      return fetch('/api/airports/' + encodeURIComponent(code))
+        .then(function (r) {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json();
+        })
+        .then(function (a) {
+          return '<div class="airport-row"><b>' + label + ' · ' + a.name + '</b>' +
+            '<span>' + a.city + ' · ' + a.terminal + ' · 혼잡도 ' + a.congestion +
+            ' <em class="served-by">서버 ' + a.server + '</em></span></div>';
+        })
+        .catch(function (e) {
+          return '<div class="airport-row down"><b>' + label + ' · ' + code + '</b>' +
+            '<span>공항 정보를 잠시 불러올 수 없습니다 (' + e.message +
+            '). 예약과 결제는 정상 이용 가능합니다.</span></div>';
+        });
+    }
+    Promise.all([one('출발', f.from), one('도착', f.to)]).then(function (rows) {
+      if ($('airportInfo') === box) box.innerHTML = rows.join('');
+    });
   }
 
   function renderPaymentPanel(rid, f, reservation) {

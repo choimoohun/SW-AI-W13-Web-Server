@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
 
 all: $(BIN)
 
@@ -68,6 +68,10 @@ integration-req: $(BIN)
 # 별도 백엔드 서비스(미니 레디스/미니 DBMS) 연결 + 리소스 제한 + 독립 재시작 시연.
 integration-backends: $(BIN)
 	@sh tests/integration/backend_services.sh
+
+# 공항 정보 서비스 2대: 라우팅·Round-Robin·장애 격리·독립 재시작 (외부 레포 불필요).
+integration-airports: $(BIN)
+	@sh tests/integration/airport_service.sh
 
 # 결제 서비스(별도 프로세스·자기 DB·중복 방지 키·환불·독립 재시작) 연동 검증.
 integration-payments: $(BIN)

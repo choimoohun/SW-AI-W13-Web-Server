@@ -55,6 +55,24 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 | Date/Server 헤더, `/health`, `/echo`, 접근 로그, `-p/-r/-c` | `src/http_response.c`, `src/config.c` | `make integration-req` |
 | 리버스 프록시(게이트웨이 라우팅 + Round-Robin 로드밸런싱) | `src/proxy.c`, `conf/tcpserver.conf` | `make integration-req` |
 | 로컬 미니 CDN(TTL 캐시, `X-Cache: HIT/MISS`) | `src/cdn.c` | `make integration-req` |
+| 공항 정보 서비스 2대(상세 화면, 라우팅·RR·장애 격리) | `tests/backends/serve_airports.py`, `conf/backends.conf` | `make integration-airports` |
+
+### 리버스 프록시 뒤의 백엔드 서비스
+
+| 경로 | 백엔드 | 용도 |
+|---|---|---|
+| `/api/payments/` | 결제 서비스 `:8500` | **항공 서비스 기능**: 예약 결제·환불, 자기 DB, 중복 방지 키 |
+| `/api/airports/` | 공항 정보 서비스 `:8601`, `:8602` | **항공 서비스 기능**: 상세 화면의 출발·도착 공항 정보. 2대 Round-Robin, 한 대가 죽어도 그 칸만 안내 문구 |
+| `/api/cache/`, `/api/stocks/`, `/api/orders/` | 이전 주차 mini-redis·mini-dbms | **실험용**: 별도 프로세스의 자원 제한·독립 재시작 시연 (`make integration-backends`, 옆 레포 필요) |
+
+데모 실행(백엔드 포함):
+
+```sh
+python3 tests/backends/serve_airports.py --port 8601 --name A &
+python3 tests/backends/serve_airports.py --port 8602 --name B &
+python3 tests/backends/serve_payments.py &
+./webserver -c conf/backends.conf   # http://127.0.0.1:8085/flights.html
+```
 
 실제 실행:
 
