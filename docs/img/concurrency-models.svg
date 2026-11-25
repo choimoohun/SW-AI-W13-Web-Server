@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 580" width="1200" height="580" font-family="Noto Sans CJK KR, Apple SD Gothic Neo, sans-serif" xmlns:c2pa="http://c2pa.org/manifest">
   <rect width="1200" height="580" fill="#ffffff"/>
-  <text x="30" y="44" font-size="32" font-weight="700" fill="#1f2937">연결을 기다리는 세 가지 방식</text>
+  <text x="30" y="44" font-size="32" font-weight="700" fill="#1f2937">여러 연결을 처리하는 세 가지 방식</text>
   <text x="30" y="72" font-size="18" fill="#6b7280">회색 = 기다림, 파랑 = 처리, 빨강 ▼ = 손님의 HTTP 요청(바이트)이 도착</text>
 
   <!-- legend-free column headers -->
