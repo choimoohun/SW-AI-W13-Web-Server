@@ -30,21 +30,38 @@
 ```mermaid
 sequenceDiagram
     participant C as 클라이언트
-    participant K as 커널
+    participant K as 커널 (TCP·소켓 버퍼)
+    participant E as 커널 (epoll)
     participant W as 워커
-    Note over W: 서버 시작: listen fd를 감시 목록에 등록하고 잠듦
+    W->>E: epoll_ctl(ADD, listen fd)
+    W->>E: epoll_wait() → 잠듦
+    Note over C,K: ① 연결: 커널이 처리
     C->>K: SYN
     K-->>C: SYN+ACK
     C->>K: ACK
     Note over K: 연결 완성 → accept 대기열
-    K->>W: listen fd 준비 → 콜백으로 깨움
-    W->>K: accept() → conn fd를 감시 목록에 추가하고 다시 잠듦
-    C->>K: "GET /..." 요청 바이트
+    K->>E: 콜백: listen fd를 준비 목록에 넣음
+    E->>W: 워커 깨움, events 배열에 listen fd
+    W->>K: accept() → conn fd (논블로킹)
+    W->>E: epoll_ctl(ADD, conn fd, 읽기)
+    W->>E: epoll_wait() → 잠듦
+    Note over C,K: ② 요청: 바이트가 조각으로 도착
+    C->>K: 조각 1 "GET /flights.html HT"
     Note over K: 소켓 수신 버퍼에 저장
-    K->>W: conn fd 준비 → 콜백으로 깨움
-    Note over W: recv() → 연결 버퍼에 이어 붙임<br/>요청 완성이면 처리, 아니면 다른 연결로
-    W->>K: send() 응답
+    K->>E: 콜백: conn fd를 준비 목록에 넣음
+    E->>W: 워커 깨움, events 배열에 conn fd
+    W->>K: recv() 반복 → EAGAIN (지금은 더 없음)
+    Note over W: 연결 버퍼에 이어 붙임<br/>헤더 끝(빈 줄)이 없음 → 미완성, 다른 연결로
+    W->>E: epoll_wait() → 잠듦
+    C->>K: 조각 2 "TP/1.1 ... 헤더 끝"
+    K->>E: 콜백: conn fd를 준비 목록에 넣음
+    E->>W: 워커 깨움
+    W->>K: recv() → EAGAIN
+    Note over W: 요청 완성 → 파싱 → 응답 생성
+    Note over C,W: ③ 응답
+    W->>K: send() (다 못 보내면 쓰기 감시로 바꿈)
     K-->>C: 응답
+    Note over W: keep-alive: conn fd는 감시 목록에 남겨 다음 요청을 기다림
 ```
 
 - 워커는 할 일이 없으면 잠들어 있다가, 새 연결이 오거나 데이터가 오면 커널이 깨웁니다.
