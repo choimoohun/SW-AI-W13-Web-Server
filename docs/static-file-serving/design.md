@@ -16,7 +16,7 @@
 
 ## 연결 처리 흐름
 
-> 5단계에서 메서드 판정(`method == GET?`)이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로 바뀌었습니다. 아래는 4단계 기준입니다.
+> 5단계에서 메서드 판정(`method == GET?`)이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로, 6단계에서 `accept()` 반복이 [스레드 풀](../concurrency/design.md#구조)로 바뀌었습니다. 아래는 4단계 기준입니다.
 
 서버는 `./build/httpd <port> <root>`로 실행합니다. 리스닝과 `accept()` 반복은 [보완한 순차 에코 서버](../tcp-socket-server/functions.md#echoserveric)와 같고, `echo()` 자리에 `handle_connection()`이 들어갑니다.
 

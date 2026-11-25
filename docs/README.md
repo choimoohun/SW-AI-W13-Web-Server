@@ -12,13 +12,14 @@
 
 ```mermaid
 flowchart LR
-    A["TCP 소켓 서버<br/>listen, accept"] --> B["HTTP 요청 파싱<br/>헤더, 본문 읽기"]
+    A["TCP 소켓 서버<br/>listen, accept"] -->|"연결 대기열"| W["동시 요청 처리<br/>워커 스레드"]
+    W --> B["HTTP 요청 파싱<br/>헤더, 본문 읽기"]
     B -->|"그 밖"| C["정적 파일 서빙<br/>경로 해석, 파일 열기"]
     B -->|"/cgi-bin/"| G["동적 요청 처리<br/>CGI fork, exec"]
     G --> D
     C --> D["HTTP 응답 생성<br/>상태 줄, 헤더"]
     D --> E["연결 닫기"]
-    E --> A
+    E --> W
 ```
 
 ## 단계와 진행 상태
@@ -32,7 +33,7 @@ flowchart LR
 | 3 | [HTTP 응답 생성](./http-response/design.md) | 11.5.3 | 완료 | 2단계와 같음 |
 | 4 | [정적 파일 서빙](./static-file-serving/design.md) | 11.5.2 | 완료 | `httpd`의 `main`과 연결 처리, 전체 빌드 설계가 이 문서에 있음 |
 | 5 | [동적 요청 처리](./dynamic-request/design.md) | 11.5.4 | 완료 | CGI. 스레드 풀에서 안전하도록 출력을 파이프로 받은 뒤 상태 코드를 정함 |
-| 6 | 동시 요청 처리 | 12장 | 미설계 | keep-alive, 안전한 셧다운도 이 단계에서 다룸 |
+| 6 | [동시 요청 처리](./concurrency/design.md) | 12.5.5 | 완료 | 워커 8개 스레드 풀과 안전한 종료. keep-alive와 lingering close는 제외 |
 | 7 | Proxy 또는 Reverse Proxy | | 미설계 | |
 
 ## 읽는 순서

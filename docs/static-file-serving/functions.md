@@ -52,7 +52,7 @@ while (left > 0) {
 
 ## httpd.c
 
-> 5단계에서 `handle_connection()`이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로 바뀌었습니다. 아래는 4단계 기준입니다.
+> 5, 6단계에서 `main`은 스레드 풀로, `handle_connection()`은 정적·CGI 분기로 바뀌었습니다. 현재 모습은 [동시 요청 처리 함수 명세](../concurrency/functions.md#httpdc)에 있습니다. 아래는 4단계 기준입니다.
 
 | 함수 | 설명 | 입력 | 출력 |
 | --- | --- | --- | --- |
