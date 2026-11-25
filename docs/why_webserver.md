@@ -28,7 +28,7 @@
 |---|---|---|
 | 자주 읽는 정적 파일을 매번 전송한다 | `cdn.c`의 `cdn_store`가 `expires`로 TTL을 관리한다 | `requirements.sh`의 `X-Cache: MISS` → `HIT` |
 | 재시작하면 예약이 사라진다 | `flight_store.c`가 스냅샷을 임시 파일에 쓰고 `rename()`한다 | `make integration-persist` |
-| 유휴 연결이 자원을 점유한다 | `worker.c`의 `cleanup_idle`이 `last_active`로 판별한다 | 추가 필요 |
+| 유휴 연결이 자원을 점유한다 | `worker.c`의 `cleanup_idle`이 `last_active`로 판별한다 | `edge_cases.sh` 유휴 5초 후 종료 |
 
 ### 범위 밖 — 다른 층이 푸는 것
 

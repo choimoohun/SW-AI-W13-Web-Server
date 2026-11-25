@@ -72,6 +72,24 @@ int main(void)
     memcpy(longuri + 5 + 2049, " HTTP/1.1\r\nHost: x\r\n\r\n", 23);
     CHECK(http_parser_parse(longuri, strlen(longuri), &r) == PARSE_ERROR && r.err_status == 414, "long URI -> 414");
 
+    /* 헤더가 8192를 넘으면 431. 아직 끝나지 않은 덩어리도 길이만으로 431. */
+    {
+        static const char pre[] = "GET / HTTP/1.1\r\nX-Pad: ";
+        size_t n = sizeof(pre) - 1;
+        char big[9000 + sizeof(pre)];
+        memcpy(big, pre, n);
+        memset(big + n, 'p', 9000);
+        memcpy(big + n + 9000, "\r\n\r\n", 4);
+        CHECK(http_parser_parse(big, n + 9000 + 4, &r) == PARSE_ERROR && r.err_status == 431,
+              "header > 8192 -> 431");
+    }
+    {
+        char partial[100];
+        memset(partial, 'a', sizeof(partial));
+        CHECK(http_parser_parse(partial, sizeof(partial), &r) == PARSE_NEED_MORE,
+              "no blank line yet -> NEED_MORE(431 only over 8192)");
+    }
+
     if (failures) { printf("test_parser: %d FAILED\n", failures); return 1; }
     printf("test_parser: all passed\n");
     return 0;

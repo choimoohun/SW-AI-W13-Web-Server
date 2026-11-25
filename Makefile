@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
 
 all: $(BIN)
 
@@ -37,6 +37,10 @@ test:
 # 기능(통합) 테스트: 서버를 띄우고 curl 로 정적 서빙 검증.
 integration: $(BIN)
 	@sh tests/integration/run.sh
+
+# 재시작 시 즉시 재바인딩(SO_REUSEADDR) 검증.
+restart-test: $(BIN)
+	@sh tests/integration/restart.sh
 
 # 항공편 저장소 경쟁 테스트: before=초과예약 / after=1건만 성공.
 test-flight:

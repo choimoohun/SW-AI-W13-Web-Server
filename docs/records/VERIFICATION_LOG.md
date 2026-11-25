@@ -522,3 +522,53 @@ payment integration: all passed
 - `make tsan` 빌드: `make integration` all passed, ThreadSanitizer 경고 0(수정 전 1건: `main.c on_signal`).
 - `make test`: test_parser all passed. test_static은 Linux gcc에서 컴파일 실패(수정 전 원본도 동일, `-Werror=format-truncation`) — 미해결로 매트릭스에 기록.
 - macOS 실행은 아직 안 함.
+
+## 2026-11-24 GAP 후속 — 라우팅 테스트·검증 단언·큐 상한 (macOS)
+
+### 변경
+- `tests/unit/test_route.c` 신설: 최장 prefix, rewrite(빈 값/교체/절단), 매칭 없음. `src/config.c`에서 `config_apply_rewrite()`를 분리하고 `src/proxy.c`가 이를 쓰게 리팩터.
+- `requirements.sh`: Round-Robin 교대 순서, `/api/rw/` rewrite(`/v1/test`), keep-alive 100회 후 종료 단언 추가.
+- `run.sh`: SIGTERM 후 종료 코드 0 단언.
+- `edge_cases.sh`: RST(`SO_LINGER`) 회수, 유휴 5초 타임아웃 시연.
+- `restart.sh`(신설) + `make restart-test`: 같은 포트 연속 실행 시 `Address already in use` 없음.
+- `test_parser.c`: 헤더 > 8192 → `431`, 아직 덜 온 입력 → `NEED_MORE`.
+- `review_cases.sh` TC5: 프록시 큐 상한(`proxy_queue_max`). `src/proxy.c`가 큐 포화 시 `503`, 설정항목 추가.
+
+### 실제 실행 결과 (붙여넣기)
+```
+$ make test
+test_parser: all passed
+test_static: all passed
+test_route: all checks passed          # EXIT=0
+
+$ make integration
+PASS  SIGTERM 종료 코드 0
+integration: all passed               # EXIT=0
+
+$ make integration-req
+PASS  Round-Robin 순서(연속 요청 교대)
+PASS  rewrite prefix 교체
+PASS  keep-alive 100회 후 종료         # 응답 수 100 / 이후 closed
+requirements integration: all passed  # EXIT=0
+
+$ make edge-cases
+PASS  RST 이후 서버 생존 (200)
+PASS  RST 이후 정상 요청 (200)
+PASS  유휴 5초 후 연결 종료
+edge cases: all passed                # EXIT=0
+
+$ make restart-test
+PASS  첫 번째 시작
+PASS  두 번째 시작(같은 포트)
+PASS  Address already in use 없음
+restart test: all passed              # EXIT=0
+
+$ make review-cases
+TC1 PASS / TC2 PASS / TC5 PASS
+TC3 NOT IMPLEMENTED / TC4 NOT IMPLEMENTED
+요약: FAIL=0, NOT IMPLEMENTED=2      # EXIT=0
+```
+
+### 여전히 미확인
+- Linux(Docker)에서 `make test` 재실행 — `test_static` 수정 확인 필요.
+- 부하 percentile(p50/p95/p99)은 미측정.

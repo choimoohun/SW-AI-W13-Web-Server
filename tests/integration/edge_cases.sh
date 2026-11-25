@@ -72,6 +72,39 @@ expect_code 200 "$code" 'RST 이후 서버 생존'
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$BASE/")
 expect_code 200 "$code" 'RST 이후 정상 요청'
 
+echo '=== 유휴 타임아웃(5초) ==='
+idle_out=$(python3 - "$PORT" <<'PY'
+import socket, sys, time
+port = int(sys.argv[1])
+s = socket.create_connection(("127.0.0.1", port))
+s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+f = s.makefile("rb")
+status = f.readline()
+clen = 0
+while True:
+    line = f.readline()
+    if line in (b"\r\n", b"\n", b""):
+        break
+    k, _, v = line.partition(b":")
+    if k.strip().lower() == b"content-length":
+        clen = int(v.strip())
+if clen > 0:
+    f.read(clen)
+time.sleep(6)   # 유휴 상태로 놔둔다
+s.settimeout(2)
+try:
+    data = s.recv(1)
+except socket.timeout:
+    data = b""
+s.close()
+print("closed" if data == b"" else "open")
+PY
+)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$BASE/health")
+expect_code 200 "$code" '유휴 정리 후 서버 생존'
+if [ "$idle_out" = "closed" ]; then echo "PASS  유휴 5초 후 연결 종료"
+else echo "FAIL  유휴 5초 후에도 열림 ($idle_out)"; fail=1; fi
+
 echo '=== 접근 로그 샘플 ==='
 grep '\[w' "$LOG" | head -3 || true
 

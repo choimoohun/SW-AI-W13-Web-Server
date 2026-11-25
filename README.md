@@ -196,6 +196,8 @@ make load-test                 # 부하 (동시 20, 200요청)
 make load-test-heavy           # 동시 100, 1000요청
 make mutation                  # 뮤테이션 테스트(조건 뒤집기 → 테스트가 실패해야 PASS)
 make edge-cases                # 잘못된 요청·큰 본문·백엔드 없음·클라이언트 끊김
+make restart-test              # 같은 포트 재시작 시 Address already in use 없음
+make review-cases              # TC1~TC5(트래픽 급증·느린 클라이언트·큐 상한)
 ```
 
 기능별 시연:

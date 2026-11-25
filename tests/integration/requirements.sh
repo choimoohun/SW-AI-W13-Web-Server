@@ -104,6 +104,51 @@ else echo "FAIL  워커 ID 포함 (못 찾음: [wN])"; fail=1; fi
 contains "$(cat "$LOG")" "127.0.0.1" "클라이언트 IP 포함"
 contains "$(cat "$LOG")" "ms" "지연시간 포함"
 
+echo '--- keep-alive 최대 100회 도달 ---'
+ka_out=$(python3 - "$PORT" <<'PY'
+import socket, sys
+port = int(sys.argv[1])
+s = socket.create_connection(("127.0.0.1", port))
+f = s.makefile("rb")
+ok = 0
+for _ in range(100):
+    try:
+        s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+        status = f.readline()
+    except OSError:
+        break
+    if not status.startswith(b"HTTP/1.1 200"):
+        break
+    clen = 0
+    while True:
+        line = f.readline()
+        if line in (b"\r\n", b"\n", b""):
+            break
+        k, _, v = line.partition(b":")
+        if k.strip().lower() == b"content-length":
+            clen = int(v.strip())
+    if clen > 0:
+        f.read(clen)
+    ok += 1
+extra = b""
+try:
+    s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+    extra = f.readline()
+except OSError:
+    extra = b""
+s.close()
+print("%d %s" % (ok, "closed" if extra == b"" else "open"))
+PY
+)
+ka_n=$(echo "$ka_out" | awk '{print $1}')
+ka_state=$(echo "$ka_out" | awk '{print $2}')
+echo "응답 수: $ka_n / 이후 상태: $ka_state"
+if [ "$ka_n" = "100" ] && [ "$ka_state" = "closed" ]; then
+    echo "PASS  keep-alive 100회 후 종료"
+else
+    echo "FAIL  keep-alive 100회 (응답 $ka_n, 상태 $ka_state)"; fail=1
+fi
+
 rm -f /tmp/jg_rr_$$.txt "$LOG"
 if [ $fail -eq 0 ]; then echo 'requirements integration: all passed'
 else echo 'requirements integration: FAILED'; fi
