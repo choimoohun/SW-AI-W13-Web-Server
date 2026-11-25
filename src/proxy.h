@@ -77,7 +77,7 @@ const proxy_backend *proxy_route_next(proxy_route *route);
  * Host, Content-Length를 빼고 나머지를 복사한 뒤 Host: <backend>, Connection: close,
  * 본문이 있거나 POST면 Content-Length: <req->content_length>를 붙입니다.
  * 성공하면 NUL을 뺀 바이트 수, 헤더 이름에 RFC 9110 token이 아닌 문자가 있거나 값에 '\r'이 있거나
- * out_size에 들어가지 않으면 -1을 반환합니다. 소켓을 쓰지 않고 할당하는 자원도 없습니다.
+ * req->uri에 제어 문자(0x00~0x1F, 0x7F)가 있거나 out_size에 들어가지 않으면 -1을 반환합니다. 소켓을 쓰지 않고 할당하는 자원도 없습니다.
  */
 int proxy_format_request_head(const http_request *req, const char *raw_head, size_t raw_len,
                               const proxy_backend *backend, char *out, size_t out_size);
@@ -97,7 +97,7 @@ int proxy_filter_response_head(const char *raw_head, size_t raw_len, char *out, 
  * route에서 라운드로빈으로 백엔드를 골라 req를 전달하고 응답을 connfd로 중계합니다.
  * raw_head, raw_len은 http_read_head()가 읽은 클라이언트 헤더 블록이고 req->body는 이미 읽혀 있어야 합니다.
  * 연결·송신·응답 헤더 수신에 router->timeout_ms 시간 제한을 겁니다. 헤더를 보내기 전 실패는
- * 연결 거부·형식 오류면 502, 시간 초과면 504, 요청 헤더 이름 오류면 400을 connfd로 보내고 stderr에 한 줄 기록합니다.
+ * 연결 거부·형식 오류면 502, 시간 초과면 504, proxy_format_request_head()가 실패하면 400을 connfd로 보내고 stderr에 한 줄 기록합니다.
  * 응답을 끝까지 보냈거나 오류 응답을 보냈으면 0, 클라이언트 송신 실패나 응답 헤더를 보낸 뒤 중단되면 -1을 반환합니다.
  * 백엔드 소켓은 반환 전에 닫고, connfd는 닫지 않습니다.
  */

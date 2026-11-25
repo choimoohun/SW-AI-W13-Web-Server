@@ -12,7 +12,7 @@
 | --- | --- |
 | 요청 줄(메서드, URI, 버전) 파싱 | 동적 요청 처리(CGI). POST 본문은 읽어 두기만 합니다 |
 | `Host`, `Content-Length`, `Connection` 헤더 파싱 | keep-alive 연결 유지. 이 단계는 응답마다 연결을 닫습니다 |
-| `Content-Length`만큼 본문 읽기 | `Transfer-Encoding: chunked`(헤더가 있으면 501), absolute-form URI(프록시 단계) |
+| `Content-Length`만큼 본문 읽기 | `Transfer-Encoding: chunked`(헤더가 있으면 501), absolute-form URI(Forward Proxy용. 7단계는 리버스 프록시를 택해 계속 제외) |
 | 형식 오류를 400, 501, 505로 판정 | 퍼센트 디코딩 |
 
 ## 요청 형식
@@ -58,7 +58,7 @@
 | 본문을 다 읽기 전에 EOF 또는 읽기 오류 | 응답 없이 연결을 닫습니다 |
 | 본문 버퍼 `malloc()` 실패 | 500 |
 
-`Host`와 `Connection`은 값만 저장합니다. 이 단계는 응답마다 `Connection: close`를 보내고 연결을 닫으므로 두 값으로 동작을 바꾸지 않습니다. 순차 서버에서 연결을 유지하면 그 클라이언트가 다음 요청을 보내지 않는 동안 다른 클라이언트가 모두 기다리기 때문입니다([TCP 소켓 서버 테스트 T08](../tcp-socket-server/test-cases.md#순차-처리)). keep-alive는 동시성 단계에서 다룹니다.
+`Host`와 `Connection`은 값만 저장합니다. 이 단계는 응답마다 `Connection: close`를 보내고 연결을 닫으므로 두 값으로 동작을 바꾸지 않습니다. 순차 서버에서 연결을 유지하면 그 클라이언트가 다음 요청을 보내지 않는 동안 다른 클라이언트가 모두 기다리기 때문입니다([TCP 소켓 서버 테스트 T08](../tcp-socket-server/test-cases.md#순차-처리)). keep-alive는 6단계 동시성에서도 제외했습니다([동시 요청 처리 범위](../concurrency/design.md)).
 
 ## 읽기 흐름
 

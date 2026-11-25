@@ -50,7 +50,7 @@ CTest에 단위 테스트 6개(`test_http_request`, `test_http_response`, `test_
 | 단계 | 기능 |
 | --- | --- |
 | 1. [TCP 소켓 서버](docs/tcp-socket-server/design.md) | `socket` → `bind` → `listen` → `accept`. 끊긴 소켓에 써도 죽지 않도록 `SIGPIPE` 무시 |
-| 2. [HTTP 요청 파싱](docs/http-request-parsing/design.md) | 요청 줄, `Host`·`Connection`·`Content-Length` 헤더, `Content-Length` 기준 본문(최대 1 MiB). `Transfer-Encoding`은 501, HTTP/1.0·1.1 외 버전은 505 |
+| 2. [HTTP 요청 파싱](docs/http-request-parsing/design.md) | 요청 줄, `Host`·`Connection`·`Content-Length` 헤더, `Content-Length` 기준 본문(최대 1 MiB). `Transfer-Encoding`은 501, `HTTP/1.0`·`HTTP/1.1`이 아닌 `HTTP/` 버전은 505(그 밖의 형식은 400) |
 | 3. [HTTP 응답 생성](docs/http-response/design.md) | 상태 줄, `Content-Type`, `Content-Length`, `Connection: close`, HTML 오류 본문. 200, 400, 403, 404, 500, 501, 502, 504, 505 |
 | 4. [정적 파일 서빙](docs/static-file-serving/design.md) | `GET`. 확장자별 MIME 타입, `/`로 끝나면 `index.html`, `..`·`.`·`//` 경로는 403. 연결마다 읽기·쓰기 5초 제한 |
 | 5. [동적 요청 처리](docs/dynamic-request/design.md) | `/cgi-bin/` 아래 프로그램을 `fork`·`exec`로 실행(`GET`, `POST`). 출력을 파이프로 다 받은 뒤 상태 코드를 정함 |

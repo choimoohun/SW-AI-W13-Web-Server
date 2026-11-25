@@ -340,7 +340,8 @@ int proxy_filter_response_head(const char *raw_head, size_t raw_len, char *out, 
     /* "HTTP/1.x DDD" 뒤에는 줄 끝이나 공백+사유 문구가 옵니다. */
     if (n < 14 || (strncmp(raw_head, "HTTP/1.0 ", 9) != 0 && strncmp(raw_head, "HTTP/1.1 ", 9) != 0) ||
         !isdigit((unsigned char)raw_head[9]) || !isdigit((unsigned char)raw_head[10]) ||
-        !isdigit((unsigned char)raw_head[11]) || (raw_head[12] != ' ' && raw_head[12] != '\r'))
+        !isdigit((unsigned char)raw_head[11]) || (raw_head[12] != ' ' && raw_head[12] != '\r') ||
+        memchr(raw_head, '\r', n - 2)) /* 상태 줄 안의 단독 '\r'로 헤더를 끼워 넣지 못하게 함 */
         return -1;
     int status = (raw_head[9] - '0') * 100 + (raw_head[10] - '0') * 10 + (raw_head[11] - '0');
     if (status < 200 || status > 599)
@@ -435,8 +436,10 @@ fail:;
 
 static void log_error(const proxy_backend *b, const char *phase, int status, int err, size_t sent)
 {
+    char msg[128] = "unknown error";
+    strerror_r(err, msg, sizeof msg); /* 워커 스레드에서 부르므로 strerror()의 공유 버퍼를 쓰지 않습니다. */
     fprintf(stderr, "proxy error: backend=%s:%s phase=%s status=%d errno=%d (%s) bytes_sent=%zu\n", b->host,
-            b->port, phase, status, err, strerror(err), sent);
+            b->port, phase, status, err, msg, sent);
 }
 
 /* 헤더를 보낸 뒤 본문을 클라이언트로 흘려 보냅니다. Content-Length가 있으면 그만큼만 보내고 EOF를 기다리지 않습니다.
@@ -524,6 +527,7 @@ int proxy_serve(int connfd, const proxy_router *router, proxy_route *route, cons
 
     /* 여기부터는 상태 줄을 보냈으므로 실패해도 다른 상태 코드를 덧쓰지 않고 연결만 닫습니다. */
     if (rio_writen(connfd, buf, (size_t)n) != n) {
+        log_error(b, "send_head", up_status, errno, 0);
         close(upfd);
         return -1;
     }

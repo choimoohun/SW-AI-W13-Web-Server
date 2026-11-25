@@ -136,7 +136,7 @@ sequenceDiagram
 - **요청 헤더 재작성 (`proxy_format_request_head`):**
   - `http_request`에 힙 헤더 배열을 추가하지 않고 `handle_connection()`의 스택 버퍼 `(raw_head, raw_len)`을 그대로 입력받습니다.
   - 요청 줄은 `<req->method> <req->uri> HTTP/1.0\r\n`으로 작성합니다(`HTTP/1.0`으로 내려 HTTP/1.1 백엔드가 `Transfer-Encoding: chunked`나 `100 Continue`를 보내지 않게 방지).
-  - 원본 헤더 줄들에서 hop-by-hop 헤더, 기존 `Host`, 기존 `Content-Length`를 제외한 나머지 end-to-end 헤더(`Content-Type`, `Authorization`, `Cookie`, `Accept`, `User-Agent`, `X-*` 등)를 복사하고, `Host: <b->host>:<b->port>\r\n`, `Connection: close\r\n`, 그리고 `req->content_length > 0 || POST`일 때 단일 `Content-Length: %zu\r\n`과 빈 줄 `\r\n`을 붙여 출력합니다.
+  - 원본 헤더 줄들에서 hop-by-hop 헤더, 기존 `Host`, 기존 `Content-Length`를 제외한 나머지 end-to-end 헤더(`Content-Type`, `Authorization`, `Cookie`, `Accept`, `User-Agent`, `X-*` 등)를 복사하고, `Host: <b->host>:<b->port>\r\n`(IPv6는 `[<b->host>]:<b->port>`), `Connection: close\r\n`, 그리고 `req->content_length > 0 || POST`일 때 단일 `Content-Length: %zu\r\n`(같은 값의 중복 `Content-Length`는 하나로 합침)과 빈 줄 `\r\n`을 붙여 출력합니다.
   - 출력 버퍼 크기는 `MAXLINE + 1024`로 잡아 클라이언트 헤더가 8 KiB에 가까워도 주입 헤더 때문에 잘리지 않게 합니다(초과 시 `-1`을 반환하고 `proxy_serve()`가 `400`을 보냅니다).
   - 헤더 전송 후 `req->content_length > 0`이면 `rio_writen(upfd, req->body, req->content_length)`로 본문을 전송합니다(쓰기 실패 시 `errno`가 `EAGAIN`/`EWOULDBLOCK`이면 `504`, `EPIPE`/`ECONNRESET` 등 기타는 `502`).
 - **응답 헤더 버퍼링·검증과 본문 스트리밍 (2단계 전환):**
@@ -167,7 +167,9 @@ sequenceDiagram
 
 | 단계 | 실패 조건 | 클라이언트 응답 |
 | --- | --- | --- |
-| 요청 파싱·검증 | 잘못된 구문, 중복 `Host`, `GET *` / `Transfer-Encoding` 요청 / `.`,`..`,`//` / 불허 메서드 | `400` / `501` / `403` / `501` |
+| 요청 파싱·검증 | 잘못된 구문 / `Transfer-Encoding` 요청 / `.`,`..`,`//` / 불허 메서드 | `400` / `501` / `403` / `501` |
+| 요청 헤더 변환 (`proxy_format_request_head()` 실패) | token이 아닌 헤더 이름, 헤더 값의 단독 `\r`, URI의 제어 문자, 출력 버퍼 초과 | `400 Bad request` |
+| 요청 파싱 (후속) | 중복 `Host`, `GET *` | `400`. 1차 구현에서는 중복 `Host`를 덮어쓰고(프록시는 어차피 다시 씀) `*`는 기존처럼 `400` |
 | 업스트림 연결 | `ECONNREFUSED`, `EHOSTUNREACH`, `ENETUNREACH`, `socket()` 실패 | `502 Bad gateway` |
 | 업스트림 연결 | `poll()` 타임아웃, `SO_ERROR == ETIMEDOUT` | `504 Gateway timeout` |
 | 요청 송신 | `EPIPE`, `ECONNRESET` / `EAGAIN`, `EWOULDBLOCK` | `502` / `504` |
@@ -175,7 +177,7 @@ sequenceDiagram
 | 응답 헤더 수신 | `SO_RCVTIMEO` (`EAGAIN`/`EWOULDBLOCK`) | `504 Gateway timeout` |
 | 본문 스트리밍 (헤더 전송 후) | 백엔드 오류·타임아웃 또는 클라이언트 `EPIPE` | 추가 상태 줄 없음, 양쪽 소켓 즉시 종료 |
 
-- **관측성:** `400`/`502`/`504` 및 헤더 송신 후 스트리밍 중단 시 `fprintf(stderr, "proxy error: backend=%s:%s phase=%s status=%d errno=%d (%s) bytes_sent=%zu\n", ...)` 한 줄로 원인·단계·백엔드를 기록합니다. `phase`는 `format`, `connect`, `send`, `read_head`, `stream` 중 하나입니다.
+- **관측성:** `400`/`502`/`504` 및 헤더 송신 후 스트리밍 중단 시 `fprintf(stderr, "proxy error: backend=%s:%s phase=%s status=%d errno=%d (%s) bytes_sent=%zu\n", ...)` 한 줄로 원인·단계·백엔드를 기록합니다. `phase`는 `format`, `connect`, `send`, `read_head`, `send_head`(응답 헤더를 클라이언트에 쓰다 실패), `stream` 중 하나입니다.
 - **자원·종료 한계:** 프록시 경로의 추가 스택은 `up_rio`(8 KiB), `head[MAXLINE]`(8 KiB), `buf[PROXY_HEAD_BUF]`(~9 KiB)로 약 25 KiB이며, 기존 `handle_connection()` 프레임(~41 KiB)과 `stream_body()` 청크 버퍼(8 KiB)를 합쳐 워커 전체 스택은 ~74 KiB 전후입니다(Linux 기본 스레드 스택 8 MiB 이내). 공유 워커 8개 구조 특성상 응답 없는 백엔드 1대에 요청이 집중되면 워커 풀이 포화될 수 있으며, `SIGTERM` 시 진행 중이거나 대기열에 쌓인 프록시 요청의 호출별 타임아웃만큼 종료가 지연될 수 있습니다.
 
 ## Alternatives Considered
@@ -268,7 +270,7 @@ sequenceDiagram
    - **변경 내용:**
      - `parse_request_line()`: `uri[0] != '/'` 검사에 `!(strcmp(method_tok, "OPTIONS") == 0 && ulen == 1 && uri[0] == '*')` 예외를 추가해 `OPTIONS *`만 통과시키고 `GET *` 등은 `400` 유지.
      - `parse_header_line()`: 헤더 이름 각 바이트가 RFC 9110 `tchar`인지 검사(공백·제어문자 포함 시 `400`), 값 내부의 단독 `\r` 거부(`400`), `Host` 헤더 중복 등장 시 `400`(이미 설정됐는지 플래그로 추적).
-     - Line 118의 `Transfer-Encoding` `shortcut:` 주석을 리버스 프록시 비목표 결정에 맞게 갱신.
+     - (1차 구현에서 완료) Line 118의 `Transfer-Encoding` `shortcut:` 주석을 리버스 프록시 비목표 결정에 맞게 갱신.
    - **이유:** 프록시가 원본 헤더를 백엔드로 전달할 때 잘못된 헤더명·중복 `Host`로 인한 요청 밀반입을 막고, 미룬 결정 C(`OPTIONS *`)를 닫습니다.
 
 5. **[`src/http_response.h`](../../src/http_response.h)** 및 **[`src/http_response.c`](../../src/http_response.c)** *(수정)*
@@ -297,22 +299,15 @@ sequenceDiagram
 9. **`tests/test_proxy.c`** *(신규 생성)*
    - **변경 내용:** `#undef NDEBUG` + `<assert.h>` 기반으로 순수 단위 테스트와 루프백 소켓(`127.0.0.1:0` 임시 포트, `timeout_ms = 200`, `socketpair(AF_UNIX, SOCK_STREAM, 0, sv)`) 통합 테스트를 작성합니다.
    - **이유:** 외부 서버나 고정 포트 없이 Docker/CTest 환경에서 모든 프록시 계약을 결정적으로 검증합니다.
-   - **필수 테스트 케이스:**
-     - **P01~P03 (CLI 규칙 파싱):** 정상 단일/다중 백엔드, 끝 `/` 정규화, `[::1]:8001` IPv6, 잘못된 접두사(`/` 미시작·중복), 잘못된 포트(`0`, `65536`, 문자), 용량 초과(17개), 잘못된 호스트명 거부.
-     - **P04~P05 (라우트 매칭):** 최장 일치(`/api` vs `/api/v2`), 세그먼트 경계(`/api`가 `/apiv2` 미매칭, `/api?x=1`·`/api/`·`/api/a` 매칭), 루트 `/` 폴백, 미매칭 `NULL`.
-     - **P06 (동시 라운드로빈):** 스레드 8개가 각 100회씩 `proxy_route_next()` 호출 시 백엔드별 균등 분배 및 경쟁 상태 없음.
-     - **P07~P08 (요청 헤더 변환):** `HTTP/1.0` 요청 줄과 원본 URI+쿼리 유지, 정적 hop-by-hop(`Keep-Alive`, `Proxy-Connection`, `TE`, `Upgrade`, `Expect`) 및 동적 `Connection: X-Secret, Foo` 토큰 제거, `Host` 덮어쓰기, `Connection: close` 삽입, `Authorization`/`Content-Type` 유지, 중복 `Content-Length` 정규화 및 빈 `POST`의 `Content-Length: 0`, 버퍼 초과 시 `-1`.
-     - **P09~P10 (응답 헤더 검증):** 정상 `200`/`204`/`304`/`404` 통과 및 `Connection: close` 삽입, `100 Continue`/`Transfer-Encoding: chunked`/잘못된 상태 줄/충돌 `Content-Length`/빈 줄 누락 거부(`-1`).
-     - **P11~P12 (루프백 `GET`/`POST` 및 라운드로빈 E2E):** 모의 백엔드 2대에 교대로 전달, 이진 `POST` 본문 전달, 대용량 응답(>64 KiB) 스트리밍.
-     - **P13~P17 (장애·타임아웃·경계):** 닫힌 포트(`ECONNREFUSED`) → 즉시 `502`, 조기 EOF/깨진 응답/`Transfer-Encoding` 응답 → `502`, 응답 지연 백엔드 → `200ms` 후 `504`, `Content-Length` 송신 후 연결을 안 닫는 백엔드 → 타임아웃(`200ms`) 대기 없이 즉시 완료, 헤더 송신 후 백엔드 중단 → 추가 `502` HTML 미첨부(연결 단계의 `poll()` 시간 초과는 루프백 재현 불가로 단위 테스트에서 제외, [test-cases.md](./test-cases.md) 참고).
+   - **테스트 케이스:** P01~P17의 절차와 기대 결과는 [test-cases.md](./test-cases.md)에 있습니다. 묶음은 CLI 규칙 파싱(P01~P03), 라우트 매칭(P04~P05), 동시 라운드로빈(P06), 요청 헤더 변환(P07~P08), 응답 헤더 검증(P09~P10), 루프백 중계(P11~P12), 장애·시간 초과·경계(P13~P17)입니다. DNS 해석 실패와 연결 단계의 `poll()` 시간 초과는 CTest 환경에서 결정적으로 재현할 수 없어 뺐습니다.
 
 10. **[`tests/test_http_request.c`](../../tests/test_http_request.c)** *(수정, 후속)*
     - **변경 내용:** Line 71의 `Connection` 길이 초과 테스트를 256바이트 경계로 갱신하고, `OPTIONS *` 통과, `GET *` → `400`, 잘못된 헤더명(`Bad Name: 1`) → `400`, 중복 `Host` → `400` 단언을 추가합니다.
     - **이유:** `http_request.c`의 변경된 파싱 규칙을 CTest로 고정합니다.
 
 11. **[`tests/test_http_response.c`](../../tests/test_http_response.c)** *(수정)*
-    - **변경 내용:** `502` (`"Bad gateway"`)와 `504` (`"Gateway timeout"`)에 대한 `http_status_text()`, `http_format_head()`, `http_send_error()` 검증을 추가합니다.
-    - **이유:** 신규 상태 코드의 형식과 본문 바이트 수를 단위 테스트로 검증합니다.
+    - **변경 내용:** `502` (`"Bad gateway"`)와 `504` (`"Gateway timeout"`)에 대한 `http_status_text()`, `http_format_head()` 검증(R09)을 추가합니다. `http_send_error()`는 상태 메시지만 바꿔 쓰므로 기존 R04로 충분합니다.
+    - **이유:** 신규 상태 코드의 상태 메시지와 응답 줄 형식을 단위 테스트로 고정합니다.
 
 12. **[`tests/test_static_file.c`](../../tests/test_static_file.c)** *(수정)*
     - **변경 내용:** 공개된 `static_has_bad_segments()`의 경계 케이스(`/api/a..b` 허용, `/api/../x`·`/api/./x`·`//api` 거부)를 직접 검증하는 단언을 추가합니다.

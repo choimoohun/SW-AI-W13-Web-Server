@@ -1,6 +1,6 @@
 # HTTP 응답 생성 설계
 
-과제의 HTTP 응답 생성 항목을 CS:APP 3판 11.5.3의 응답 형식으로 구현할 때의 흐름과 결정입니다. 이 모듈은 응답 줄과 헤더를 만들어 보내고, 오류 응답 전체를 만들어 보냅니다. 정상 응답의 본문은 [정적 파일 서빙](../static-file-serving/design.md)과 [동적 요청 처리](../dynamic-request/design.md)가 보냅니다.
+과제의 HTTP 응답 생성 항목을 CS:APP 3판 11.5.3의 응답 형식으로 구현할 때의 흐름과 결정입니다. 이 모듈은 응답 줄과 헤더를 만들어 보내고, 오류 응답 전체를 만들어 보냅니다. 정상 응답의 본문은 [정적 파일 서빙](../static-file-serving/design.md)과 [동적 요청 처리](../dynamic-request/design.md)가 보냅니다. 7단계 [리버스 프록시](../reverse-proxy/design.md)가 중계하는 응답은 예외로, 백엔드의 상태 줄(`HTTP/1.0` 포함)과 헤더를 걸러서 그대로 넘기므로 아래 형식을 따르지 않습니다. 백엔드가 `Content-Length`를 보내지 않으면 연결 종료로 본문 끝을 알립니다. 프록시가 직접 만드는 400·502·504 오류 응답은 이 모듈의 형식을 따릅니다.
 
 - 함수별 입력과 출력: [functions.md](./functions.md)
 - 검증 절차: [test-cases.md](./test-cases.md)
@@ -34,21 +34,21 @@ Connection: close\r\n
 
 ## 상태 코드
 
-교재 그림 11.25의 코드 중 이 단계가 쓰는 코드와, 요구사항의 500입니다.
+교재 그림 11.25의 코드 중 이 단계가 쓰는 코드와, 요구사항의 500, 7단계 리버스 프록시의 502·504입니다.
 
 | 코드 | 상태 메시지 | 쓰는 상황 | 정하는 곳 |
 | --- | --- | --- | --- |
 | 200 | OK | 파일을 찾아 보냄, CGI가 0으로 끝남 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
-| 400 | Bad request | 요청 형식 오류, 크기 초과 | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
+| 400 | Bad request | 요청 형식 오류, 크기 초과, 백엔드로 넘길 수 없는 요청 헤더(token이 아닌 헤더 이름, 단독 `\r`, URI의 제어 문자) | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드), [리버스 프록시](../reverse-proxy/functions.md#proxyc-공개-함수) |
 | 403 | Forbidden | `..`, `.`, `//` 경로, 일반 파일이 아님, 읽기 권한 없음, CGI 실행 권한 없음, CGI 디렉터리 요청 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
 | 404 | Not found | 파일이나 CGI 프로그램 없음 | [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
 | 500 | Internal server error | 헤더를 보내기 전의 서버 내부 실패, CGI 실패 | [요청 파싱](../http-request-parsing/design.md#판정-규칙)(본문 할당 실패), [정적 파일 서빙](../static-file-serving/design.md#상태-코드-판정), [동적 요청 처리](../dynamic-request/functions.md#cgi_serve의-상태-코드) |
-| 501 | Not implemented | `Transfer-Encoding` 헤더, 허용하지 않은 메서드(GET 외. `/cgi-bin/`은 POST도 허용) | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [요청 분기](../dynamic-request/design.md#요청-분기) |
+| 501 | Not implemented | `Transfer-Encoding` 헤더, 허용하지 않은 메서드(GET 외. `/cgi-bin/`과 `--route` 프록시 경로는 POST도 허용) | [요청 파싱](../http-request-parsing/design.md#판정-규칙), [요청 분기](../dynamic-request/design.md#요청-분기) |
 | 502 | Bad gateway | 백엔드 연결 거부, 비정상 응답(조기 EOF, 형식 오류, 1xx, `Transfer-Encoding`) | [리버스 프록시](../reverse-proxy/design.md) |
 | 504 | Gateway timeout | 백엔드 연결·송신·응답 헤더 수신 시간 초과 | [리버스 프록시](../reverse-proxy/design.md) |
 | 505 | HTTP version not supported | `HTTP/1.0`, `HTTP/1.1`이 아닌 버전 | [요청 파싱](../http-request-parsing/design.md#판정-규칙) |
 
-상태 메시지는 교재 그림 11.25의 표기를 따릅니다. 500은 그림에 없으므로 같은 표기 방식으로 `Internal server error`라고 씁니다.
+상태 메시지는 교재 그림 11.25의 표기를 따릅니다. 500, 502, 504는 그림에 없으므로 같은 표기 방식(첫 단어만 대문자)으로 `Internal server error`, `Bad gateway`, `Gateway timeout`이라고 씁니다.
 
 ## 헤더를 보낸 뒤의 실패
 

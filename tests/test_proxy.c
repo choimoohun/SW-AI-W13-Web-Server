@@ -209,6 +209,8 @@ static void test_response_head(void)
         "garbage\r\n\r\n",
         "HTTP/1.1 200 OK\r\nBad Name: x\r\n\r\n",
         "HTTP/1.1 200 OK\r\nX: 1\r\n", /* 빈 줄 없음 */
+        "HTTP/1.1 200\rInjected: 1\r\n\r\n",    /* 상태 줄 안의 단독 CR */
+        "HTTP/1.1 200 OK\rInjected: 1\r\n\r\n",
     };
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
         assert(filter(bad[i], out, &status, &has_cl, &cl) == -1);

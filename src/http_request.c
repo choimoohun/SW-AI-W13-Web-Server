@@ -115,7 +115,8 @@ static int parse_header_line(const char *line, size_t n, http_request *req)
             return 400;
         req->content_length = cl;
     }
-    /* shortcut: chunked를 읽지 못해 본문 경계를 모르므로 거부합니다. 프록시 단계에서 구현할 때 바꿉니다. */
+    /* shortcut: chunked를 읽지 못해 본문 경계를 모르므로 거부합니다. 7단계 리버스 프록시도 chunked는 범위 밖이라
+       그대로 둠(docs/reverse-proxy/design.md Non-Goals). chunked 요청을 받아야 할 때 디코더와 함께 바꿈 */
     if (name_is(line, namelen, "Transfer-Encoding"))
         return 501;
     return 0;
