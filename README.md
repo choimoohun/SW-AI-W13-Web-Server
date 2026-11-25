@@ -41,34 +41,29 @@
 아래는 워커 하나가 연결을 받고 요청을 처리하는 흐름입니다.
 
 ```mermaid
-%%{init: {'themeVariables': {'noteBkgColor': '#fff5ad', 'noteTextColor': '#000000', 'noteBorderColor': '#c9b800'}}}%%
 sequenceDiagram
     participant C as 클라이언트
     participant K as 커널 (TCP·소켓 버퍼)
     participant E as 커널 (epoll)
     participant W as 워커
 
-    Note over K,W: listen fd = 새 연결을 받는 입구 (서버에 1개)<br/>conn fd = 클라이언트 한 명 전용 통로 (연결마다 1개)
-
-    W->>E: listen fd 등록 (새 연결 오면 깨워 줘)
+    W->>E: listen fd 등록
     W->>E: epoll_wait() → 잠듦
 
-    Note over C,K: ① 새 연결 받기
-    C->>K: 연결 요청 (handshake, 커널이 처리)
+    C->>K: 연결 요청 (handshake)
     K->>E: 콜백: listen fd를 준비 목록에 넣음
-    E->>W: 워커 깨움 + listen fd 전달
-    W->>K: accept() → 이 클라이언트 전용 conn fd 받음
-    W->>W: conn fd를 논블로킹으로 (바이트가 덜 와도 안 기다림)
-    W->>E: conn fd 등록 (바이트 오면 깨워 줘)
-    W->>E: epoll_wait() → 다시 잠듦
+    E->>W: 워커 깨움, listen fd 전달
+    W->>K: accept() → conn fd
+    W->>W: conn fd 논블로킹 설정
+    W->>E: conn fd 등록
+    W->>E: epoll_wait() → 잠듦
 
-    Note over C,K: ② 요청 바이트 받기
-    C->>K: 요청 바이트 전송 → conn fd의 소켓 버퍼에 쌓임
+    C->>K: 요청 바이트 전송
     K->>E: 콜백: conn fd를 준비 목록에 넣음
-    E->>W: 워커 깨움 + 준비된 fd만 전달
-    W->>K: conn fd에서 읽은 만큼 버퍼에 이어 붙임
-    Note over W: 요청이 덜 왔으면 → 다른 연결로<br/>다 왔으면 → 처리
-    W->>E: epoll_wait() → 다시 잠듦
+    E->>W: 워커 깨움, 준비된 fd만 전달
+    W->>K: conn fd 읽기 → 버퍼에 이어 붙임
+    W->>W: 요청 완성 시 처리
+    W->>E: epoll_wait() → 잠듦
 ```
 
 - **잠들었다가 깨어남:** 할 일이 없으면 잠들고, 새 연결이나 바이트가 오면 커널이 깨웁니다.
