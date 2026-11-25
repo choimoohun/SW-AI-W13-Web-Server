@@ -107,14 +107,18 @@ else
 fi
 
 echo '--- 출발/도착 추적 ---'
+# 고정 시각으로 시드된 KE202는 날짜가 지나면 자동 도착 처리되어 상태 변경이 거부된다
+# (2026-11-24 이후 실패). 그래서 현재 시각 기준으로 시드되는 미래 편 KE703과
+# 현재 시각 기준 at 값을 쓴다.
+NOW=$(date +%s)
 expect 200 "상태 변경 DELAYED" -X POST -H 'Content-Type: application/json' \
-    -d '{"status":"DELAYED","note":"기상 악화","at":1795507600}' \
-    "$BASE/api/admin/flights/KE202/status"
-body=$(curl -s "$BASE/api/flights/KE202")
+    -d "{\"status\":\"DELAYED\",\"note\":\"기상 악화\",\"at\":$((NOW + 60))}" \
+    "$BASE/api/admin/flights/KE703/status"
+body=$(curl -s "$BASE/api/flights/KE703")
 contains "$body" '"status":"DELAYED"' "상태 반영"
 expect 400 "상태 역행 거부" -X POST -d '{"status":"SCHEDULED"}' \
-    "$BASE/api/admin/flights/KE202/status"
-body=$(curl -s "$BASE/api/flights/KE202/timeline")
+    "$BASE/api/admin/flights/KE703/status"
+body=$(curl -s "$BASE/api/flights/KE703/timeline")
 contains "$body" "기상 악화" "타임라인 이벤트 기록"
 
 # 100동시 예약 결과에서 201/409 개수를 센다.
@@ -164,9 +168,9 @@ expect 404 "없는 항공편 예약" -X POST -H 'Content-Type: application/json'
 expect 409 "좌석 0석 예약" -X POST -H 'Content-Type: application/json' \
     -d '{"name":"zero"}' "$BASE/api/flights/KE999/reserve"
 expect 200 "출발 설정" -X POST -H 'Content-Type: application/json' \
-    -d '{"status":"DEPARTED","at":1795600000}' "$BASE/api/admin/flights/KE202/status"
+    -d "{\"status\":\"DEPARTED\",\"at\":$((NOW + 600))}" "$BASE/api/admin/flights/KE703/status"
 expect 400 "도착 시각 역전" -X POST -H 'Content-Type: application/json' \
-    -d '{"status":"ARRIVED","at":1795500000}' "$BASE/api/admin/flights/KE202/status"
+    -d "{\"status\":\"ARRIVED\",\"at\":$((NOW - 600))}" "$BASE/api/admin/flights/KE703/status"
 body=$(curl -s -X POST -H 'Content-Type: application/json' \
     -d '{"name":"a\"b\\c","contact":"x"}' "$BASE/api/flights/KE701/reserve")
 if printf '%s' "$body" | python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(0 if d["reservation"]["name"]=="a\"b\\c" else 1)' 2>/dev/null; then

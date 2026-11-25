@@ -315,17 +315,12 @@ static int find_in_snapshot(const flight_t *arr, size_t n,
 
 /* ----- 응답 작성 ----- */
 
+/* 화면에 보이는 '지연'은 운영자가 입력해 예정 시각에 반영된 누적 지연이다.
+   (예전에는 실제 시각 - 예정 시각으로 계산해서, 서버가 늦게 켜진 경우 tick 지연이
+   수천 분 지연으로 보였다.) */
 static long delay_minutes(const flight_t *f)
 {
-    long diff;
-    if (f->actual_arrive_epoch != 0) {
-        diff = f->actual_arrive_epoch - f->arrive_epoch;
-    } else if (f->actual_depart_epoch != 0) {
-        diff = f->actual_depart_epoch - f->depart_epoch;
-    } else {
-        return 0;
-    }
-    return diff / 60;
+    return f->delay_applied_min > 0 ? f->delay_applied_min : 0;
 }
 
 static void write_flight(json_buf *b, const flight_t *f)

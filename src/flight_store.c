@@ -610,17 +610,21 @@ int flight_store_tick(long now)
 
         pthread_mutex_lock(&f->mu);
         if (f->status != F_ARRIVED) {
+            /* 실제 시각은 '예정 시각(지연 반영)'으로 기록한다. 서버가 꺼져 있다가 며칠 뒤
+               켜져 tick이 늦게 따라잡아도, tick이 돈 시각(now)을 쓰면 수천 분 지연으로
+               잘못 보였다. 지연은 운영자가 입력한 값(delay_applied_min)이 예정 시각에 이미
+               반영돼 있으므로, 자동 기록은 그 시각에 일어난 것으로 본다. */
             if ((f->status == F_SCHEDULED || f->status == F_BOARDING ||
                  f->status == F_DELAYED) && now >= f->depart_epoch) {
                 f->status = F_DEPARTED;
-                f->actual_depart_epoch = now;
-                append_event_flight_locked(i, now, F_DEPARTED, "자동 출발 기록");
+                f->actual_depart_epoch = f->depart_epoch;
+                append_event_flight_locked(i, f->depart_epoch, F_DEPARTED, "자동 출발 기록");
                 changed++;
             }
             if (f->status == F_DEPARTED && now >= f->arrive_epoch) {
                 f->status = F_ARRIVED;
-                f->actual_arrive_epoch = now;
-                append_event_flight_locked(i, now, F_ARRIVED, "자동 도착 기록");
+                f->actual_arrive_epoch = f->arrive_epoch;
+                append_event_flight_locked(i, f->arrive_epoch, F_ARRIVED, "자동 도착 기록");
                 changed++;
             }
         }
