@@ -14,9 +14,9 @@
 ## 1. 문제정의
 
 - 웹에서는 많은 사람이 동시에 접속하고, 서버 한 대가 최대한 많은 요청을 받아야 합니다.
-- 네트워크로 바이트가 오는 시간은 길고, CPU가 요청을 처리하는 시간은 짧습니다. **바이트를 기다리는 동안 CPU를 놀리지 않는 것**이 핵심입니다.
+- 네트워크로 바이트가 오는 시간은 길고, CPU가 요청을 처리하는 시간은 짧습니다. 다행히 바이트를 받는 일은 랜카드와 커널이 하기 때문에, CPU가 요청을 처리하는 일과 겹쳐서 진행될 수 있습니다. 그래서 **바이트를 기다리는 동안 CPU를 놀리지 않는 것**이 핵심입니다.
 - TCP는 경계가 없는 바이트 흐름이라 요청 하나가 여러 조각으로 나뉘어 도착합니다. 연결마다 버퍼에 이어 붙이고, 헤더 끝(빈 줄)과 `Content-Length`로 요청이 다 왔는지 판단해야 합니다.
-- 연결마다 스레드를 두면 연결이 수만 개일 때(C10K) 메모리와 컨텍스트 스위칭 비용이 커집니다.
+- 가장 단순한 방법은 연결마다 스레드를 하나씩 두는 것입니다. 하지만 연결이 수만 개면(C10K) 스레드도 그만큼 늘어나 메모리와 컨텍스트 스위칭 비용이 커집니다. 그래서 일하는 스레드인 워커는 코어 수에 맞춰 4개만 두었습니다.
 - 논블로킹으로 연결마다 데이터가 왔는지 계속 물어보면, CPU를 낭비하거나 도착과 확인 사이에 지연(GAP)이 생깁니다.
 
 ![연결을 기다리는 세 가지 방식](docs/img/concurrency-models.png)
@@ -206,23 +206,24 @@ make verify-demo
 | 과제 요구사항 | 명령 | 확인 내용 | 결과 |
 |---|---|---|---|
 | 단위: HTTP 파서 | `make test` | 요청 줄·헤더·본문 경계, `NEED_MORE`/`COMPLETE`/`ERROR` | 통과 |
-| 단위: MIME 매핑·경로 보안 | `make test` | 확장자별 MIME, 지정 폴더 밖 접근 차단, 404 | 통과 |
-| 단위: 라우팅·프록시 경로 바꾸기 | `make test` | prefix 매칭, rewrite | 통과 |
+| 단위: MIME 매핑·경로 보안 | `make test` (`test_static`, `test_mime`) | 확장자별 MIME, 모르는 확장자, 지정 폴더 밖 접근 차단, 404 | 통과 |
+| 단위: 라우팅·프록시 전달 로직 | `make test` (`test_route`, `test_proxy`) | prefix 매칭, 경로 바꾸기, Round-Robin 순서, 일치하는 route 없음 | 통과 |
 | 기능: 실제 HTTP 클라이언트 (curl) | `make integration`, `make integration-req` | 정적 파일, keep-alive, 프록시 RR·X-Forwarded-For·502·504 | 통과 |
-| 기능: 동시 다중 클라이언트 | `make integration` | 100개 동시 접속, 느린 클라이언트가 다른 요청을 막지 않음 | 통과 |
+| 기능: 동시 다중 클라이언트 | `make integration`, `make integration-concurrent` | 100개 동시 접속, 동시 curl 50개 전부 200, 느린 클라이언트가 다른 요청을 막지 않음 | 통과 |
 | 기능: 브라우저 | 시연 순서 2~3 | 예약 → 결제 → 알림, 서비스 중지 시 빨간 테두리 | 수동 확인 |
 | 기능: 서비스 장애 격리 | `make integration-airports`, `make integration-notifications` | 공항 B 종료 시 그 차례만 502, 알림·큐 장애에도 결제 201, 재시작 후 밀린 알림 처리 | 통과 |
 | 부하 (`hey`, `/health`) | 아래 표 | 동시 수별 처리량 | 동시 100: 63,174 RPS, 에러 0 |
-| 부하 (`ab`, `/flights.html`) | 시연 순서 4 | 동시 100, 3000건 | 약 5,400 RPS, 평균 18ms |
+| 부하 (`ab`, 정적 `/flights.html`) | 시연 순서 4 | 동시 10 / 50 / 100, 각 5000건 | 6,470 / 6,346 / 7,551 RPS, 실패 0 |
+| 부하 (`ab`, 프록시 `/api/airports/ICN`) | `ab -n 1000 -c 10 -s 10` | 프록시 스레드 → 공항 서버 A/B | 4,331 RPS, 평균 2.3ms, 실패 0 |
 | 부하: 트래픽 급증·큐 상한 | `make review-cases` | 동시 100 × 1000 요청 Non-2xx 0, 프록시 큐가 차면 503 | 통과 |
-| 메모리: 잘못된 접근 | `make asan` 후 시나리오 실행 | AddressSanitizer + UBSan | 오류 0 |
-| 메모리: 누수 | `make leak` (Docker, Linux valgrind) | 누수 | 누수 0 |
-| 메모리: 데이터 경합 | `make tsan` | 좌석 경쟁 after 모드 | 경합 0 |
-| 엣지: 비정상 메서드 / 잘못된 버전 | `make edge-cases` | 405 / 505 | 통과 |
-| 엣지: 매우 긴 URI / 큰 본문 | `make edge-cases` | 414 / 413 | 통과 |
+| 메모리: 잘못된 접근 | ASan + UBSan 빌드로 `integration`, `edge-cases`, `integration-req`, `integration-airports` 실행 (Linux) | 버퍼 넘침, 해제 후 사용, 정의되지 않은 동작 | 오류 0 |
+| 메모리: 누수 | `-fsanitize=leak` 빌드로 위 시나리오 실행 (Linux), `make leak` (Docker valgrind) | 정상 종료(SIGTERM) 후 누수 | 누수 0 |
+| 메모리: 데이터 경합 | `make tsan` + `make integration-flight` | 좌석 경쟁: 락을 끈 before 모드에서만 경합 재현, 락을 건 after 모드 경합 0 | before 1건(의도된 재현), after 0 |
+| 엣지: 비정상 메서드 / 잘못된 버전 / 깨진 요청 줄 | `make edge-cases` | 405 / 505 / 400 | 통과 |
+| 엣지: 매우 긴 URI / 큰 본문 / 큰 헤더 | `make edge-cases` | 414 / 413 / 431 | 통과 |
 | 엣지: 백엔드 없음 / 타임아웃 | `make edge-cases`, `make integration-req` | 502 / 504 | 통과 |
 | 엣지: 갑작스러운 연결 종료 | `make edge-cases` | 불완전 요청 후 끊김, RST 후 서버 생존 | 통과 |
-| 엣지: 유휴 연결 | `make edge-cases` | 5초 후 연결 정리 | 통과 |
+| 엣지: 불완전한 헤더 / 유휴 연결 | `make edge-cases` | 헤더를 덜 보내고 멈춘 연결, 아무것도 안 보내는 연결 → 5초 후 정리 | 통과 |
 | 재시작: 같은 포트 | `make restart-test` | `SO_REUSEADDR`로 `Address already in use` 없음 | 통과 |
 
 `make asan`, `make tsan`은 바이너리를 sanitizer 빌드로 다시 만듭니다. 검사 후에는 `make clean` 후 `make`로 일반 빌드로 되돌립니다.
@@ -243,14 +244,17 @@ make verify-demo
 - 동시 10~100에서는 워커 수를 늘려도 큰 차이가 없습니다. `/health`는 일이 짧아 병렬화 이득이 적습니다.
 - 동시 1000에서는 워커당 연결 상한(128)을 넘는 연결을 서버가 받자마자 닫고, 맥의 임시 포트 고갈도 함께 나옵니다. 서버 프로세스는 죽지 않았고, 부하 후 `/health`는 200이었습니다.
 
-### 부하 테스트 (macOS, `ab`, `/flights.html`, 각 3000건)
+### 부하 테스트 (macOS, `ab`)
 
-| 동시 | RPS | 평균 응답 (ms) |
-|---|---|---|
-| 1 | 2,700 | 0.37 |
-| 10 | 4,813 | 2.08 |
-| 50 | 5,680 | 8.80 |
-| 100 | 5,438 | 18.39 |
+| 대상 | 동시 | 요청 수 | RPS | 평균 응답 (ms) | 실패 |
+|---|---|---|---|---|---|
+| 정적 `/flights.html` | 10 | 5000 | 6,470 | 1.55 | 0 |
+| 정적 `/flights.html` | 50 | 5000 | 6,346 | 7.88 | 0 |
+| 정적 `/flights.html` | 100 | 5000 | 7,551 | 13.24 | 0 |
+| 프록시 `/api/airports/ICN` | 10 | 1000 | 4,331 | 2.31 | 0 |
+
+- 같은 노트북에서 클라이언트(ab)와 서버를 함께 돌려 측정값이 실행마다 흔들립니다(동시 100에서 11,488 RPS가 나온 실행도 있음).
+- 프록시 경로는 프록시 스레드 1개를 거쳐 Python 백엔드까지 다녀와 정적 파일보다 낮습니다.
 
 상세 출력은 [records/VERIFICATION_LOG.md](docs/records/VERIFICATION_LOG.md)에 있습니다.
 

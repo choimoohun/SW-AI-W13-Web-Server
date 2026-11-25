@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases demo-up demo-down noti-up noti-down mq-stats verify-demo pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases demo-up demo-down noti-up noti-down mq-stats verify-demo pr-review clean bench integration-concurrent ui-smoke
 
 all: $(BIN)
 
@@ -33,6 +33,10 @@ test:
 	@$(TESTBIN)/test_static
 	$(CC) $(CFLAGS) -o $(TESTBIN)/test_route tests/unit/test_route.c src/config.c
 	@$(TESTBIN)/test_route
+	$(CC) $(CFLAGS) -o $(TESTBIN)/test_mime tests/unit/test_mime.c src/static_handler.c
+	@$(TESTBIN)/test_mime
+	$(CC) $(CFLAGS) -o $(TESTBIN)/test_proxy tests/unit/test_proxy.c src/config.c
+	@$(TESTBIN)/test_proxy
 
 # 기능(통합) 테스트: 서버를 띄우고 curl 로 정적 서빙 검증.
 integration: $(BIN)
@@ -100,6 +104,20 @@ load-test: $(BIN)
 # 동시 100, 1000요청: FR-06 "100 동시 접속" 수용 기준 확인.
 load-test-heavy: $(BIN)
 	@LOAD_C=100 LOAD_N=1000 sh tests/integration/load_test.sh
+
+# 부하 테스트 (ab): 동시 1/10/50/100/200 × 3000건. 결과를 docs/bench.md에 저장.
+bench: $(BIN)
+	@sh tests/integration/bench.sh
+
+# 동시 다중 클라이언트: 동시 curl 50개로 /flights.html과 /api/flights를 요청해 전부 200인지 확인.
+integration-concurrent: $(BIN)
+	@sh tests/integration/integration_concurrent.sh
+
+# 브라우저 UI 스모크 (Playwright): demo-up → 예약 → 결제 → 내 예약 카드 초록 →
+# noti-down → 새 예약 결제 → 빨강 → noti-up → 2초 안에 초록 → demo-down.
+ui-smoke:
+	@test -n "$(wildcard tests/ui/shots.js)" || { echo "tests/ui/shots.js 없음 — 먼저 tests/ui/shots.js 를 작성/이동할 것"; exit 1; }
+	@node tests/ui/shots.js
 
 # 검토 과제용 테스트 케이스: 트래픽 급증/느린 클라이언트/예약·결제 일관성/워커 격리.
 review-cases: $(BIN)

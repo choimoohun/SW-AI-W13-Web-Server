@@ -109,3 +109,41 @@ echo '=== 접근 로그 샘플 ==='
 grep '\[w' "$LOG" | head -3 || true
 
 [ $fail -eq 0 ] && echo 'edge cases: all passed' || { echo 'edge cases: FAILED'; exit 1; }
+
+echo '=== 요청 줄이 깨진 요청 → 400 ==='
+resp=$(printf 'GET / HTTP\r\nHost: localhost\r\n\r\n' | nc -w 1 127.0.0.1 "$PORT" | head -1 | tr -d '\r' || true)
+case "$resp" in *400*) pass "요청 줄 깨짐 ($resp)";; *) fail_case "요청 줄 깨짐 ($resp)";; esac
+
+echo '=== 헤더를 끝까지 안 보내고 멈춘 연결 → 5초 뒤 서버 닫힘 ==='
+idle_out=$(python3 - "$PORT" <<'PY'
+import socket, sys, time
+port = int(sys.argv[1])
+s = socket.create_connection(("127.0.0.1", port), timeout=3)
+s.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n")   # 마지막 \r\n\r\n 누락
+time.sleep(6)   # 유휴 상태로 5초 뒤 닫힘
+s.settimeout(2)
+try:
+    data = s.recv(1)
+except socket.timeout:
+    data = b""
+s.close()
+print("closed" if data == b"" else "open")
+PY
+)
+if [ "$idle_out" = "closed" ]; then echo "PASS  헤더 미완 후 5초 뒤 연결 종료"
+else echo "FAIL  헤더 미완 후 5초 후에도 열림 ($idle_out)"; fail=1; fi
+
+echo '=== 헤더가 너무 큰 요청 → 431 ==='
+{ printf 'GET / HTTP/1.1\r\nHost: localhost\r\nX-Big: '; head -c 9000 /dev/zero | tr '\0' 'a'; printf '\r\n\r\n'; } > "$REQ"
+resp=$(nc -w 2 127.0.0.1 "$PORT" <"$REQ" | head -1 | tr -d '\r' || true)
+case "$resp" in *431*) pass "헤더 과다 ($resp)";; *) fail_case "헤더 과다 ($resp)";; esac
+rm -f "$REQ"
+
+echo '=== 응답 상태 줄의 \r 제거 (화면에 )ASS 로 깨지는 문제) ==='
+status_line=$(printf 'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n' | nc -w 1 127.0.0.1 "$PORT" | head -1 | tr -d '\r' || true)
+case "$status_line" in
+    "HTTP/1.1 200 OK") pass "상태줄 \r 제거 ($status_line)";;
+    *) fail_case "상태줄 깨짐 ($status_line)";;
+esac
+
+[ $fail -eq 0 ] && echo 'edge cases: all passed' || { echo 'edge cases: FAILED'; exit 1; }
