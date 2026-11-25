@@ -1,8 +1,8 @@
 #include "proxy.h"
+#include "io.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -10,36 +10,19 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
-#include <time.h>
 #include <unistd.h>
 
 enum { GATEWAY_ERROR = 502, GATEWAY_TIMEOUT = 504, TIMEOUT_MS = 3000, HEADER_LIMIT = 4096 };
 
-static int64_t monotonic_ms(void)
-{
-    struct timespec now;
-    if (clock_gettime(CLOCK_MONOTONIC, &now) == -1) return -1;
-    return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
-}
-
 static int wait_ready(int fd, short events, int64_t deadline)
 {
-    struct pollfd socket = { .fd = fd, .events = events };
-    for (;;) {
-        int64_t now = monotonic_ms();
-        if (now < 0) return GATEWAY_ERROR;
-        if (now >= deadline) return GATEWAY_TIMEOUT;
-
-        int ready = poll(&socket, 1, (int)(deadline - now));
-        if (ready > 0) return (socket.revents & POLLNVAL) ? GATEWAY_ERROR : 0;
-        if (ready == 0) return GATEWAY_TIMEOUT;
-        if (errno != EINTR) return GATEWAY_ERROR;
-    }
+    if (wait_fd(fd, events, deadline) == 0) return 0;
+    return errno == ETIMEDOUT ? GATEWAY_TIMEOUT : GATEWAY_ERROR;
 }
 
 static int connect_backend(int fd, const struct sockaddr_in *address, int64_t deadline)
 {
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) return GATEWAY_ERROR;
+    if (set_nonblocking(fd) == -1) return GATEWAY_ERROR;
     if (connect(fd, (const struct sockaddr *)address, sizeof *address) == 0) return 0;
     if (errno == ETIMEDOUT) return GATEWAY_TIMEOUT;
     if (errno != EINPROGRESS && errno != EINTR) return GATEWAY_ERROR;

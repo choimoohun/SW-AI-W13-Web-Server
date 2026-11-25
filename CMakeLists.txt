@@ -18,7 +18,10 @@ if(NOT WEB_SERVER_HAS_POSIX_SOCKET)
     message(FATAL_ERROR "POSIX socket() is required.")
 endif()
 
-add_executable(web_server src/main.c src/http.c src/booking.c src/proxy.c)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+add_executable(web_server src/main.c src/http.c src/booking.c src/proxy.c src/io.c src/workers.c)
+target_link_libraries(web_server PRIVATE Threads::Threads)
 
 include(CTest)
 if(BUILD_TESTING)

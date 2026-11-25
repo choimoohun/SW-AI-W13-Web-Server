@@ -1,4 +1,5 @@
 #include "http.h"
+#include "workers.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -85,20 +86,21 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "Listening on %s:%u (root: %s)\n", bind_address,
             (unsigned)ntohs(address.sin_port), config.document_root);
-    int result;
+    if (config.booking_backend || config.proxy_prefix != NULL) {
+        return serve_connections(listenfd, &config);
+    }
+
+    int connfd;
     do {
-        int connfd;
-        do {
-            connfd = accept(listenfd, NULL, NULL);  // 이번 연결의 통신용 FD
-        } while (connfd == -1 && errno == EINTR);
-        if (connfd == -1) {
-            perror("accept");
-            result = EXIT_FAILURE;
-            break;
-        }
-        result = handle_http_client(connfd, &config);
-        close(connfd);
-    } while (config.booking_backend || config.proxy_prefix != NULL);
+        connfd = accept(listenfd, NULL, NULL);  // 기본 실습 모드는 한 연결만 받는다.
+    } while (connfd == -1 && errno == EINTR);
+    if (connfd == -1) {
+        perror("accept");
+        close(listenfd);
+        return EXIT_FAILURE;
+    }
+    int result = handle_http_client(connfd, &config);
+    close(connfd);
     close(listenfd);
     return result;
 }

@@ -1,9 +1,11 @@
 #include "http.h"
 #include "booking.h"
+#include "io.h"
 #include "proxy.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,7 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-enum { MAX_HEADER_BYTES = 4096, MAX_BODY_BYTES = 8192 };
+enum { MAX_HEADER_BYTES = 4096, MAX_BODY_BYTES = 8192, CLIENT_TIMEOUT_MS = 5000 };
 
 struct request {
     char *method;
@@ -33,14 +35,30 @@ static ssize_t read_bytes(int fd, char *buffer, size_t length)
     return count;
 }
 
-static int read_headers(int fd, char *buffer, size_t *used, size_t *header_end)
+static int64_t client_deadline(void)
+{
+    int64_t now = monotonic_ms();
+    return now < 0 ? -1 : now + CLIENT_TIMEOUT_MS;
+}
+
+static ssize_t read_client(int fd, char *buffer, size_t length, int64_t deadline)
+{
+    for (;;) {
+        if (wait_fd(fd, POLLIN, deadline) == -1) return -1;
+        ssize_t count = read(fd, buffer, length);
+        if (count < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+        return count;
+    }
+}
+
+static int read_headers(int fd, char *buffer, size_t *used, size_t *header_end, int64_t deadline)
 {
     size_t next = 3;
 
     while (*used < MAX_HEADER_BYTES) {
-        ssize_t count = read_bytes(fd, buffer + *used, MAX_HEADER_BYTES - *used);
+        ssize_t count = read_client(fd, buffer + *used, MAX_HEADER_BYTES - *used, deadline);
         if (count <= 0) {
-            return 400;
+            return count < 0 && errno == ETIMEDOUT ? 408 : 400;
         }
         *used += (size_t)count;
 
@@ -224,11 +242,12 @@ static int parse_headers(char *line, char *end, struct request *request)
     return 200;
 }
 
-static int write_all(int fd, const char *buffer, size_t length)
+static int write_all(int fd, const char *buffer, size_t length, int64_t deadline)
 {
     while (length > 0) {
+        if (wait_fd(fd, POLLOUT, deadline) == -1) return -1;
         ssize_t written = write(fd, buffer, length);
-        if (written < 0 && errno == EINTR) {
+        if (written < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
         if (written <= 0) {
@@ -241,7 +260,7 @@ static int write_all(int fd, const char *buffer, size_t length)
 }
 
 static int respond_headers(int fd, int status, const char *reason, const char *type,
-                           size_t length, const char *allow)
+                           size_t length, const char *allow, int64_t deadline)
 {
     char headers[256];
     int bytes = snprintf(headers, sizeof headers,
@@ -250,7 +269,7 @@ static int respond_headers(int fd, int status, const char *reason, const char *t
                          status, reason, type, length, allow ? "Allow: " : "",
                          allow ? allow : "", allow ? "\r\n" : "");
     if (bytes < 0 || (size_t)bytes >= sizeof headers ||
-        write_all(fd, headers, (size_t)bytes) < 0) {
+        write_all(fd, headers, (size_t)bytes, deadline) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -259,8 +278,10 @@ static int respond_headers(int fd, int status, const char *reason, const char *t
 static int respond(int fd, int status, const char *reason, const char *type,
                    const char *body, size_t length, const char *allow)
 {
-    if (respond_headers(fd, status, reason, type, length, allow) != EXIT_SUCCESS ||
-        write_all(fd, body, length) < 0) {
+    int64_t deadline = client_deadline();
+    if (deadline < 0 ||
+        respond_headers(fd, status, reason, type, length, allow, deadline) != EXIT_SUCCESS ||
+        write_all(fd, body, length, deadline) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -275,6 +296,7 @@ static const char *reason_phrase(int status)
     case 403: return "Forbidden";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
+    case 408: return "Request Timeout";
     case 409: return "Conflict";
     case 413: return "Content Too Large";
     case 415: return "Unsupported Media Type";
@@ -402,12 +424,14 @@ static int serve_static(int connfd, const char *root, char *target)
     }
 
     size_t remaining = (size_t)info.st_size;
-    int result = respond_headers(connfd, 200, "OK", type, remaining, NULL);
+    int64_t deadline = client_deadline();
+    int result = deadline < 0 ? EXIT_FAILURE :
+                 respond_headers(connfd, 200, "OK", type, remaining, NULL, deadline);
     char chunk[4096];
     while (result == EXIT_SUCCESS && remaining > 0) {
         size_t limit = remaining < sizeof chunk ? remaining : sizeof chunk;
         ssize_t count = read_bytes(file, chunk, limit);
-        if (count <= 0 || write_all(connfd, chunk, (size_t)count) < 0) {
+        if (count <= 0 || write_all(connfd, chunk, (size_t)count, deadline) < 0) {
             result = EXIT_FAILURE;                // 헤더를 보낸 뒤라면 연결을 닫아 종료한다.
         } else {
             remaining -= (size_t)count;
@@ -450,7 +474,10 @@ int handle_http_client(int connfd, const struct http_config *config)
     size_t used = 0;
     size_t header_end;
 
-    int status = read_headers(connfd, buffer, &used, &header_end);
+    if (set_nonblocking(connfd) == -1) return EXIT_FAILURE;
+    int64_t deadline = client_deadline();
+    if (deadline < 0) return EXIT_FAILURE;
+    int status = read_headers(connfd, buffer, &used, &header_end, deadline);
     if (status != 200) {
         return respond_error(connfd, status);
     }
@@ -476,9 +503,9 @@ int handle_http_client(int connfd, const struct http_config *config)
     char *body = end;
     size_t received = used - header_end;       // 헤더와 함께 받은 본문부터 사용한다.
     while (received < request.body_length) {
-        ssize_t count = read_bytes(connfd, body + received, request.body_length - received);
+        ssize_t count = read_client(connfd, body + received, request.body_length - received, deadline);
         if (count <= 0) {
-            return respond_error(connfd, 400);
+            return respond_error(connfd, count < 0 && errno == ETIMEDOUT ? 408 : 400);
         }
         received += (size_t)count;
     }
