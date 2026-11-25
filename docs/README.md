@@ -13,7 +13,9 @@
 ```mermaid
 flowchart LR
     A["TCP 소켓 서버<br/>listen, accept"] --> B["HTTP 요청 파싱<br/>헤더, 본문 읽기"]
-    B --> C["정적 파일 서빙<br/>경로 해석, 파일 열기"]
+    B -->|"그 밖"| C["정적 파일 서빙<br/>경로 해석, 파일 열기"]
+    B -->|"/cgi-bin/"| G["동적 요청 처리<br/>CGI fork, exec"]
+    G --> D
     C --> D["HTTP 응답 생성<br/>상태 줄, 헤더"]
     D --> E["연결 닫기"]
     E --> A
@@ -29,7 +31,7 @@ flowchart LR
 | 2 | [HTTP 요청 파싱](./http-request-parsing/design.md) | 11.5.3 | 완료 | 단위 테스트만 먼저 실행 가능. 기능 테스트는 4단계 `httpd` 이후 |
 | 3 | [HTTP 응답 생성](./http-response/design.md) | 11.5.3 | 완료 | 2단계와 같음 |
 | 4 | [정적 파일 서빙](./static-file-serving/design.md) | 11.5.2 | 완료 | `httpd`의 `main`과 연결 처리, 전체 빌드 설계가 이 문서에 있음 |
-| 5 | 동적 요청 처리 | 11.5.4 | 미설계 | |
+| 5 | [동적 요청 처리](./dynamic-request/design.md) | 11.5.4 | 완료 | CGI. 스레드 풀에서 안전하도록 출력을 파이프로 받은 뒤 상태 코드를 정함 |
 | 6 | 동시 요청 처리 | 12장 | 미설계 | keep-alive, 안전한 셧다운도 이 단계에서 다룸 |
 | 7 | Proxy 또는 Reverse Proxy | | 미설계 | |
 

@@ -52,6 +52,8 @@ while (left > 0) {
 
 ## httpd.c
 
+> 5단계에서 `handle_connection()`이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로 바뀌었습니다. 아래는 4단계 기준입니다.
+
 | 함수 | 설명 | 입력 | 출력 |
 | --- | --- | --- | --- |
 | `int main(int argc, char **argv)` | `SIGPIPE`를 무시하고 리스닝 소켓을 만든 뒤, 연결마다 `handle_connection()`과 `Close()`를 호출합니다. `accept()`가 `EINTR`, `ECONNABORTED`로 실패하면 다음 반복으로 넘어갑니다. | `argv[1]`: 포트, `argv[2]`: 정적 루트 | 인자 개수가 3이 아니면 표준 오류에 `usage: <argv[0]> <port> <root>` 후 `exit(0)`. 정상 경로에서는 반환하지 않음 |

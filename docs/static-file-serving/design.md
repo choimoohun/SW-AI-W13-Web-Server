@@ -16,6 +16,8 @@
 
 ## 연결 처리 흐름
 
+> 5단계에서 메서드 판정(`method == GET?`)이 [정적·CGI 분기](../dynamic-request/design.md#요청-분기)로 바뀌었습니다. 아래는 4단계 기준입니다.
+
 서버는 `./build/httpd <port> <root>`로 실행합니다. 리스닝과 `accept()` 반복은 [보완한 순차 에코 서버](../tcp-socket-server/functions.md#echoserveric)와 같고, `echo()` 자리에 `handle_connection()`이 들어갑니다.
 
 ```mermaid
@@ -71,7 +73,7 @@ flowchart TD
 | 단계 | 처리 | 예: 루트 `/srv/www` |
 | --- | --- | --- |
 | 1 | `?`가 있으면 그 앞까지만 씁니다. 정적 파일에는 인자가 없습니다 | `/style.css?v=2` → `/style.css` |
-| 2 | 경로 조각 중 `..`이 있으면 403입니다 | `/../etc/passwd` → 403 |
+| 2 | 경로 조각 중 `..`, `.`, 빈 조각(`//`)이 있으면 403입니다(5단계에서 `.`과 빈 조각 추가) | `/../etc/passwd`, `//cgi-bin/x` → 403 |
 | 3 | 루트 뒤에 붙입니다 | `/style.css` → `/srv/www/style.css` |
 | 4 | `/`로 끝나면 `index.html`을 붙입니다 | `/` → `/srv/www/index.html` |
 | 5 | 결과가 `MAXLINE`을 넘으면 400입니다 | |

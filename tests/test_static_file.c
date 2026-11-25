@@ -35,6 +35,13 @@ static void test_resolve(void)
     assert(static_resolve_path("/srv/www", "/a?/../b", path, sizeof path) == 0); /* '?' 뒤는 검사하지 않음 */
     assert(strcmp(path, "/srv/www/a") == 0);
 
+    /* S17: 같은 파일의 다른 표기는 거부. "/cgi-bin/" 접두사 검사를 피하지 못하게 함 */
+    assert(static_resolve_path("/srv/www", "//cgi-bin/x", path, sizeof path) == 403);
+    assert(static_resolve_path("/srv/www", "/./cgi-bin/x", path, sizeof path) == 403);
+    assert(static_resolve_path("/srv/www", "/cgi-bin//x", path, sizeof path) == 403);
+    assert(static_resolve_path("/srv/www", "/dir/", path, sizeof path) == 0); /* 끝 '/'는 index.html */
+    assert(static_resolve_path("/srv/www", "/.hidden", path, sizeof path) == 0);
+
     /* S04 */
     assert(static_resolve_path("/srv/www", "/style.css", path, 16) == 400);
     /* 경계: 정확히 맞으면 성공, 1바이트 모자라면 400 */

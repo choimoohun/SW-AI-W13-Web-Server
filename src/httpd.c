@@ -1,12 +1,14 @@
 /*
- * httpd.c - 순차 정적 파일 웹 서버 (CS:APP3e 11.6 Tiny 기반)
- * 설계: docs/static-file-serving/design.md
+ * httpd.c - 순차 웹 서버 (CS:APP3e 11.6 Tiny 기반)
+ * 설계: docs/static-file-serving/design.md, docs/dynamic-request/design.md
  */
+#include "cgi.h"
 #include "http_request.h"
 #include "http_response.h"
 #include "static_file.h"
 
 #define CONN_TIMEOUT_SEC 5 /* docs/static-file-serving/design.md#연결-시간-제한 */
+#define CGI_PREFIX "/cgi-bin/"
 
 static void handle_connection(int connfd, const char *root)
 {
@@ -36,7 +38,9 @@ static void handle_connection(int connfd, const char *root)
             http_send_error(connfd, 500);
         goto out;
     }
-    if (strcmp(req.method, "GET") != 0) {
+    int dynamic = strncmp(req.uri, CGI_PREFIX, strlen(CGI_PREFIX)) == 0;
+    int allowed = strcmp(req.method, "GET") == 0 || (dynamic && strcmp(req.method, "POST") == 0);
+    if (!allowed) {
         http_send_error(connfd, 501);
         goto out;
     }
@@ -44,7 +48,10 @@ static void handle_connection(int connfd, const char *root)
         http_send_error(connfd, rc);
         goto out;
     }
-    static_serve(connfd, path);
+    if (dynamic)
+        cgi_serve(connfd, path, &req);
+    else
+        static_serve(connfd, path);
 out:
     http_request_free(&req);
 }
@@ -64,6 +71,7 @@ int main(int argc, char **argv)
     Signal(SIGPIPE, SIG_IGN);
 
     listenfd = Open_listenfd(argv[1]);
+    fcntl(listenfd, F_SETFD, FD_CLOEXEC); /* CGI가 리스닝 소켓을 물려받지 않게 합니다. */
     while (1) {
         clientlen = sizeof(struct sockaddr_storage);
         connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
@@ -72,6 +80,7 @@ int main(int argc, char **argv)
                 continue;
             unix_error("Accept error");
         }
+        fcntl(connfd, F_SETFD, FD_CLOEXEC); /* CGI는 이 소켓 대신 파이프로 출력합니다. */
         /* 순차 서버라 멈춘 클라이언트 하나가 모두를 막으므로 read/write마다 시간 제한을 겁니다.
            shortcut: 호출마다의 제한이라 바이트를 흘려 보내는 클라이언트는 못 막음. 동시 처리 단계에서 다시 봄 */
         struct timeval tv = {.tv_sec = CONN_TIMEOUT_SEC};

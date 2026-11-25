@@ -30,6 +30,7 @@ printf 'secret\n' > /tmp/www/secret.html && chmod 000 /tmp/www/secret.html
 | S03 | 루트 `/srv/www`로 `/../etc/passwd`, `/a/..`, `/a/../b` | 셋 다 403 |
 | S04 | `size`를 16으로 두고 `/style.css` | 400. 결과 `/srv/www/style.css`가 버퍼보다 김 |
 | S15 | 임시 디렉터리에 `mkfifo()`로 만든 FIFO를 `socketpair()`의 한쪽 끝으로 `static_serve()` | 막히지 않고 `HTTP/1.1 403`으로 시작하는 응답. 5초 안에 끝나지 않으면 `alarm()`으로 실패 |
+| S17 | 루트 `/srv/www`로 `//cgi-bin/x`, `/./cgi-bin/x`, `/cgi-bin//x`, 그리고 `/dir/`, `/.hidden` | 앞의 셋은 403, 뒤의 둘은 0. [CGI 소스 노출](../dynamic-request/design.md#접두사-검사와-경로-정규화) 방지 |
 
 ## 정상 응답
 

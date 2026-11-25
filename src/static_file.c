@@ -28,10 +28,14 @@ int static_resolve_path(const char *root, const char *uri, char *path, size_t si
 {
     size_t len = strcspn(uri, "?");
 
-    /* 정확히 ".."인 조각만 거부합니다. "a..b"는 허용합니다. */
+    /* "..", ".", 빈 조각("//")을 거부해 한 파일을 가리키는 URI를 하나로 만듭니다. "a..b"는 허용합니다.
+       그래야 "//cgi-bin/x"처럼 접두사 검사를 피해 CGI 프로그램을 정적 파일로 받아 가지 못합니다. */
     for (size_t i = 0; i < len;) {
         size_t seg = strcspn(uri + i, "/?");
-        if (seg == 2 && uri[i] == '.' && uri[i + 1] == '.')
+        int dotdot = seg == 2 && uri[i] == '.' && uri[i + 1] == '.';
+        int dot = seg == 1 && uri[i] == '.';
+        int empty = seg == 0 && i > 0; /* 맨 앞 '/' 앞의 빈 조각은 정상 */
+        if (dotdot || dot || empty)
             return 403;
         i += seg + 1;
     }
@@ -43,7 +47,7 @@ int static_resolve_path(const char *root, const char *uri, char *path, size_t si
     return 0;
 }
 
-static int open_status(int err)
+int static_errno_status(int err)
 {
     switch (err) {
     case ENOENT:
@@ -56,10 +60,11 @@ static int open_status(int err)
 
 int static_serve(int fd, const char *path)
 {
-    /* O_NONBLOCK: FIFO를 열 때 쓰는 쪽을 기다리며 서버 전체가 멈추지 않게 합니다. */
-    int filefd = open(path, O_RDONLY | O_NONBLOCK);
+    /* O_NONBLOCK: FIFO를 열 때 쓰는 쪽을 기다리며 워커가 멈추지 않게 합니다.
+       O_CLOEXEC: 다른 워커가 fork한 CGI에 이 파일이 새지 않게 합니다. */
+    int filefd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (filefd < 0)
-        return http_send_error(fd, open_status(errno));
+        return http_send_error(fd, static_errno_status(errno));
 
     struct stat sb;
     int status = 0, fl;
