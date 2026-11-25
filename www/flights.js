@@ -210,6 +210,37 @@
       .then(renderTimeline);
   }
 
+  /* 알림은 비동기(결제 -> MQ -> 알림 서비스)로 도착한다. 없어도 예약 표시는 유지한다. */
+  function loadNotice(parent, rid) {
+    fetch('/api/notifications/by-reservation?rid=' + encodeURIComponent(rid))
+      .then(function (resp) {
+        if (!resp.ok) return { down: resp.status >= 500 };
+        return resp.json();
+      })
+      .then(function (out) {
+        var d = document.createElement('div');
+        d.className = 'notice';
+        if (out && out.down) {
+          d.textContent = '알림 서비스 점검 중 — 결제·예약은 정상';
+        } else {
+          var list = (out && out.notifications) || [];
+          if (list.length === 0) {
+            d.textContent = '알림 대기 중 (메시지 큐 처리 전)';
+          } else {
+            var last = list[list.length - 1];
+            d.textContent = last.text + ' · ' + time(last.time);
+          }
+        }
+        parent.appendChild(d);
+      })
+      .catch(function () {
+        var d = document.createElement('div');
+        d.className = 'notice';
+        d.textContent = '알림 서비스 점검 중 — 결제·예약은 정상';
+        parent.appendChild(d);
+      });
+  }
+
   function renderReservations(data) {
     var box = $('reservations');
     box.innerHTML = '';
@@ -256,6 +287,7 @@
                       : '') +
                     '<button class="ghost" data-cancel="' + r.id + '">취소</button>');
                 box.appendChild(el);
+                loadNotice(el, r.id);
                 done();
               });
           })

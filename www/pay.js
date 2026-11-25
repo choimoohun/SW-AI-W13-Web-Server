@@ -56,7 +56,8 @@
         return;
       }
       $('result').innerHTML = '결제 완료: ' + pay.id + ' · ' + pay.status +
-        '<br><a class="ghost" href="/flights.html" style="display:inline-block;margin-top:12px">예약 화면으로 돌아가기</a>';
+        '<br><a class="ghost" href="/flights.html" style="display:inline-block;margin-top:12px">예약 화면으로 돌아가기</a>' +
+        '<div class="muted" style="margin-top:8px">예약 확정 알림은 잠시 후 \'내 예약\'에 표시됩니다</div>';
     }).catch(function () {
       $('result').textContent = '결제 서비스에 연결할 수 없습니다.';
       $('payBtn').disabled = false;

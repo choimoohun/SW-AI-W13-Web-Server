@@ -12,7 +12,7 @@ DEPS := $(OBJS:.o=.d)
 BIN  := webserver
 TESTBIN := tests/bin
 
-.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
+.PHONY: all test integration restart-test test-flight integration-flight integration-persist test-tracking integration-tracking integration-req integration-backends integration-airports integration-notifications integration-payments edge-cases mutation reset-flights load-test load-test-heavy leak asan tsan review-cases pr-review clean
 
 all: $(BIN)
 
@@ -76,6 +76,10 @@ integration-airports: $(BIN)
 # 결제 서비스(별도 프로세스·자기 DB·중복 방지 키·환불·독립 재시작) 연동 검증.
 integration-payments: $(BIN)
 	@sh tests/integration/payment_service.sh
+
+# 결제 → 메시지 큐 → 알림 서비스 비동기 연동(아웃박스·lease 재시도·멱등).
+integration-notifications: $(BIN)
+	@sh tests/integration/notification_service.sh
 
 # 예약 상태 파일을 지우고 16편 시드로 다시 시작.
 reset-flights:

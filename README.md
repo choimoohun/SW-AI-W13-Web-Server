@@ -61,8 +61,10 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 
 | 경로 | 백엔드 | 용도 |
 |---|---|---|
-| `/api/payments/` | 결제 서비스 `:8500` | **항공 서비스 기능**: 예약 결제·환불, 자기 DB, 중복 방지 키 |
+| `/api/payments/` | 결제 서비스 `:8500` | **항공 서비스 기능**: 예약 결제·환불, 자기 DB, 중복 방지 키, 아웃박스 |
 | `/api/airports/` | 공항 정보 서비스 `:8601`, `:8602` | **항공 서비스 기능**: 상세 화면의 출발·도착 공항 정보. 2대 Round-Robin, 한 대가 죽어도 그 칸만 안내 문구 |
+| `/api/mq/` | 메시지 큐 `:8700` | **항공 서비스 기능**: 결제 이벤트를 받아 알림 서비스로 넘긴다. consume lease(10초)·ack·재시도 |
+| `/api/notifications/` | 알림 서비스 `:8800` | **항공 서비스 기능**: "예약 확정" 알림을 저장하고 '내 예약'에 표시. MQ가 죽어도 결제는 성공 |
 | `/api/cache/`, `/api/stocks/`, `/api/orders/` | 이전 주차 mini-redis·mini-dbms | **실험용**: 별도 프로세스의 자원 제한·독립 재시작 시연 (`make integration-backends`, 옆 레포 필요) |
 
 데모 실행(백엔드 포함):
@@ -70,9 +72,14 @@ TCP는 바이트 스트림만 주지만, 클라이언트는 요청과 응답을 
 ```sh
 python3 tests/backends/serve_airports.py --port 8601 --name A &
 python3 tests/backends/serve_airports.py --port 8602 --name B &
-python3 tests/backends/serve_payments.py &
+python3 tests/backends/serve_payments.py &          # :8500, 아웃박스 -> MQ
+python3 tests/backends/serve_mq.py &                # :8700
+python3 tests/backends/serve_notifications.py &     # :8800, 1초마다 MQ 소비
 ./webserver -c conf/backends.conf   # http://127.0.0.1:8085/flights.html
 ```
+
+알림 흐름은 비동기다. 결제가 성공해도 알림은 최대 몇 초 뒤에 '내 예약'에 나타나고,
+MQ나 알림 서비스가 죽어도 결제는 성공한다. `make integration-notifications`로 검증한다.
 
 실제 실행:
 
