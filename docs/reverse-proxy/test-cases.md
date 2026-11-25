@@ -26,7 +26,7 @@
 | P16 | `Content-Length: 2`를 보내고 1초 동안 연결을 잡는 백엔드 | 150ms 안에 200 완료 |
 | P17 | `Content-Length: 10` 헤더 뒤 3바이트만 보내고 끊는 백엔드 | 클라이언트는 헤더와 `abc`만 받음(502를 덧붙이지 않음), 반환 -1 |
 
-연결 단계의 `poll()` 시간 초과(패킷을 버리는 백엔드)는 루프백에서 재현할 수 없어 단위 테스트에서 뺐습니다. 받기만 하고 응답하지 않는 백엔드의 504는 P15와 아래 F05가 확인합니다.
+연결 단계의 `poll()` 시간 초과(패킷을 버리는 백엔드)는 루프백에서 재현할 수 없어 단위 테스트에서 뺐습니다. 받기만 하고 응답하지 않는 백엔드의 504는 P15가 확인합니다.
 
 `test_http_response`의 R09는 `502`/`504` 상태 메시지를, `test_static_file`의 S18은 `static_has_bad_segments()`를 확인합니다.
 
@@ -51,7 +51,6 @@ mkdir -p /tmp/front && echo front > /tmp/front/index.html
 | F07 | `seq 50 \| xargs -P50 -I{} curl -s http://127.0.0.1:8000/api/who.txt \| sort \| uniq -c` | `be1` 25개, `be2` 25개 |
 | F08 | `wrk -t2 -c20 -d2s http://127.0.0.1:8000/api/who.txt` | `Socket errors`, `Non-2xx` 없음. 끝날 때 `wrk`가 끊은 연결의 `phase=stream ... Broken pipe` 기록은 정상 |
 | F09 | 프록시에 `kill -TERM` | 종료 코드 0 |
-| F05 | `./build/httpd 8010 /tmp & sleep 1; kill -STOP $!`로 멈춘 리스너를 만든 뒤(`sleep`은 포트가 열릴 때까지, 멈춰도 커널이 연결은 받아 줌) `./build/httpd 8000 /tmp/front --route /mute=127.0.0.1:8010 &`, `curl -s -w '%{http_code}' http://127.0.0.1:8000/mute` | 약 5초 뒤 `504`, `stderr`에 `phase=read_head` |
 | F10 | `-fsanitize=address,undefined`로 빌드해 `ctest` | 6개 통과, sanitizer 보고 없음 |
 
 F10: 커널의 `vm.mmap_rnd_bits`가 큰 Docker Desktop에서는 ASan 바이너리가 시작하자마자 `AddressSanitizer:DEADLYSIGNAL`을 반복하며 멈춥니다. 이 프로젝트 코드와 무관하며 기존 `test_cgi`도 같습니다. `docker run --security-opt seccomp=unconfined ...` 안에서 `setarch "$(uname -m)" -R ctest`로 ASLR을 끄고 실행합니다.
