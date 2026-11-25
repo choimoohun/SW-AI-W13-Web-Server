@@ -26,20 +26,24 @@
 
 워커가 계속 물어보는 대신, **커널이 먼저 알려주는 방식**으로 바꿨습니다.
 
-```
-[서버 시작]  메인: listen fd 생성 → 워커: 감시 목록에 listen fd 등록 → epoll_wait에서 잠듦
-
-클라이언트             커널 (서버 쪽)                         워커
-   │ ── SYN ──────────▶ │
-   │ ◀── SYN+ACK ────── │                                   (잠자는 중)
-   │ ── ACK ──────────▶ │  연결 완성 → accept 대기열
-                        │  listen fd 준비 → 콜백 → 깨움 ───▶ accept() → conn fd 받음
-                        │                                   conn fd를 감시 목록에 추가
-                        │                                   다시 epoll_wait에서 잠듦
-   │ ── "GET /..." ───▶ │  데이터 도착 → 소켓 수신 버퍼에 저장
-                        │  conn fd 준비 → 콜백 → 깨움 ───▶ recv() → 버퍼에 붙임
-                        │                                   요청 완성? → 처리 → send()
-   │ ◀── 응답 ───────── │
+```mermaid
+sequenceDiagram
+    participant C as 클라이언트
+    participant K as 커널
+    participant W as 워커
+    Note over W: 서버 시작: listen fd를 감시 목록에 등록하고 잠듦
+    C->>K: SYN
+    K-->>C: SYN+ACK
+    C->>K: ACK
+    Note over K: 연결 완성 → accept 대기열
+    K->>W: listen fd 준비 → 콜백으로 깨움
+    W->>K: accept() → conn fd를 감시 목록에 추가하고 다시 잠듦
+    C->>K: "GET /..." 요청 바이트
+    Note over K: 소켓 수신 버퍼에 저장
+    K->>W: conn fd 준비 → 콜백으로 깨움
+    Note over W: recv() → 연결 버퍼에 이어 붙임<br/>요청 완성이면 처리, 아니면 다른 연결로
+    W->>K: send() 응답
+    K-->>C: 응답
 ```
 
 - 워커는 할 일이 없으면 잠들어 있다가, 새 연결이 오거나 데이터가 오면 커널이 깨웁니다.
