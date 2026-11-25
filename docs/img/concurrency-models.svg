@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 580" width="1200" height="580" font-family="Noto Sans CJK KR, Apple SD Gothic Neo, sans-serif" xmlns:c2pa="http://c2pa.org/manifest">
   <rect width="1200" height="580" fill="#ffffff"/>
   <text x="30" y="44" font-size="32" font-weight="700" fill="#1f2937">여러 연결을 처리하는 세 가지 방식</text>
-  <text x="30" y="72" font-size="18" fill="#6b7280">회색 = 기다림, 파랑 = 처리, 빨강 ▼ = 손님의 HTTP 요청(바이트)이 도착</text>
+  <text x="30" y="72" font-size="18" fill="#6b7280">회색 = 기다림, 파랑 = 처리, 빨강 ▼ = 손님의 바이트가 들어옴</text>
 
   <!-- legend-free column headers -->
   <text x="290" y="100" font-size="17" fill="#6b7280">스레드 / 워커가 하는 일 (시간 →)</text>
@@ -58,14 +58,14 @@
   <text x="410" y="300" font-size="16" fill="#6b7280">"왔어?" → "아직" (헛질문)</text>
   <!-- arrival marker -->
   <path d="M 598 302 l 16 0 l -8 12 z" fill="#dc2626"/>
-  <text x="620" y="300" font-size="15" fill="#dc2626">손님 A 요청 도착</text>
+  <text x="620" y="300" font-size="15" fill="#dc2626">손님 A 바이트 들어옴</text>
   <!-- GAP bracket -->
   <path d="M 606 356 L 606 366 L 704 366 L 704 356" fill="none" stroke="#dc2626" stroke-width="2"/>
   <text x="655" y="384" font-size="16" font-weight="700" fill="#dc2626" text-anchor="middle">GAP</text>
 
   <text x="935" y="318" font-size="19" font-weight="700" fill="#b91c1c">헛질문으로 CPU 낭비</text>
   <text x="935" y="344" font-size="17" fill="#374151">쉬엄쉬엄 물으면</text>
-  <text x="935" y="364" font-size="17" fill="#374151">도착과 확인 사이 지연(GAP)</text>
+  <text x="935" y="364" font-size="17" fill="#374151">들어온 뒤 확인까지 지연(GAP)</text>
 
   <!-- ===== Row 3: multiplexing ===== -->
   <rect x="20" y="414" width="1160" height="130" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
@@ -81,12 +81,12 @@
     <rect x="836" y="464" width="40" height="28" rx="5" fill="#e0e7ff"/><text x="856" y="483" fill="#3730a3">잠</text>
   </g>
   <path d="M 598 448 l 16 0 l -8 12 z" fill="#dc2626"/>
-  <text x="606" y="440" font-size="15" fill="#dc2626" text-anchor="middle">손님 A 요청 도착 → 커널이 깨움</text>
+  <text x="606" y="440" font-size="15" fill="#dc2626" text-anchor="middle">손님 A 바이트 들어옴 → 커널이 깨움</text>
   <path d="M 766 448 l 16 0 l -8 12 z" fill="#dc2626"/>
-  <text x="800" y="440" font-size="15" fill="#dc2626" text-anchor="middle">손님 C 요청 도착</text>
+  <text x="800" y="440" font-size="15" fill="#dc2626" text-anchor="middle">손님 C 바이트 들어옴</text>
 
   <text x="935" y="464" font-size="19" font-weight="700" fill="#047857">헛질문 없음 · 바로 처리</text>
-  <text x="935" y="490" font-size="17" fill="#374151">도착한 연결만 골라서 처리</text>
+  <text x="935" y="490" font-size="17" fill="#374151">바이트가 들어온 연결만 처리</text>
   <text x="935" y="510" font-size="17" fill="#374151">워커 4개로 많은 연결</text>
 
   <!-- time axis -->
