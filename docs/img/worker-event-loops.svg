@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 1330" width="1360" height="1330" font-family="'Noto Sans KR','Noto Sans CJK KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" xmlns:c2pa="http://c2pa.org/manifest">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10" fill="none" stroke="#7a7a72" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10" fill="none" stroke="#a8573a" stroke-width="1.6"/>
+    </marker>
+    <g id="worker">
+      <rect x="0" y="0" width="270" height="580" rx="22" fill="#eeedfc" stroke="#7b72d6" stroke-width="1.2"/>
+      <rect x="20" y="76" width="220" height="60" rx="6" fill="#fbfbf8" stroke="#d2d2cc"/>
+      <text x="130" y="113" text-anchor="middle" font-size="18" fill="#444">iomux_wait (epoll) 잠듦</text>
+      <rect x="20" y="176" width="220" height="60" rx="6" fill="#fbfbf8" stroke="#d2d2cc"/>
+      <text x="130" y="213" text-anchor="middle" font-size="22" fill="#444">accept/recv/send</text>
+      <rect x="20" y="276" width="220" height="60" rx="6" fill="#fbfbf8" stroke="#d2d2cc"/>
+      <text x="130" y="313" text-anchor="middle" font-size="22" fill="#444">cleanup_idle</text>
+      <line x1="130" y1="136" x2="130" y2="172" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="130" y1="236" x2="130" y2="272" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+      <polyline points="240,306 256,306 256,106 244,106" fill="none" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+      <rect x="20" y="360" width="220" height="104" rx="6" fill="none" stroke="#b0b0aa" stroke-dasharray="6 5"/>
+      <text x="130" y="386" text-anchor="middle" font-size="19" fill="#444">epoll에 등록된 연결</text>
+      <text x="130" y="410" text-anchor="middle" font-size="14" fill="#666">커널 보관 · 빨강 → events 배열</text>
+      <rect x="20" y="484" width="220" height="74" rx="6" fill="#fbfbf8" stroke="#d2d2cc"/>
+      <text x="130" y="512" text-anchor="middle" font-size="16" fill="#444">내 conns[128] (연결별 버퍼)</text>
+    </g>
+  </defs>
+  <rect id="bg" x="0" y="0" width="1360" height="1330" fill="#ffffff"/>
+
+  <!-- 커널 -->
+  <rect x="80" y="60" width="1200" height="220" rx="24" fill="#f2efe8" stroke="#9a9a92" stroke-width="1.2"/>
+  <text x="120" y="112" font-size="26" fill="#333">커널</text>
+  <rect x="400" y="92" width="560" height="68" rx="8" fill="#fbfbf8" stroke="#9a9a92"/>
+  <text x="680" y="136" text-anchor="middle" font-size="26" fill="#444">listen 소켓 fd 3 · LISTEN</text>
+  <rect x="460" y="188" width="440" height="60" rx="8" fill="#f6f4ee" stroke="#9a9a92"/>
+  <text x="680" y="226" text-anchor="middle" font-size="22" fill="#555">accept 큐: [A] [B] [C]</text>
+
+  <line x1="600" y1="252" x2="215" y2="355" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="650" y1="252" x2="525" y2="355" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="710" y1="252" x2="835" y2="355" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="760" y1="252" x2="1145" y2="355" stroke="#7a7a72" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- 워커 4개 -->
+  <g transform="translate(80,360)"><use href="#worker"/>
+    <text x="135" y="48" text-anchor="middle" font-size="26" fill="#3b3394">워커 0 스레드</text>
+    <rect x="44" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="44" y="528" width="8.4" height="13" rx="2" fill="#a3a3a3"/><rect x="80" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="80" y="528" width="16.8" height="13" rx="2" fill="#a3a3a3"/><rect x="116" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="152" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="152" y="528" width="28.0" height="13" rx="2" fill="#3b9a5a"/><rect x="188" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="188" y="528" width="5.6" height="13" rx="2" fill="#a3a3a3"/>
+    <circle cx="58" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="94" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/><circle cx="130" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="166" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/><circle cx="202" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/>
+  </g>
+  <g transform="translate(390,360)"><use href="#worker"/>
+    <text x="135" y="48" text-anchor="middle" font-size="26" fill="#3b3394">워커 1 스레드</text>
+    <rect x="44" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="44" y="528" width="14.0" height="13" rx="2" fill="#a3a3a3"/><rect x="80" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="80" y="528" width="5.6" height="13" rx="2" fill="#a3a3a3"/><rect x="116" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="152" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="152" y="528" width="11.2" height="13" rx="2" fill="#a3a3a3"/><rect x="188" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/>
+    <circle cx="58" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/><circle cx="94" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="130" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="166" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="202" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/>
+  </g>
+  <g transform="translate(700,360)"><use href="#worker"/>
+    <text x="135" y="48" text-anchor="middle" font-size="26" fill="#3b3394">워커 2 스레드</text>
+    <rect x="44" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="44" y="528" width="5.6" height="13" rx="2" fill="#a3a3a3"/><rect x="80" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="116" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="116" y="528" width="28.0" height="13" rx="2" fill="#3b9a5a"/><rect x="152" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="152" y="528" width="8.4" height="13" rx="2" fill="#a3a3a3"/><rect x="188" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="188" y="528" width="19.6" height="13" rx="2" fill="#a3a3a3"/>
+    <circle cx="58" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="94" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="130" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/><circle cx="166" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="202" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/>
+  </g>
+  <g transform="translate(1010,360)"><use href="#worker"/>
+    <text x="135" y="48" text-anchor="middle" font-size="26" fill="#3b3394">워커 3 스레드</text>
+    <rect x="44" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="80" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="80" y="528" width="11.2" height="13" rx="2" fill="#a3a3a3"/><rect x="116" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="116" y="528" width="5.6" height="13" rx="2" fill="#a3a3a3"/><rect x="152" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="188" y="528" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="188" y="528" width="14.0" height="13" rx="2" fill="#a3a3a3"/>
+    <circle cx="58" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="94" cy="440" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/><circle cx="130" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="166" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/><circle cx="202" cy="440" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/>
+  </g>
+
+  <!-- 워커 4개 모두 → 공유 자원 (실선 버스) -->
+  <g stroke="#a8573a" stroke-width="2.6" fill="none">
+    <line x1="215" y1="940" x2="215" y2="972"/>
+    <line x1="525" y1="940" x2="525" y2="972"/>
+    <line x1="835" y1="940" x2="835" y2="972"/>
+    <line x1="1145" y1="940" x2="1145" y2="972"/>
+    <line x1="215" y1="972" x2="1145" y2="972"/>
+    <line x1="370" y1="972" x2="370" y2="1016" marker-end="url(#arrS)"/>
+    <line x1="990" y1="972" x2="990" y2="1016" marker-end="url(#arrS)"/>
+  </g>
+
+  <text x="384" y="1002" font-size="18" fill="#a8401f">초록 → 직접 처리 (항공편 API)</text>
+  <text x="1004" y="1002" font-size="18" fill="#a8401f">초록 → 프록시 큐에 넣기 (결제 API)</text>
+  <rect x="80" y="1020" width="580" height="92" rx="14" fill="#fbebe6" stroke="#b5603f" stroke-width="1.2"/>
+  <text x="370" y="1060" text-anchor="middle" font-size="26" fill="#8a2a12">좌석 데이터 flight_store</text>
+  <text x="370" y="1094" text-anchor="middle" font-size="21" fill="#a8401f">항공편별 mutex</text>
+  <rect x="700" y="1020" width="580" height="92" rx="14" fill="#fbebe6" stroke="#b5603f" stroke-width="1.2"/>
+  <text x="990" y="1060" text-anchor="middle" font-size="26" fill="#8a2a12">프록시 큐 → 프록시 스레드</text>
+  <text x="990" y="1094" text-anchor="middle" font-size="21" fill="#a8401f">mutex + cond, RR은 atomic</text>
+
+  <!-- 범례 -->
+  <rect x="80" y="1152" width="32" height="22" rx="3" fill="#eeedfc" stroke="#7b72d6"/>
+  <text x="124" y="1171" font-size="21" fill="#444">각자 소유 (락 없음)</text>
+  <rect x="400" y="1152" width="32" height="22" rx="3" fill="#fbebe6" stroke="#b5603f"/>
+  <text x="444" y="1171" font-size="21" fill="#444">워커들이 공유 (락 필요)</text>
+  <line x1="760" y1="1163" x2="820" y2="1163" stroke="#999" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="832" y="1171" font-size="21" fill="#444">점선 = 커널이 보관</text>
+
+  <circle cx="96" cy="1226" r="12" fill="#fff" stroke="#666" stroke-width="1.4"/>
+  <text x="120" y="1234" font-size="21" fill="#444">등록된 연결 (바이트 없음)</text>
+  <circle cx="400" cy="1226" r="12" fill="#e04848" stroke="#a33" stroke-width="1.4"/>
+  <text x="424" y="1234" font-size="21" fill="#444">바이트가 들어온 연결 → epoll 준비 목록에 담김 → events 배열로 워커에게 전달</text>
+  <rect x="82" y="1272" width="28" height="13" rx="2" fill="#fff" stroke="#a3a3a3" stroke-width="1.2"/><rect x="82" y="1272" width="12" height="13" rx="2" fill="#a3a3a3"/>
+  <text x="120" y="1285" font-size="21" fill="#444">받은 만큼 버퍼에 쌓아 두고 다음 연결로</text>
+  <rect x="540" y="1272" width="28" height="13" rx="2" fill="#3b9a5a"/>
+  <text x="578" y="1285" font-size="21" fill="#444">요청 완성 → 처리</text>
+<metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTo5NTM4MjEyNC1iM2YyLTQ4MDQtOTY1Ny1iY2FjMTc2NDJlNmIAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaIyG6T5CETu3hixCrvfCNwYAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDo4MmMwODhhMC02MzdlLTQwN2UtYWNkMi1lYzY3ZGUzNjAzM2RscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoXvNnJERx38fhHIsIa6aTzwAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggDOZYHRNnZ3rsdHHB2VDBznaOyS1YE2u3kMXOhybc26GkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaGZW223Zn4Lk1kVbzuoIHQIAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYIMmSkIYBhSl0HrAgXZyaM1uXTnE6T6jVUUR9he+G42YOZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GS0CZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjk1MzgyMTI0LWIzZjItNDgwNC05NjU3LWJjYWMxNzY0MmU2Yi9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOjgxZDYxOGUwLTMxMzUtNGNkZC1iM2E1LWFhOGU1NmRjN2IyZnJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCAM5lgdE2dneux0ccHZUMHOdo7JLVgTa7eQxc6HJtzboaJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgglWRTT4dhE1mKMkmru3wGoofFI2ToZuXG0vSn9USbtJyiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgge/r7WO5LEHld1r3tJiZJD2rev6c3QERuaX+HKqSfagJ0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQNlWc+b4XqKQB6nol3iq3yJ1MvQCRVlpHnc5jZ15aKprAtwa6Ym/Gb9zwL+eCOC5eh4abWp3VGtG7KzG0DQ9EBw=</c2pa:manifest></metadata></svg>

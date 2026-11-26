@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUNGLE AIR | 결제</title>
+<style>
+  :root { --bg:#0b1220; --panel:#141d2e; --line:#263449; --accent:#3b82f6; --muted:#8fa3bf; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#e8eef8; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; gap:28px; padding:18px 32px; border-bottom:1px solid var(--line); background:#0d1626; }
+  .brand { font-size:20px; font-weight:800; letter-spacing:2px; color:#fff; }
+  .brand span { color:var(--accent); }
+  main { max-width:720px; margin:0 auto; padding:28px 24px 60px; }
+  h2 { font-size:18px; margin:0 0 16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:20px; }
+  .row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .row:last-child { border-bottom:0; }
+  .muted { color:var(--muted); }
+  .amount { font-size:28px; font-weight:800; color:#7ee787; margin:12px 0 20px; }
+  .fields { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); }
+  select { background:#0e1727; border:1px solid var(--line); color:#e8eef8; border-radius:8px; padding:10px 12px; font-size:14px; }
+  .primary { background:var(--accent); border:0; color:#fff; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:700; cursor:pointer; }
+  .ghost { background:none; border:1px solid var(--line); color:#e8eef8; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:13px; text-decoration:none; }
+  #result { margin-top:16px; font-size:14px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header><div class="brand">JUNGLE<span>AIR</span></div></header>
+<main>
+  <section class="panel">
+    <h2>결제</h2>
+    <div id="summary" class="muted">예약 정보를 불러오는 중…</div>
+    <div id="amount" class="amount">89,000원</div>
+    <div class="fields">
+      <label>결제 수단
+        <select id="method">
+          <option value="card">신용카드</option>
+          <option value="bank">무통장 입금</option>
+        </select>
+      </label>
+      <button id="payBtn" class="primary">결제하기</button>
+      <a class="ghost" href="/flights.html">뒤로</a>
+    </div>
+    <div id="result"></div>
+  </section>
+</main>
+<script src="/pay.js"></script>
+</body>
+</html>

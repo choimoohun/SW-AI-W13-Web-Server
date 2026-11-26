@@ -15,6 +15,9 @@ Testing/
 .ninja_log
 build.ninja
 
+# Runtime state (flight reservations)
+/data/
+
 # Compiler and linker outputs
 *.o
 *.obj
@@ -41,3 +44,16 @@ build.ninja
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Makefile build outputs
+/webserver
+src/*.d
+/tests/bin/
+
+# Local tooling artifacts
+/.hermes-rate-limits.sqlite3
+/.cache/
+/.static_test_*/
+
+# Study materials (not part of the project docs)
+/study/

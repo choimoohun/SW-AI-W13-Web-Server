@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUNGLE AIR | 운항 관제</title>
+<style>
+  :root { --bg:#0b1220; --panel:#141d2e; --line:#263449; --accent:#3b82f6; --warn:#f0883e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#e8eef8; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:18px 32px; border-bottom:1px solid var(--line); background:#0d1626; }
+  .brand { font-size:18px; font-weight:800; letter-spacing:1px; }
+  .brand span { color:var(--accent); }
+  .clock { font-family:ui-monospace,Menlo,monospace; font-size:13px; color:#9fc5ff; }
+  main { max-width:1200px; margin:0 auto; padding:26px 24px 60px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  h2 { font-size:16px; margin:0 0 14px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:#8fa3bf; font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); }
+  td { padding:11px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+  .code { font-weight:700; font-size:14px; }
+  .status { display:inline-block; padding:3px 8px; border-radius:4px; background:#1f3a5f; color:#9fc5ff; font-size:11px; }
+  .status.DEPARTED { background:#12361f; color:#7ee787; }
+  .status.ARRIVED { background:#30363d; color:#c9d1d9; }
+  .status.DELAYED { background:#4a2c10; color:#ffb86b; }
+  .warn { color:var(--warn); }
+  input { width:70px; background:#0e1727; border:1px solid var(--line); color:#e8eef8; border-radius:6px; padding:6px 8px; }
+  button { background:var(--accent); border:0; color:#fff; border-radius:6px; padding:7px 12px; font-size:12px; cursor:pointer; }
+  button.ghost { background:none; border:1px solid var(--line); color:#e8eef8; }
+  .grid { display:grid; grid-template-columns:1fr 360px; gap:18px; }
+  .event { border-left:2px solid var(--line); padding:0 0 10px 12px; font-size:13px; margin-top:10px; }
+  .event b { display:block; color:#9fc5ff; }
+  .event span { color:#8fa3bf; }
+  #toast { position:fixed; right:24px; bottom:24px; background:#1c2b42; border:1px solid var(--accent); padding:12px 18px; border-radius:8px; display:none; font-size:14px; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">JUNGLE<span>AIR</span> · 운항 관제</div>
+  <div class="clock" id="clock">서버 시각 로딩 중…</div>
+</header>
+<main>
+  <div class="grid">
+    <div class="panel">
+      <h2>운항 현황</h2>
+      <table>
+        <thead><tr>
+          <th>편명</th><th>노선</th><th>상태</th><th>예정 출발</th><th>실제 출발</th>
+          <th>예정 도착</th><th>실제 도착</th><th>지연</th><th>제어</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <aside class="panel">
+      <h2 id="detailTitle">운항 이력</h2>
+      <div id="events" class="muted">항공편을 선택하세요.</div>
+    </aside>
+  </div>
+</main>
+<div id="toast"></div>
+<script src="/ops.js"></script>
+</body>
+</html>
