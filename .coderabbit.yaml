@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+language: ko-KR
+
+reviews:
+  profile: chill
+  auto_approvals:
+    enabled: false
+  high_level_summary_in_walkthrough: true
+
+  auto_review:
+    enabled: true
+    # 기본 브랜치(main) 외의 브랜치를 대상으로 하는 PR도 자동 리뷰
+    base_branches:
+      - '.*'
+
+  path_instructions:
+    - path: '**/*.[ch]'
+      instructions: >-
+        C17과 POSIX API 사용을 기준으로 검토하세요. 메모리와 파일 디스크립터가
+        오류 경로에서도 해제되는지, 부분 송수신과 연결 종료를 처리하는지,
+        HTTP 요청의 길이 제한과 정적 파일 경로 제한을 지키는지 우선 확인하세요.
+    - path: '**/CMakeLists.txt'
+      instructions: >-
+        CMake 3.16 호환성과 C17 설정을 유지하는지 확인하세요.
+        추가된 테스트는 CTest에서 실행할 수 있는지 검토하세요.
